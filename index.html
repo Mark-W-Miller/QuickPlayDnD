@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tactical Battle Board</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="panel header">
+        <div class="title">Tactical Battle Board</div>
+        <div class="tag">In-memory · Text-driven</div>
+      </header>
+
+      <section class="panel console-panel">
+        <h3 class="section-title">Battle Language</h3>
+        <textarea id="script-input" class="console" spellcheck="false"></textarea>
+        <div class="actions">
+          <button id="run-btn">Run Script</button>
+          <button id="clear-btn">Clear Tokens</button>
+        </div>
+        <pre class="starter" id="starter"></pre>
+      </section>
+
+      <section class="panel map-panel">
+        <canvas id="map-canvas"></canvas>
+      </section>
+
+      <section class="panel log-panel">
+        <h3 class="section-title">Log</h3>
+        <div id="log"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
