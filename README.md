@@ -280,3 +280,22 @@ Just tell me:
 “Generate the backend skeleton”
 or
 “Initialize the React/Vite frontend”
+
+---
+
+## Local scaffold status
+
+Backend and frontend folders are now in place.
+
+### Backend
+- Location: `server`
+- Start: `npm install && npm start` (port 4000)
+- Endpoints: `/api/media/*`, `/api/state/*`, `/api/health`
+- Media is stored under `server/media/maps` and `server/media/tokens`.
+
+### Frontend
+- Location: `frontend`
+- Start: `npm install && npm run dev` (port 5173)
+- Env: set `VITE_API_URL=http://localhost:4000`
+
+Open the app at http://localhost:5173, upload a map (PNG/JPG) and token (SVG), then drive the board via the command console (e.g., `PLACE VC @ H7`).
