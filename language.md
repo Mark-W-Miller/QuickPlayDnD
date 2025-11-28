@@ -3,7 +3,7 @@
 Plain text commands, one per line. Lines starting with `#` are comments.
 
 ## Commands
-- `BACKGROUND <url>` — set a background image for the board.
+- `BACKGROUND <url>` — set a background image for the board. Accepts absolute URLs or local paths such as `images/wight-battle.png` placed beside `index.html`.
 - `GRID square SIZE <px>` or `GRID hex SIZE <px>` — set grid type and cell size in pixels.
 - `BOARD <cols>x<rows>` — set board dimensions.
 - `SPRITE DEF <CODE> name="Name" url="https://..." size=<n> tint=#RRGGBB category=<PC|NPC|Monster|Object>` — define or update a sprite type.
@@ -12,6 +12,7 @@ Plain text commands, one per line. Lines starting with `#` are comments.
 - `REMOVE <tokenId>` — remove the first token whose id starts with `tokenId`.
 - `CLEAR TOKENS` — remove all tokens.
 - `CLEAR ALL` — clear map, sprites, and tokens.
+- `HEIGHT A1=2,B3=0,...` — set height values (numbers) per grid cell; used in 3D mode to raise/lower tiles.
 
 ## Coordinates
 `<ColumnLetter><RowNumber>` (A1, H7). Columns A-Z, rows start at 1.

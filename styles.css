@@ -90,6 +90,37 @@ body {
   gap: 8px;
 }
 
+.bg-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.cam-buttons button {
+  padding: 6px 10px;
+}
+
+input[type="text"] {
+  flex: 1;
+  min-width: 180px;
+  background: #0f172a;
+  color: #e9eef7;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+input[type="file"] {
+  color: #e9eef7;
+}
+
 button {
   cursor: pointer;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -129,11 +160,30 @@ button:active {
   border-radius: 10px;
 }
 
+#map-webgl {
+  width: 100%;
+  height: calc(100vh - 180px);
+  display: none;
+  background: #0a101a;
+  border-radius: 10px;
+}
+
 .log-entry {
   font-family: "JetBrains Mono", monospace;
   font-size: 0.9rem;
   padding: 4px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.slider-field input[type="range"] {
+  flex: 1;
+}
+
+.slider-value {
+  width: 48px;
+  text-align: right;
+  color: #a8c0de;
+  font-size: 0.9rem;
 }
 
 @media (max-width: 900px) {
