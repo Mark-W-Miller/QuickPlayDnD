@@ -54,21 +54,32 @@ export const rebuildHeightMesh = (three, state, boardWidth, boardDepth, surfaceY
   if (!three.meshGroup) return;
   clearGroup(three.meshGroup);
   if (!state.heightMap.showMesh) return;
+  // number of segments for a smoother displacement surface
   const subdivisions = 64;
+  // base grid
   const geometry = new THREE.PlaneGeometry(boardWidth, boardDepth, subdivisions, subdivisions);
+  // lay flat on XZ
   geometry.rotateX(-Math.PI / 2);
+  // center it to positive space
   geometry.translate(boardWidth / 2, 0, boardDepth / 2);
   const position = geometry.attributes.position;
   for (let i = 0; i < position.count; i++) {
+    // normalize X to 0–1
     const x = position.getX(i) / boardWidth;
+    // normalize Z to 0–1
     const z = position.getZ(i) / boardDepth;
+    // sample procedural height
     const height = sampleHeightMap(state, x, z);
+    // displace vertex up
     position.setY(i, surfaceY + cellUnit * 0.1 + height * state.heightMap.heightScale * cellUnit * 0.25);
   }
+  // fix lighting after displacement
   geometry.computeVertexNormals();
   const shouldTexture = textureToggle ? textureToggle.checked : true;
   const material = new THREE.MeshStandardMaterial({
+    // plain tint if no texture
     color: shouldTexture && boardTexture ? 0xffffff : 0x9aa4b5,
+    // apply texture when enabled/available
     map: shouldTexture ? boardTexture || null : null,
     transparent: false,
     opacity: 1,
@@ -78,6 +89,7 @@ export const rebuildHeightMesh = (three, state, boardWidth, boardDepth, surfaceY
     emissiveIntensity: 0.15
   });
   const mesh = new THREE.Mesh(geometry, material);
+  // ensure it renders above the base board
   mesh.renderOrder = 2;
   three.meshGroup.add(mesh);
 };

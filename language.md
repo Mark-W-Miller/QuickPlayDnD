@@ -14,7 +14,6 @@ Plain text commands, one per line. Lines starting with `#` are comments.
 - `CLEAR ALL` — clear map, sprites, and tokens.
 - `RESET` — clear everything (map, sprites, tokens, backgrounds).
 - `HEIGHT A1=2,B3=0,...` — set height values (numbers) per grid cell; used in 3D mode to raise/lower tiles.
-- `TERRAIN <rows>` — set an ASCII heightmap. Rows are separated by `,`, `|`, or `/`; characters `0-9` map to heights 0–9, `A-Z` map to 10+.
 - `CREATE <TemplateId> id=<TokenId> initials=<XX> bg=#RRGGBB fg=#RRGGBB @ A1,B2,...` — spawn tokens from built-in templates. `id` is required and expands with an increment per placement; `initials` is optional (defaults to first letters of the id); `bg`/`fg` override template colors.
 
 ## Coordinates

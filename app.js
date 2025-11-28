@@ -81,7 +81,6 @@ const three = {
   controls: null,
   boardMesh: null,
   gridHelper: null,
-  pillarGroup: null,
   meshGroup: null,
   tokenGroup: null,
   ambient: null,
@@ -198,14 +197,6 @@ const parseScript = (script) => {
     if ((match = /^MOVE\s+(\w+)\s+TO\s+([A-Z]\d+)$/i.exec(line))) {
       const coord = coordToIndex(match[2]);
       if (coord) instructions.push({ type: "move", tokenId: match[1], coord });
-      continue;
-    }
-    if ((match = /^TERRAIN\s+(.+)$/i.exec(line))) {
-      const rows = match[1]
-        .split(/[,|\/]/)
-        .map((r) => r.trim())
-        .filter(Boolean);
-      if (rows.length) instructions.push({ type: "terrain", rows });
       continue;
     }
     if ((match = /^REMOVE\s+(\w+)$/i.exec(line))) {
@@ -334,7 +325,6 @@ const applyInstructions = (instructions) => {
           three.boardTexture.dispose();
           three.boardTexture = null;
         }
-        clearGroup(three.pillarGroup);
         clearGroup(three.meshGroup);
         clearGroup(three.tokenGroup);
         break;
@@ -366,23 +356,6 @@ const applyInstructions = (instructions) => {
             svgUrl
           });
         });
-        break;
-      }
-      case "terrain": {
-        const rows = instr.rows;
-        if (!rows.length) break;
-        const map = ensureMap();
-        const heightRows = rows.map((r) => r.split("").map((ch) => charHeight(ch)));
-        const maxCols = Math.max(...heightRows.map((r) => r.length));
-        map.cols = maxCols;
-        map.rows = heightRows.length;
-        map.heights = {};
-        heightRows.forEach((rowVals, rIdx) => {
-          rowVals.forEach((val, cIdx) => {
-            map.heights[`${cIdx},${rIdx}`] = val;
-          });
-        });
-        working.map = map;
         break;
       }
       default:
@@ -427,17 +400,15 @@ const setBackground = (url, opts = {}) => {
   const img = new Image();
   img.crossOrigin = "anonymous";
   img.onload = () => {
-    textureCanvas.width = state.map.cols * state.map.gridSizePx;
-    textureCanvas.height = state.map.rows * state.map.gridSizePx;
+    // Match the canvas exactly to the image; lets the board size follow the texture.
+    textureCanvas.width = img.width;
+    textureCanvas.height = img.height;
     textureCtx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
-    textureCtx.fillStyle = "#0a101a";
-    textureCtx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
-    const scale = Math.min(textureCanvas.width / img.width, textureCanvas.height / img.height);
-    const drawW = img.width * scale;
-    const drawH = img.height * scale;
-    const dx = (textureCanvas.width - drawW) / 2;
-    const dy = (textureCanvas.height - drawH) / 2;
-    textureCtx.drawImage(img, dx, dy, drawW, drawH);
+    textureCtx.drawImage(img, 0, 0, img.width, img.height);
+    // If cols/rows are known, update grid size so cell spacing matches the new texture width.
+    if (state.map.cols > 0) {
+      state.map.gridSizePx = textureCanvas.width / state.map.cols;
+    }
     updateBoardScene();
     render();
   };
@@ -453,23 +424,6 @@ const setBackground = (url, opts = {}) => {
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const smoothstep = (t) => t * t * (3 - 2 * t);
-const colLabel = (idx) => {
-  let n = idx;
-  let label = "";
-  do {
-    label = String.fromCharCode(65 + (n % 26)) + label;
-    n = Math.floor(n / 26) - 1;
-  } while (n >= 0);
-  return label;
-};
-const charHeight = (ch) => {
-  if (!ch) return 0;
-  if (ch === "." || ch === "_" || ch === " ") return 0;
-  if (/\d/.test(ch)) return clamp(Number(ch), 0, 20);
-  const code = ch.toUpperCase().charCodeAt(0);
-  if (code >= 65 && code <= 90) return clamp(10 + (code - 65), 0, 35);
-  return 0;
-};
 const ensureRandomHeights = (map) => {
   if (!map) return;
   const hasHeights = map.heights && Object.keys(map.heights).length > 0;
@@ -612,11 +566,9 @@ const initThree = () => {
   });
   three.arenaGrid = { xy, yz, xz };
 
-  three.pillarGroup = new THREE.Group();
   three.meshGroup = new THREE.Group();
   three.meshGroup.renderOrder = 2;
   three.tokenGroup = new THREE.Group();
-  three.scene.add(three.pillarGroup);
   three.scene.add(three.meshGroup);
   three.scene.add(three.tokenGroup);
 
@@ -636,10 +588,6 @@ const resizeRenderer = () => {
   webglCanvas.style.width = `${w}px`;
   webglCanvas.style.height = `${h}px`;
   render3d();
-};
-
-const rebuildPillars = (boardWidth, boardDepth, surfaceY) => {
-  if (three.pillarGroup) clearGroup(three.pillarGroup);
 };
 
 const buildTokenMesh = (token, cellHeight, boardWidth, boardDepth, cellUnit) => {
@@ -684,8 +632,10 @@ const updateBoardScene = () => {
   if (!three.renderer) initThree();
   if (!state.map || !three.renderer) return;
   const map = state.map;
-  const boardWidth = Math.max(1, map.cols * map.gridSizePx);
-  const boardDepth = Math.max(1, map.rows * map.gridSizePx);
+  const texW = textureCanvas.width || 0;
+  const texH = textureCanvas.height || 0;
+  const boardWidth = Math.max(1, texW || map.cols * map.gridSizePx);
+  const boardDepth = Math.max(1, texH || map.rows * map.gridSizePx);
   const maxCellHeight = Math.max(0, ...Object.values(map.heights || {}));
   const surfaceY = maxCellHeight > 0 ? Math.min(map.gridSizePx * 0.5, maxCellHeight * map.gridSizePx * 0.05) : 0;
 
@@ -739,10 +689,8 @@ const updateBoardScene = () => {
   }
 
   updateHeightMapFromHeights(state, map);
-  rebuildPillars(boardWidth, boardDepth, surfaceY);
   const cellUnit = boardWidth / state.map.cols;
   rebuildHeightMesh(three, state, boardWidth, boardDepth, surfaceY, cellUnit, textureToggle, three.boardTexture);
-  if (three.pillarGroup) three.pillarGroup.visible = !!state.heightMap.showVolumes;
   if (three.meshGroup) three.meshGroup.visible = !!state.heightMap.showMesh;
   three.boardMesh.visible = true;
   if (three.boardWire) three.boardWire.visible = true;
