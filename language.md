@@ -12,7 +12,9 @@ Plain text commands, one per line. Lines starting with `#` are comments.
 - `REMOVE <tokenId>` — remove the first token whose id starts with `tokenId`.
 - `CLEAR TOKENS` — remove all tokens.
 - `CLEAR ALL` — clear map, sprites, and tokens.
+- `RESET` — clear everything (map, sprites, tokens, backgrounds).
 - `HEIGHT A1=2,B3=0,...` — set height values (numbers) per grid cell; used in 3D mode to raise/lower tiles.
+- `TERRAIN <rows>` — set an ASCII heightmap. Rows are separated by `,`, `|`, or `/`; characters `0-9` map to heights 0–9, `A-Z` map to 10+.
 
 ## Coordinates
 `<ColumnLetter><RowNumber>` (A1, H7). Columns A-Z, rows start at 1.

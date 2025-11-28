@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <defs>
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <rect width="60" height="60" fill="#0e1628"/>
+      <path d="M60 0H0V60" fill="none" stroke="#2c3a55" stroke-width="2"/>
+      <path d="M60 0H0" fill="none" stroke="#1b263b" stroke-width="4"/>
+      <path d="M0 0V60" fill="none" stroke="#1b263b" stroke-width="4"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="#0b1220"/>
+  <rect x="60" y="60" width="1080" height="780" fill="url(#grid)" stroke="#3b4f73" stroke-width="4" rx="20" ry="20"/>
+  <text x="80" y="110" fill="#98c1ff" font-family="monospace" font-size="28">Test Grid</text>
+  <text x="80" y="150" fill="#9aa7c8" font-family="monospace" font-size="18">60px squares · origin top-left</text>
+</svg>

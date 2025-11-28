@@ -21,7 +21,7 @@ body {
   margin: 0;
   padding: 16px;
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-columns: var(--sidebar-width) 8px 1fr;
   grid-template-rows: auto auto 1fr;
   gap: 12px;
 }
@@ -58,12 +58,16 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  grid-column: 1 / 2;
 }
 
 .map-panel {
+  grid-column: 3 / 4;
   grid-row: span 2;
   padding: 0;
   display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .log-panel {
@@ -161,15 +165,30 @@ button:active {
 #map-canvas,
 #map-webgl {
   width: 100%;
-  height: calc(100vh - 180px);
-  flex: 1;
+  height: auto;
+  max-width: 100%;
   display: block;
   background: #0a101a;
   border-radius: 10px;
+  flex: 0 0 auto;
 }
 
 #map-webgl {
   display: none;
+}
+
+.divider {
+  grid-column: 2 / 3;
+  grid-row: 2 / span 2;
+  width: 8px;
+  cursor: col-resize;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  transition: background 0.15s ease;
+}
+
+.divider:hover {
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .log-entry {
@@ -198,9 +217,14 @@ button:active {
 
   .map-panel {
     grid-row: auto;
+    grid-column: 1 / -1;
   }
 
   #map-canvas {
     height: 320px;
+  }
+
+  .divider {
+    display: none;
   }
 }

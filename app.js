@@ -9,9 +9,9 @@ const viewRadios = document.querySelectorAll('input[name="view-mode"]');
 const camButtons = document.querySelectorAll("[data-cam]");
 const heatHeightSlider = document.getElementById("heat-height");
 const heatHeightValue = document.getElementById("heat-height-value");
-const panelWidthSlider = document.getElementById("panel-width");
-const panelWidthValue = document.getElementById("panel-width-value");
 const mapPanel = document.querySelector(".map-panel");
+const appEl = document.querySelector(".app");
+const resizer = document.getElementById("sidebar-resizer");
 
 const textureCanvas = document.createElement("canvas");
 const textureCtx = textureCanvas.getContext("2d", { willReadFrequently: true });
@@ -19,21 +19,6 @@ const textureCtx = textureCanvas.getContext("2d", { willReadFrequently: true });
 const webglCanvas = document.createElement("canvas");
 webglCanvas.id = "map-webgl";
 mapPanel.appendChild(webglCanvas);
-
-const starterScript = `# Example script using local image
-BACKGROUND images/wight-battle.png
-GRID square SIZE 48
-BOARD 20x12
-
-SPRITE DEF VC name="Vin Chi" url="https://upload.wikimedia.org/wikipedia/commons/3/3f/Chess_qdt45.svg" size=1 tint=#8b5cf6
-SPRITE DEF DR name="Drake" url="https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_qlt45.svg" size=2 tint=#ef4444
-
-PLACE VC @ B4
-PLACE DR @ H7
-HEIGHT B4=1,C4=1,D4=0.5,F6=1,H7=2,I7=2
-`;
-
-inputEl.value = starterScript;
 const state = {
   map: {
     id: "default",
@@ -163,12 +148,24 @@ const parseScript = (script) => {
       if (coord) instructions.push({ type: "move", tokenId: match[1], coord });
       continue;
     }
+    if ((match = /^TERRAIN\s+(.+)$/i.exec(line))) {
+      const rows = match[1]
+        .split(/[,|\/]/)
+        .map((r) => r.trim())
+        .filter(Boolean);
+      if (rows.length) instructions.push({ type: "terrain", rows });
+      continue;
+    }
     if ((match = /^REMOVE\s+(\w+)$/i.exec(line))) {
       instructions.push({ type: "remove", tokenId: match[1] });
       continue;
     }
     if ((match = /^CLEAR\s+(TOKENS|ALL)$/i.exec(line))) {
       instructions.push({ type: "clear", scope: match[1].toLowerCase() });
+      continue;
+    }
+    if (/^RESET$/i.test(line)) {
+      instructions.push({ type: "reset" });
       continue;
     }
   }
@@ -279,8 +276,36 @@ const applyInstructions = (instructions) => {
         }
         break;
       }
+      case "reset": {
+        working = { map: null, tokenDefs: [], tokens: [], viewMode: "2d" };
+        if (three.boardTexture) {
+          three.boardTexture.dispose();
+          three.boardTexture = null;
+        }
+        clearGroup(three.pillarGroup);
+        clearGroup(three.meshGroup);
+        clearGroup(three.tokenGroup);
+        break;
+      }
       case "height": {
         instr.entries.forEach(({ col, row, h }) => setHeight(col, row, h));
+        break;
+      }
+      case "terrain": {
+        const rows = instr.rows;
+        if (!rows.length) break;
+        const map = ensureMap();
+        const heightRows = rows.map((r) => r.split("").map((ch) => charHeight(ch)));
+        const maxCols = Math.max(...heightRows.map((r) => r.length));
+        map.cols = maxCols;
+        map.rows = heightRows.length;
+        map.heights = {};
+        heightRows.forEach((rowVals, rIdx) => {
+          rowVals.forEach((val, cIdx) => {
+            map.heights[`${cIdx},${rIdx}`] = val;
+          });
+        });
+        working.map = map;
         break;
       }
       default:
@@ -294,6 +319,16 @@ const applyInstructions = (instructions) => {
   state.tokens = working.tokens;
   if (state.map?.backgroundUrl) {
     setBackground(state.map.backgroundUrl, { silent: true });
+    log(`Applied ${instructions.length} instruction(s)`);
+    return;
+  }
+  if (!state.map) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (three.renderer) {
+      three.renderer.clear();
+      three.boardMesh.visible = false;
+      three.gridHelper.visible = false;
+    }
     log(`Applied ${instructions.length} instruction(s)`);
     return;
   }
@@ -324,7 +359,14 @@ const setBackground = (url, opts = {}) => {
     textureCanvas.width = state.map.cols * state.map.gridSizePx;
     textureCanvas.height = state.map.rows * state.map.gridSizePx;
     textureCtx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
-    textureCtx.drawImage(img, 0, 0, textureCanvas.width, textureCanvas.height);
+    textureCtx.fillStyle = "#0a101a";
+    textureCtx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
+    const scale = Math.min(textureCanvas.width / img.width, textureCanvas.height / img.height);
+    const drawW = img.width * scale;
+    const drawH = img.height * scale;
+    const dx = (textureCanvas.width - drawW) / 2;
+    const dy = (textureCanvas.height - drawH) / 2;
+    textureCtx.drawImage(img, dx, dy, drawW, drawH);
     updateBoardScene();
     render();
   };
@@ -356,6 +398,14 @@ const drawHex = (cx, cy, size, fill, stroke) => {
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const smoothstep = (t) => t * t * (3 - 2 * t);
+const charHeight = (ch) => {
+  if (!ch) return 0;
+  if (ch === "." || ch === "_" || ch === " ") return 0;
+  if (/\d/.test(ch)) return clamp(Number(ch), 0, 20);
+  const code = ch.toUpperCase().charCodeAt(0);
+  if (code >= 65 && code <= 90) return clamp(10 + (code - 65), 0, 35);
+  return 0;
+};
 const ensureRandomHeights = (map) => {
   if (!map) return;
   const hasHeights = map.heights && Object.keys(map.heights).length > 0;
@@ -445,12 +495,13 @@ const initThree = () => {
 };
 
 const resizeRenderer = () => {
-  if (!three.renderer || !three.camera) return;
-  const rect = mapPanel.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) return;
-  three.renderer.setSize(rect.width, rect.height, false);
-  three.camera.aspect = rect.width / rect.height;
+  if (!three.renderer || !three.camera || !state.map) return;
+  const size = computeViewportSize(state.map);
+  three.renderer.setSize(size.pxW, size.pxH, false);
+  three.camera.aspect = size.cssW / size.cssH;
   three.camera.updateProjectionMatrix();
+  webglCanvas.style.width = `${size.cssW}px`;
+  webglCanvas.style.height = `${size.cssH}px`;
   if (state.viewMode === "3d") render3d();
 };
 
@@ -624,13 +675,39 @@ const updateBoardScene = () => {
   resizeRenderer();
 };
 
+const computeViewportSize = (map) => {
+  const rect = mapPanel.getBoundingClientRect();
+  const availW = rect.width || 800;
+  const availH = rect.height || 600;
+  const baseW = map.cols * map.gridSizePx;
+  const baseH = map.rows * map.gridSizePx;
+  const aspect = baseW / baseH || 1;
+  let cssW = availW;
+  let cssH = cssW / aspect;
+  if (cssH > availH) {
+    cssH = availH;
+    cssW = cssH * aspect;
+  }
+  const dpr = window.devicePixelRatio || 1;
+  return {
+    cssW,
+    cssH,
+    pxW: Math.round(cssW * dpr),
+    pxH: Math.round(cssH * dpr),
+    scale: cssW / baseW
+  };
+};
+
 const render2d = () => {
   const map = state.map;
   if (!map) return;
   if (!state.heatmap.grid?.length) updateHeatmapFromHeights(map);
-  const cell = map.gridSizePx;
-  canvas.width = map.cols * cell + cell;
-  canvas.height = map.rows * cell + cell;
+  const size = computeViewportSize(map);
+  const scaledCell = map.gridSizePx * size.scale;
+  canvas.style.width = `${size.cssW}px`;
+  canvas.style.height = `${size.cssH}px`;
+  canvas.width = size.pxW;
+  canvas.height = size.pxH;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (map.backgroundUrl) {
@@ -638,22 +715,33 @@ const render2d = () => {
     ctx.drawImage(textureCanvas, 0, 0, canvas.width, canvas.height);
     ctx.globalAlpha = 1;
   } else {
-    ctx.fillStyle = "#0a101a";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Shade terrain based on heights when no background
+    const maxH = Math.max(0.001, ...Object.values(map.heights || { 0: 0 }));
+    for (let r = 0; r < map.rows; r++) {
+      for (let c = 0; c < map.cols; c++) {
+        const h = map.heights?.[`${c},${r}`] || 0;
+        const t = clamp(h / maxH, 0, 1);
+        const shade = Math.floor(40 + t * 80);
+        ctx.fillStyle = `rgba(${shade + 10},${shade + 20},${shade + 40},0.5)`;
+        const x = c * scaledCell;
+        const y = r * scaledCell;
+        ctx.fillRect(x, y, scaledCell, scaledCell);
+      }
+    }
   }
 
   for (let r = 0; r < map.rows; r++) {
     for (let c = 0; c < map.cols; c++) {
-      const x = c * cell + cell / 2 + (map.gridType === "hex" && r % 2 ? cell / 2 : 0);
-      const y = r * (map.gridType === "hex" ? cell * 0.75 : cell) + cell / 2;
+      const x = c * scaledCell + scaledCell / 2 + (map.gridType === "hex" && r % 2 ? scaledCell / 2 : 0);
+      const y = r * (map.gridType === "hex" ? scaledCell * 0.75 : scaledCell) + scaledCell / 2;
       if (map.gridType === "hex") {
-        drawHex(x, y, cell, "rgba(255,255,255,0.03)", "rgba(255,255,255,0.08)");
+        drawHex(x, y, scaledCell, "rgba(255,255,255,0.03)", "rgba(255,255,255,0.08)");
       } else {
         ctx.fillStyle = "rgba(255,255,255,0.02)";
         ctx.strokeStyle = "rgba(255,255,255,0.08)";
         ctx.lineWidth = 1;
-        ctx.strokeRect(x - cell / 2, y - cell / 2, cell, cell);
-        ctx.fillRect(x - cell / 2, y - cell / 2, cell, cell);
+        ctx.strokeRect(x - scaledCell / 2, y - scaledCell / 2, scaledCell, scaledCell);
+        ctx.fillRect(x - scaledCell / 2, y - scaledCell / 2, scaledCell, scaledCell);
       }
     }
   }
@@ -661,9 +749,9 @@ const render2d = () => {
   state.tokens.forEach((token) => {
     const def = state.tokenDefs.find((d) => d.id === token.defId);
     if (!def) return;
-    const x = token.col * cell + cell / 2 + (map.gridType === "hex" && token.row % 2 ? cell / 2 : 0);
-    const y = token.row * (map.gridType === "hex" ? cell * 0.75 : cell) + cell / 2;
-    const sizePx = cell * def.baseSize;
+    const x = token.col * scaledCell + scaledCell / 2 + (map.gridType === "hex" && token.row % 2 ? scaledCell / 2 : 0);
+    const y = token.row * (map.gridType === "hex" ? scaledCell * 0.75 : scaledCell) + scaledCell / 2;
+    const sizePx = scaledCell * def.baseSize;
     ctx.save();
     ctx.translate(x, y);
     ctx.beginPath();
@@ -701,17 +789,41 @@ const render = () => {
   if (state.viewMode === "2d") {
     render2d();
   } else {
+    resizeRenderer();
     render3d();
   }
 };
 
-document.getElementById("run-btn").addEventListener("click", () => {
+const runCurrentScript = () => {
   const instructions = parseScript(inputEl.value);
   if (!instructions.length) {
     log("No instructions parsed");
     return;
   }
   applyInstructions(instructions);
+};
+
+const loadExampleScript = async (path, fallback) => {
+  try {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    inputEl.value = text.trim();
+    log(`Loaded example: ${path}`);
+    runCurrentScript();
+  } catch (err) {
+    if (fallback) {
+      inputEl.value = fallback.trim();
+      log(`Loaded fallback example (failed to load ${path})`);
+      runCurrentScript();
+    } else {
+      log(`Failed to load example ${path}: ${err.message}`);
+    }
+  }
+};
+
+document.getElementById("run-btn").addEventListener("click", () => {
+  runCurrentScript();
 });
 
 document.getElementById("clear-btn").addEventListener("click", () => {
@@ -740,16 +852,6 @@ heatHeightSlider.addEventListener("input", (e) => {
   syncHeatControls();
   updateBoardScene();
   render();
-});
-
-const syncLayoutControls = () => {
-  panelWidthValue.textContent = `${panelWidthSlider.value}px`;
-};
-
-panelWidthSlider.addEventListener("input", (e) => {
-  const val = parseInt(e.target.value, 10) || 360;
-  document.documentElement.style.setProperty("--sidebar-width", `${val}px`);
-  syncLayoutControls();
 });
 
 const setCameraPreset = (preset) => {
@@ -786,10 +888,46 @@ camButtons.forEach((btn) =>
   })
 );
 
+// Sidebar drag-to-resize
+if (resizer && appEl) {
+  let isResizing = false;
+  const minW = 240;
+  const maxW = 520;
+  const onMove = (e) => {
+    if (!isResizing) return;
+    const rect = appEl.getBoundingClientRect();
+    const newWidth = clamp(e.clientX - rect.left, minW, maxW);
+    document.documentElement.style.setProperty("--sidebar-width", `${newWidth}px`);
+  };
+  const end = () => {
+    isResizing = false;
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", end);
+  };
+  resizer.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    isResizing = true;
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", end);
+  });
+}
+
 syncHeatControls();
-syncLayoutControls();
-document.documentElement.style.setProperty("--sidebar-width", `${panelWidthSlider.value}px`);
 ensureRandomHeights(state.map);
 initThree();
 updateBoardScene();
 render();
+
+const fallbackScript = `
+# Fallback square grid demo
+BACKGROUND images/test-grid.svg
+GRID square SIZE 56
+BOARD 12x10
+SPRITE DEF VC name="Vin Chi" url="https://upload.wikimedia.org/wikipedia/commons/3/3f/Chess_qdt45.svg" size=1 tint=#8b5cf6
+SPRITE DEF DR name="Drake" url="https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_qlt45.svg" size=2 tint=#ef4444
+PLACE VC @ B4,C4
+PLACE DR @ H7
+HEIGHT B4=3,C4=4,D5=2,E6=5,F6=4,H7=7
+`;
+
+loadExampleScript("examples/hex-demo.txt", fallbackScript);
