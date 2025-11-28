@@ -15,9 +15,15 @@ Plain text commands, one per line. Lines starting with `#` are comments.
 - `RESET` — clear everything (map, sprites, tokens, backgrounds).
 - `HEIGHT A1=2,B3=0,...` — set height values (numbers) per grid cell; used in 3D mode to raise/lower tiles.
 - `TERRAIN <rows>` — set an ASCII heightmap. Rows are separated by `,`, `|`, or `/`; characters `0-9` map to heights 0–9, `A-Z` map to 10+.
+- `CREATE <TemplateId> id=<TokenId> initials=<XX> bg=#RRGGBB fg=#RRGGBB @ A1,B2,...` — spawn tokens from built-in templates. `id` is required and expands with an increment per placement; `initials` is optional (defaults to first letters of the id); `bg`/`fg` override template colors.
 
 ## Coordinates
 `<ColumnLetter><RowNumber>` (A1, H7). Columns A-Z, rows start at 1.
+
+## Token Templates (in /scripts via picker)
+- `scout-small` — small token (1 square), blue scout marker.
+- `warrior-medium` — medium token (1 square), orange warrior marker.
+- `guardian-large` — large token (2x2 squares), green guardian marker.
 
 ## Example
 ```

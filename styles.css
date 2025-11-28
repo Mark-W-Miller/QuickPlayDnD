@@ -68,6 +68,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .log-panel {
@@ -84,7 +87,7 @@ body {
 
 .console {
   width: 100%;
-  min-height: 200px;
+  min-height: 400px;
   background: #0f172a;
   color: #e9eef7;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -165,12 +168,12 @@ button:active {
 #map-canvas,
 #map-webgl {
   width: 100%;
-  height: auto;
+  height: 100%;
   max-width: 100%;
   display: block;
   background: #0a101a;
-  border-radius: 10px;
-  flex: 0 0 auto;
+  border-radius: 0;
+  flex: 1 1 auto;
 }
 
 #map-webgl {
@@ -196,6 +199,44 @@ button:active {
   font-size: 0.9rem;
   padding: 4px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.log-window {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  width: 360px;
+  height: 260px;
+  background: rgba(11, 18, 32, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  display: none;
+  resize: both;
+  overflow: hidden;
+  z-index: 10;
+}
+
+.log-window.open {
+  display: flex;
+  flex-direction: column;
+}
+
+.log-window-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+  cursor: move;
+}
+
+.log-body {
+  flex: 1;
+  padding: 10px;
+  overflow: auto;
 }
 
 .slider-field input[type="range"] {

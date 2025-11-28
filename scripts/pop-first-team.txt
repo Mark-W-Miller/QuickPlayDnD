@@ -1,0 +1,18 @@
+#############################################
+# PCs
+CREATE scout-small id=VC initials=VC bg=#dbeafe fg=#1d4ed8 @ B3
+CREATE warrior-medium id=CT initials=CT bg=#dbeafe fg=#1d4ed8 @ C5
+CREATE warrior-medium id=RS initials=RS bg=#dbeafe fg=#1d4ed8 @ D7
+CREATE warrior-medium id=TN initials=TN bg=#dbeafe fg=#1d4ed8 @ E5
+CREATE warrior-medium id=JS initials=JS bg=#dbeafe fg=#1d4ed8 @ F3
+
+# NPC allies
+CREATE guardian-large id=ET initials=ET bg=#dbeafe fg=#1d4ed8 @ G7
+
+# Enemies
+CREATE warrior-medium id=SS initials=SS bg=#fee2e2 fg=#b91c1c @ J4
+CREATE warrior-medium id=DC initials=DC bg=#fee2e2 fg=#b91c1c @ K6
+CREATE guardian-large id=MT initials=MT bg=#fee2e2 fg=#b91c1c @ L8
+CREATE warrior-medium id=MY initials=MY bg=#fee2e2 fg=#b91c1c @ I6
+CREATE warrior-medium id=FF initials=FF bg=#fee2e2 fg=#b91c1c @ H8
+CREATE warrior-medium id=DB initials=DB bg=#fee2e2 fg=#b91c1c @ I9

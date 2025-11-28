@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <circle cx="60" cy="60" r="56" fill="$BG" stroke="$FG" stroke-width="8"/>
+  <circle cx="60" cy="60" r="40" fill="#152540" stroke="$FG" stroke-width="6"/>
+  <path d="M60 30 L78 60 L60 90 L42 60 Z" fill="$FG" opacity="0.9"/>
+  <circle cx="60" cy="60" r="6" fill="$BG"/>
+  <text x="60" y="62" text-anchor="middle" font-size="32" font-family="monospace" font-weight="bold" fill="$FG">$INIT</text>
+</svg>

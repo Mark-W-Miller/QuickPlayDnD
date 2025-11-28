@@ -5,6 +5,10 @@ const canvas = document.getElementById("map-canvas");
 const ctx = canvas.getContext("2d", { willReadFrequently: true });
 const logEl = document.getElementById("log");
 const inputEl = document.getElementById("script-input");
+const scriptPicker = document.getElementById("script-picker");
+const logOpenBtn = document.getElementById("log-open");
+const logCloseBtn = document.getElementById("log-close");
+const logWindow = document.getElementById("log-window");
 const viewRadios = document.querySelectorAll('input[name="view-mode"]');
 const camButtons = document.querySelectorAll("[data-cam]");
 const heatHeightSlider = document.getElementById("heat-height");
@@ -56,6 +60,55 @@ const three = {
   ambient: null,
   directional: null,
   boardTexture: null
+};
+
+const tokenTemplates = {
+  "scout-small": {
+    id: "scout-small",
+    name: "Scout (Small)",
+    baseSize: 1,
+    colorTint: "#3b82f6",
+    bg: "#0b1220",
+    fg: "#3b82f6",
+    template: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+      <circle cx="60" cy="60" r="56" fill="$BG" stroke="$FG" stroke-width="8"/>
+      <circle cx="60" cy="60" r="40" fill="#152540" stroke="$FG" stroke-width="6"/>
+      <path d="M60 30 L78 60 L60 90 L42 60 Z" fill="$FG" opacity="0.9"/>
+      <circle cx="60" cy="60" r="6" fill="$BG"/>
+      <text x="60" y="62" text-anchor="middle" font-size="32" font-family="monospace" font-weight="bold" fill="$FG">$INIT</text>
+    </svg>`
+  },
+  "warrior-medium": {
+    id: "warrior-medium",
+    name: "Warrior (Medium)",
+    baseSize: 1,
+    colorTint: "#f97316",
+    bg: "#0b1220",
+    fg: "#f97316",
+    template: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+      <circle cx="60" cy="60" r="56" fill="$BG" stroke="$FG" stroke-width="8"/>
+      <circle cx="60" cy="60" r="42" fill="#28160d" stroke="$FG" stroke-width="5"/>
+      <path d="M60 24 L84 48 L72 48 L72 88 L48 88 L48 48 L36 48 Z" fill="$FG" opacity="0.9"/>
+      <circle cx="60" cy="48" r="6" fill="$BG"/>
+      <text x="60" y="70" text-anchor="middle" font-size="30" font-family="monospace" font-weight="bold" fill="$BG">$INIT</text>
+    </svg>`
+  },
+  "guardian-large": {
+    id: "guardian-large",
+    name: "Guardian (Large)",
+    baseSize: 2,
+    colorTint: "#22c55e",
+    bg: "#0b1220",
+    fg: "#22c55e",
+    template: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
+      <circle cx="80" cy="80" r="74" fill="$BG" stroke="$FG" stroke-width="10"/>
+      <circle cx="80" cy="80" r="60" fill="#0f1f16" stroke="$FG" stroke-width="6"/>
+      <rect x="54" y="40" width="52" height="80" rx="14" fill="$FG" opacity="0.9"/>
+      <rect x="72" y="54" width="16" height="52" fill="$BG"/>
+      <circle cx="80" cy="60" r="8" fill="$BG"/>
+      <text x="80" y="88" text-anchor="middle" font-size="34" font-family="monospace" font-weight="bold" fill="$BG">$INIT</text>
+    </svg>`
+  }
 };
 
 const log = (msg) => {
@@ -130,6 +183,23 @@ const parseScript = (script) => {
       if (coords.length) instructions.push({ type: "place", code, coords });
       continue;
     }
+    if ((match = /^CREATE\s+(\w[\w-]+)\s+(.+?)\s+@\s+([A-Z0-9,\s]+)$/i.exec(line))) {
+      const templateId = match[1];
+      const kv = parseKeyValues(match[2]);
+      const coords = match[3]
+        .split(",")
+        .map((c) => coordToIndex(c))
+        .filter(Boolean);
+      if (coords.length) {
+        instructions.push({
+          type: "create",
+          templateId,
+          kv,
+          coords
+        });
+      }
+      continue;
+    }
     if ((match = /^HEIGHT\s+(.+)$/i.exec(line))) {
       const pairs = match[1].split(",").map((p) => p.trim()).filter(Boolean);
       const entries = [];
@@ -195,6 +265,23 @@ const applyInstructions = (instructions) => {
     const idx = working.tokenDefs.findIndex((d) => d.code === def.code);
     if (idx >= 0) working.tokenDefs[idx] = def;
     else working.tokenDefs.push(def);
+  };
+  const ensureTemplateDef = (templateId) => {
+    const tpl = tokenTemplates[templateId];
+    if (!tpl) return null;
+    const existing = working.tokenDefs.find((d) => d.code === tpl.id);
+    if (existing) return existing;
+    const def = {
+      id: tpl.id,
+      code: tpl.id.toUpperCase(),
+      name: tpl.name,
+      category: "Object",
+      svgUrl: buildTemplateSvg(templateId, { initials: tpl.name?.slice(0, 2) || "??" }),
+      baseSize: tpl.baseSize,
+      colorTint: tpl.colorTint
+    };
+    addDef(def);
+    return def;
   };
 
   const setHeight = (col, row, h) => {
@@ -289,6 +376,31 @@ const applyInstructions = (instructions) => {
       }
       case "height": {
         instr.entries.forEach(({ col, row, h }) => setHeight(col, row, h));
+        break;
+      }
+      case "create": {
+        const def = ensureTemplateDef(instr.templateId);
+        if (!def) {
+          log(`Unknown template ${instr.templateId}`);
+          return;
+        }
+        const baseId = instr.kv.id || def.code;
+        const initials = (instr.kv.initials || baseId.slice(0, 2)).toUpperCase().slice(0, 3);
+        const bg = instr.kv.bg || tokenTemplates[instr.templateId]?.bg;
+        const fg = instr.kv.fg || tokenTemplates[instr.templateId]?.fg;
+        const svgUrl = buildTemplateSvg(instr.templateId, { bg, fg, initials });
+        const existingCount = working.tokens.filter((t) => t.id.startsWith(baseId)).length;
+        instr.coords.forEach((coord, idx) => {
+          upsertToken({
+            id: `${baseId}-${existingCount + idx + 1}`,
+            defId: def.id,
+            mapId: working.map.id,
+            col: coord.col,
+            row: coord.row,
+            initials,
+            svgUrl
+          });
+        });
         break;
       }
       case "terrain": {
@@ -398,6 +510,15 @@ const drawHex = (cx, cy, size, fill, stroke) => {
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const smoothstep = (t) => t * t * (3 - 2 * t);
+const buildTemplateSvg = (templateId, { bg, fg, initials }) => {
+  const tpl = tokenTemplates[templateId];
+  if (!tpl || !tpl.template) return null;
+  const svg = tpl.template
+    .replace(/\$BG/g, bg || tpl.bg || "#0b1220")
+    .replace(/\$FG/g, fg || tpl.fg || "#ffffff")
+    .replace(/\$INIT/g, (initials || "??").slice(0, 3));
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
 const charHeight = (ch) => {
   if (!ch) return 0;
   if (ch === "." || ch === "_" || ch === " ") return 0;
@@ -679,8 +800,12 @@ const computeViewportSize = (map) => {
   const rect = mapPanel.getBoundingClientRect();
   const availW = rect.width || 800;
   const availH = rect.height || 600;
-  const baseW = map.cols * map.gridSizePx;
-  const baseH = map.rows * map.gridSizePx;
+  const baseW =
+    map.gridType === "hex" ? map.gridSizePx * (map.cols + 0.5) : map.cols * map.gridSizePx;
+  const baseH =
+    map.gridType === "hex"
+      ? map.gridSizePx * (0.75 * map.rows + 0.25)
+      : map.rows * map.gridSizePx;
   const aspect = baseW / baseH || 1;
   let cssW = availW;
   let cssH = cssW / aspect;
@@ -694,7 +819,9 @@ const computeViewportSize = (map) => {
     cssH,
     pxW: Math.round(cssW * dpr),
     pxH: Math.round(cssH * dpr),
-    scale: cssW / baseW
+    scale: cssW / baseW,
+    baseW,
+    baseH
   };
 };
 
@@ -703,16 +830,21 @@ const render2d = () => {
   if (!map) return;
   if (!state.heatmap.grid?.length) updateHeatmapFromHeights(map);
   const size = computeViewportSize(map);
-  const scaledCell = map.gridSizePx * size.scale;
+  const scalePx = size.pxW / size.baseW;
+  const scaledCell = map.gridSizePx * scalePx;
+  const mapWidthPx = size.baseW * scalePx;
+  const mapHeightPx = size.baseH * scalePx;
+  const offsetX = 0;
+  const offsetY = 0;
   canvas.style.width = `${size.cssW}px`;
   canvas.style.height = `${size.cssH}px`;
-  canvas.width = size.pxW;
-  canvas.height = size.pxH;
+  canvas.width = Math.round(mapWidthPx);
+  canvas.height = Math.round(mapHeightPx);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (map.backgroundUrl) {
     ctx.globalAlpha = 0.95;
-    ctx.drawImage(textureCanvas, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(textureCanvas, offsetX, offsetY, mapWidthPx, mapHeightPx);
     ctx.globalAlpha = 1;
   } else {
     // Shade terrain based on heights when no background
@@ -723,8 +855,8 @@ const render2d = () => {
         const t = clamp(h / maxH, 0, 1);
         const shade = Math.floor(40 + t * 80);
         ctx.fillStyle = `rgba(${shade + 10},${shade + 20},${shade + 40},0.5)`;
-        const x = c * scaledCell;
-        const y = r * scaledCell;
+        const x = offsetX + c * scaledCell + (map.gridType === "hex" && r % 2 ? scaledCell / 2 : 0);
+        const y = offsetY + r * (map.gridType === "hex" ? scaledCell * 0.75 : scaledCell);
         ctx.fillRect(x, y, scaledCell, scaledCell);
       }
     }
@@ -732,8 +864,13 @@ const render2d = () => {
 
   for (let r = 0; r < map.rows; r++) {
     for (let c = 0; c < map.cols; c++) {
-      const x = c * scaledCell + scaledCell / 2 + (map.gridType === "hex" && r % 2 ? scaledCell / 2 : 0);
-      const y = r * (map.gridType === "hex" ? scaledCell * 0.75 : scaledCell) + scaledCell / 2;
+      const x =
+        offsetX +
+        c * scaledCell +
+        scaledCell / 2 +
+        (map.gridType === "hex" && r % 2 ? scaledCell / 2 : 0);
+      const y =
+        offsetY + r * (map.gridType === "hex" ? scaledCell * 0.75 : scaledCell) + scaledCell / 2;
       if (map.gridType === "hex") {
         drawHex(x, y, scaledCell, "rgba(255,255,255,0.03)", "rgba(255,255,255,0.08)");
       } else {
@@ -749,8 +886,15 @@ const render2d = () => {
   state.tokens.forEach((token) => {
     const def = state.tokenDefs.find((d) => d.id === token.defId);
     if (!def) return;
-    const x = token.col * scaledCell + scaledCell / 2 + (map.gridType === "hex" && token.row % 2 ? scaledCell / 2 : 0);
-    const y = token.row * (map.gridType === "hex" ? scaledCell * 0.75 : scaledCell) + scaledCell / 2;
+    const x =
+      offsetX +
+      token.col * scaledCell +
+      scaledCell / 2 +
+      (map.gridType === "hex" && token.row % 2 ? scaledCell / 2 : 0);
+    const y =
+      offsetY +
+      token.row * (map.gridType === "hex" ? scaledCell * 0.75 : scaledCell) +
+      scaledCell / 2;
     const sizePx = scaledCell * def.baseSize;
     ctx.save();
     ctx.translate(x, y);
@@ -761,13 +905,20 @@ const render2d = () => {
     ctx.strokeStyle = "#ffffffaa";
     ctx.stroke();
     ctx.clip();
-    if (def.svgUrl) {
+    const imgSrc = token.svgUrl || def.svgUrl;
+    if (imgSrc) {
       const img = new Image();
       img.onload = () => {
         ctx.drawImage(img, -sizePx / 2, -sizePx / 2, sizePx, sizePx);
       };
-      img.src = def.svgUrl;
+      img.src = imgSrc;
     }
+    ctx.fillStyle = "#e9eef7";
+    ctx.font = "bold 18px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const label = token.initials || token.id.slice(0, 3).toUpperCase();
+    ctx.fillText(label, 0, 0);
     ctx.restore();
 
     ctx.fillStyle = "#e9eef7";
@@ -809,13 +960,11 @@ const loadExampleScript = async (path, fallback) => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
     inputEl.value = text.trim();
-    log(`Loaded example: ${path}`);
-    runCurrentScript();
+    log(`Loaded script: ${path}`);
   } catch (err) {
     if (fallback) {
       inputEl.value = fallback.trim();
-      log(`Loaded fallback example (failed to load ${path})`);
-      runCurrentScript();
+      log(`Loaded fallback script (failed to load ${path})`);
     } else {
       log(`Failed to load example ${path}: ${err.message}`);
     }
@@ -825,6 +974,132 @@ const loadExampleScript = async (path, fallback) => {
 document.getElementById("run-btn").addEventListener("click", () => {
   runCurrentScript();
 });
+
+if (scriptPicker) {
+  const defaultScripts = [
+    { file: "map-hex.txt", type: "map", name: "Hex Board" },
+    { file: "map-grid.txt", type: "map", name: "Grid Board" },
+    { file: "pop-first-team.txt", type: "pop", name: "First Team" },
+    { file: "pop-templates.txt", type: "pop", name: "Template Samples" }
+  ];
+  const populateScripts = async () => {
+    let entries = defaultScripts;
+    try {
+      const res = await fetch("scripts/index.json");
+      if (res.ok) {
+        const parsed = await res.json();
+        if (Array.isArray(parsed) && parsed.length) entries = parsed;
+      }
+    } catch (err) {
+      console.warn("Failed to load script manifest, using defaults", err);
+    }
+    scriptPicker.innerHTML = "";
+    entries
+      .filter((f) => f && f.file && f.file.endsWith(".txt"))
+      .forEach((entry) => {
+        const labelPrefix = entry.type === "map" ? "Map:" : entry.type === "pop" ? "Pop:" : "Script:";
+        const option = document.createElement("option");
+        option.value = `scripts/${entry.file}`;
+        option.textContent = `${labelPrefix} ${entry.name || entry.file}`;
+        scriptPicker.appendChild(option);
+      });
+    const defaultVal = "scripts/map-hex.txt";
+    if (scriptPicker.options.length) {
+      scriptPicker.value = defaultVal;
+      loadExampleScript(defaultVal, fallbackScript);
+    }
+  };
+
+  populateScripts();
+  scriptPicker.addEventListener("change", (e) => {
+    const val = e.target.value;
+    if (val) loadExampleScript(val, fallbackScript);
+  });
+}
+
+if (logOpenBtn && logWindow) {
+  logOpenBtn.addEventListener("click", () => {
+    logWindow.classList.add("open");
+    const saved = JSON.parse(localStorage.getItem("log-window-state") || "{}");
+    if (saved.left !== undefined) logWindow.style.left = `${saved.left}px`;
+    if (saved.top !== undefined) logWindow.style.top = `${saved.top}px`;
+    if (saved.width) logWindow.style.width = saved.width;
+    if (saved.height) logWindow.style.height = saved.height;
+    if (saved.open) logWindow.classList.add("open");
+  });
+}
+
+if (logCloseBtn && logWindow) {
+  logCloseBtn.addEventListener("click", () => {
+    logWindow.classList.remove("open");
+    const rect = logWindow.getBoundingClientRect();
+    localStorage.setItem(
+      "log-window-state",
+      JSON.stringify({
+        left: rect.left,
+        top: rect.top,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`,
+        open: false
+      })
+    );
+  });
+}
+
+// Log window drag
+if (logWindow) {
+  const header = logWindow.querySelector(".log-window-header");
+  let dragging = false;
+  let dragOffset = { x: 0, y: 0 };
+
+  const saveState = () => {
+    const rect = logWindow.getBoundingClientRect();
+    localStorage.setItem(
+      "log-window-state",
+      JSON.stringify({
+        left: rect.left,
+        top: rect.top,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`,
+        open: logWindow.classList.contains("open")
+      })
+    );
+  };
+
+  const onMove = (e) => {
+    if (!dragging) return;
+    const x = e.clientX - dragOffset.x;
+    const y = e.clientY - dragOffset.y;
+    logWindow.style.left = `${x}px`;
+    logWindow.style.top = `${y}px`;
+  };
+
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", endDrag);
+    saveState();
+  };
+
+  if (header) {
+    header.addEventListener("mousedown", (e) => {
+      if (e.target.tagName === "BUTTON") return; // avoid drag when clicking close
+      dragging = true;
+      const rect = logWindow.getBoundingClientRect();
+      dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", endDrag);
+    });
+  }
+
+  const saved = JSON.parse(localStorage.getItem("log-window-state") || "{}");
+  if (saved.left !== undefined) logWindow.style.left = `${saved.left}px`;
+  if (saved.top !== undefined) logWindow.style.top = `${saved.top}px`;
+  if (saved.width) logWindow.style.width = saved.width;
+  if (saved.height) logWindow.style.height = saved.height;
+  if (saved.open) logWindow.classList.add("open");
+}
 
 document.getElementById("clear-btn").addEventListener("click", () => {
   applyInstructions([{ type: "clear", scope: "tokens" }]);
@@ -898,6 +1173,11 @@ if (resizer && appEl) {
     const rect = appEl.getBoundingClientRect();
     const newWidth = clamp(e.clientX - rect.left, minW, maxW);
     document.documentElement.style.setProperty("--sidebar-width", `${newWidth}px`);
+    if (state.viewMode === "3d") {
+      resizeRenderer();
+    } else {
+      render2d();
+    }
   };
   const end = () => {
     isResizing = false;
@@ -919,15 +1199,7 @@ updateBoardScene();
 render();
 
 const fallbackScript = `
-# Fallback square grid demo
-BACKGROUND images/test-grid.svg
-GRID square SIZE 56
-BOARD 12x10
-SPRITE DEF VC name="Vin Chi" url="https://upload.wikimedia.org/wikipedia/commons/3/3f/Chess_qdt45.svg" size=1 tint=#8b5cf6
-SPRITE DEF DR name="Drake" url="https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_qlt45.svg" size=2 tint=#ef4444
-PLACE VC @ B4,C4
-PLACE DR @ H7
-HEIGHT B4=3,C4=4,D5=2,E6=5,F6=4,H7=7
+# Provide your own script here
 `;
 
-loadExampleScript("examples/hex-demo.txt", fallbackScript);
+loadExampleScript("scripts/map-hex.txt", fallbackScript);

@@ -22,10 +22,18 @@
 
       <section class="panel console-panel">
         <h3 class="section-title">Battle Language</h3>
+        <div class="field">
+          <label for="script-picker">Scripts</label>
+          <select id="script-picker">
+            <option value="scripts/hex-demo.txt">Hex Demo</option>
+            <option value="scripts/grid-demo.txt">Grid Demo</option>
+          </select>
+        </div>
         <textarea id="script-input" class="console" spellcheck="false"></textarea>
         <div class="actions">
           <button id="run-btn">Run Script</button>
           <button id="clear-btn">Clear Tokens</button>
+          <button id="log-open">Open Log</button>
         </div>
         <div class="bg-controls">
           <div class="field">
@@ -55,11 +63,15 @@
         <canvas id="map-canvas"></canvas>
       </section>
 
-      <section class="panel log-panel">
-        <h3 class="section-title">Log</h3>
-        <div id="log"></div>
-      </section>
     </main>
+
+    <div id="log-window" class="log-window">
+      <div class="log-window-header">
+        <span>Log</span>
+        <button id="log-close">Close</button>
+      </div>
+      <div id="log" class="log-body"></div>
+    </div>
 
     <script type="module" src="app.js"></script>
   </body>

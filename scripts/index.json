@@ -1,0 +1,6 @@
+[
+  { "file": "map-hex.txt", "type": "map", "name": "Hex Board" },
+  { "file": "map-grid.txt", "type": "map", "name": "Grid Board" },
+  { "file": "pop-first-team.txt", "type": "pop", "name": "First Team" },
+  { "file": "pop-templates.txt", "type": "pop", "name": "Template Samples" }
+]
