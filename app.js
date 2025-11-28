@@ -9,6 +9,29 @@ const scriptPicker = document.getElementById("script-picker");
 const logOpenBtn = document.getElementById("log-open");
 const logCloseBtn = document.getElementById("log-close");
 const logWindow = document.getElementById("log-window");
+const arenaGridToggle = document.getElementById("arena-grid");
+const textureToggle = document.getElementById("show-texture");
+const savedArenaGrid = (() => {
+  try {
+    return JSON.parse(localStorage.getItem("arena-grid") || "false");
+  } catch {
+    return false;
+  }
+})();
+const savedTexture = (() => {
+  try {
+    return JSON.parse(localStorage.getItem("show-texture") || "true");
+  } catch {
+    return true;
+  }
+})();
+const savedCameraState = (() => {
+  try {
+    return JSON.parse(localStorage.getItem("camera-state") || "null");
+  } catch {
+    return null;
+  }
+})();
 const viewRadios = document.querySelectorAll('input[name="view-mode"]');
 const camButtons = document.querySelectorAll("[data-cam]");
 const heatHeightSlider = document.getElementById("heat-height");
@@ -59,7 +82,10 @@ const three = {
   tokenGroup: null,
   ambient: null,
   directional: null,
-  boardTexture: null
+  boardTexture: null,
+  boardWire: null,
+  originMarker: null,
+  arenaGrid: null
 };
 
 const tokenTemplates = {
@@ -578,12 +604,17 @@ const initThree = () => {
   };
   three.controls.addEventListener("change", () => {
     if (state.viewMode === "3d") render3d();
+    const camState = {
+      position: three.camera.position.toArray(),
+      target: three.controls.target.toArray()
+    };
+    localStorage.setItem("camera-state", JSON.stringify(camState));
   });
 
-  three.ambient = new THREE.AmbientLight(0xffffff, 0.65);
+  three.ambient = new THREE.AmbientLight(0xffffff, 1.2);
   three.scene.add(three.ambient);
 
-  three.directional = new THREE.DirectionalLight(0xffffff, 0.9);
+  three.directional = new THREE.DirectionalLight(0xffffff, 1.2);
   three.directional.position.set(4, 8, 6);
   three.directional.castShadow = true;
   three.directional.shadow.mapSize.set(1024, 1024);
@@ -593,15 +624,59 @@ const initThree = () => {
 
   three.boardMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1, 1, 1),
-    new THREE.MeshStandardMaterial({ color: 0x0f172a, side: THREE.DoubleSide })
+    new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      side: THREE.DoubleSide,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.3
+    })
   );
   three.boardMesh.rotation.x = -Math.PI / 2;
   three.boardMesh.receiveShadow = true;
   three.scene.add(three.boardMesh);
 
+  three.boardWire = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1, 1, 1),
+    new THREE.MeshBasicMaterial({ color: 0xff5555, wireframe: true, transparent: true, opacity: 0.4 })
+  );
+  three.boardWire.rotation.x = -Math.PI / 2;
+  three.scene.add(three.boardWire);
+
   three.gridHelper = new THREE.GridHelper(1, 8, 0x1f2937, 0x1f2937);
   three.gridHelper.position.y = 0.002;
+  three.gridHelper.material.transparent = true;
+  three.gridHelper.material.opacity = 0.85;
+  three.gridHelper.material.color = new THREE.Color(0xffffff);
+  three.gridHelper.material.needsUpdate = true;
   three.scene.add(three.gridHelper);
+
+  const originGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-0.5, 0.02, 0),
+    new THREE.Vector3(0.5, 0.02, 0),
+    new THREE.Vector3(0, 0.02, -0.5),
+    new THREE.Vector3(0, 0.02, 0.5)
+  ]);
+  const originMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
+  three.originMarker = new THREE.LineSegments(originGeo, originMat);
+  three.scene.add(three.originMarker);
+
+  const size = 40;
+  const divisions = 40;
+  const xy = new THREE.GridHelper(size, divisions, 0xffff00, 0xffff00);
+  xy.rotation.x = Math.PI / 2;
+  xy.position.set(0, 0, 0);
+  const yz = new THREE.GridHelper(size, divisions, 0xffffff, 0xffffff);
+  yz.rotation.z = Math.PI / 2;
+  yz.position.set(0, 0, 0);
+  const xz = new THREE.GridHelper(size, divisions, 0x00ff88, 0x00ff88);
+  xz.position.set(0, 0, 0);
+  [xy, yz, xz].forEach((g) => {
+    g.material.transparent = false;
+    g.material.depthWrite = false;
+    g.visible = false;
+    three.scene.add(g);
+  });
+  three.arenaGrid = { xy, yz, xz };
 
   three.pillarGroup = new THREE.Group();
   three.meshGroup = new THREE.Group();
@@ -675,7 +750,7 @@ const rebuildPillars = (boardWidth, boardDepth, surfaceY) => {
   if (three.pillarGroup) clearGroup(three.pillarGroup);
 };
 
-const rebuildHeatMesh = (boardWidth, boardDepth, surfaceY) => {
+const rebuildHeatMesh = (boardWidth, boardDepth, surfaceY, cellUnit) => {
   if (!three.meshGroup) return;
   clearGroup(three.meshGroup);
   if (!state.heatmap.showMesh) return;
@@ -688,31 +763,34 @@ const rebuildHeatMesh = (boardWidth, boardDepth, surfaceY) => {
     const x = position.getX(i) / boardWidth;
     const z = position.getZ(i) / boardDepth;
     const height = sampleHeatHeight(x, z);
-    position.setY(i, surfaceY + 0.12 + height * state.heatmap.heightScale);
+    position.setY(i, surfaceY + cellUnit * 0.1 + height * state.heatmap.heightScale * cellUnit * 0.25);
   }
   geometry.computeVertexNormals();
   const material = new THREE.MeshStandardMaterial({
     color: three.boardTexture ? 0xffffff : 0x9aa4b5,
     map: three.boardTexture || null,
-    transparent: false,
-    depthWrite: true,
+    transparent: true,
+    opacity: 0.35,
+    depthWrite: false,
     side: THREE.DoubleSide,
-    emissive: new THREE.Color(0x020202)
+    emissive: new THREE.Color(0xffffff),
+    emissiveIntensity: 0.6
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.renderOrder = 2;
   three.meshGroup.add(mesh);
 };
 
-const buildTokenMesh = (token, cellHeight, boardWidth, boardDepth) => {
+const buildTokenMesh = (token, cellHeight, boardWidth, boardDepth, cellUnit) => {
   const def = state.tokenDefs.find((d) => d.id === token.defId);
   if (!def) return null;
-  const radius = Math.max(0.2, Math.min(0.5, def.baseSize * 0.35));
+  const radius = Math.max(0.2, def.baseSize * cellUnit * 0.35);
   const geometry = new THREE.CylinderGeometry(radius, radius, 0.2, 20);
   const color = new THREE.Color(def.colorTint || "#ffffff");
   const material = new THREE.MeshStandardMaterial({
     color,
-    emissive: color.clone().multiplyScalar(0.25),
+    emissive: color.clone(),
+    emissiveIntensity: 1.5,
     metalness: 0.1,
     roughness: 0.35
   });
@@ -720,23 +798,23 @@ const buildTokenMesh = (token, cellHeight, boardWidth, boardDepth) => {
   mesh.castShadow = true;
   const x = (token.col + 0.5) * (boardWidth / state.map.cols);
   const z = (token.row + 0.5) * (boardDepth / state.map.rows);
-  mesh.position.set(x, cellHeight + 0.15, z);
+  mesh.position.set(x, cellHeight + cellUnit * 0.15, z);
   return mesh;
 };
 
-const getSurfaceHeightAt = (col, row, boardWidth, boardDepth, surfaceY) => {
+const getSurfaceHeightAt = (col, row, boardWidth, boardDepth, surfaceY, cellUnit) => {
   const u = (col + 0.5) / Math.max(1, state.map.cols);
   const v = (row + 0.5) / Math.max(1, state.map.rows);
   const h = sampleHeatHeight(u, v);
-  return surfaceY + 0.12 + h * state.heatmap.heightScale;
+  return surfaceY + cellUnit * 0.1 + h * state.heatmap.heightScale * cellUnit * 0.25;
 };
 
-const updateTokens3d = (boardWidth, boardDepth, surfaceY) => {
+const updateTokens3d = (boardWidth, boardDepth, surfaceY, cellUnit) => {
   if (!three.tokenGroup) return;
   clearGroup(three.tokenGroup);
   state.tokens.forEach((token) => {
-    const cellHeight = getSurfaceHeightAt(token.col, token.row, boardWidth, boardDepth, surfaceY);
-    const mesh = buildTokenMesh(token, cellHeight, boardWidth, boardDepth);
+    const cellHeight = getSurfaceHeightAt(token.col, token.row, boardWidth, boardDepth, surfaceY, cellUnit);
+    const mesh = buildTokenMesh(token, cellHeight, boardWidth, boardDepth, cellUnit);
     if (mesh) three.tokenGroup.add(mesh);
   });
 };
@@ -745,18 +823,26 @@ const updateBoardScene = () => {
   if (!three.renderer) initThree();
   if (!state.map || !three.renderer) return;
   const map = state.map;
-  const boardWidth = Math.max(1, map.cols);
-  const boardDepth = Math.max(1, map.rows);
+  const boardWidth = Math.max(1, map.cols * map.gridSizePx);
+  const boardDepth = Math.max(1, map.rows * map.gridSizePx);
   const maxCellHeight = Math.max(0, ...Object.values(map.heights || {}));
-  const surfaceY = maxCellHeight > 0 ? Math.min(2, maxCellHeight * 0.3) : 0;
+  const surfaceY = maxCellHeight > 0 ? Math.min(map.gridSizePx * 0.5, maxCellHeight * map.gridSizePx * 0.05) : 0;
 
   three.boardMesh.geometry.dispose();
-  three.boardMesh.geometry = new THREE.PlaneGeometry(boardWidth, boardDepth, 1, 1);
+  three.boardMesh.geometry = new THREE.PlaneGeometry(boardWidth, boardDepth, 64, 64);
   three.boardMesh.rotation.set(-Math.PI / 2, 0, 0);
   three.boardMesh.position.set(boardWidth / 2, surfaceY + 0.001, boardDepth / 2);
 
+  three.boardWire.geometry.dispose();
+  three.boardWire.geometry = new THREE.PlaneGeometry(boardWidth, boardDepth, 64, 64);
+  three.boardWire.rotation.set(-Math.PI / 2, 0, 0);
+  three.boardWire.position.set(boardWidth / 2, surfaceY + 0.01, boardDepth / 2);
+
   const boardMaterial = three.boardMesh.material;
-  if (map.backgroundUrl && textureCanvas.width && textureCanvas.height) {
+  boardMaterial.emissive = new THREE.Color(0xffffff);
+  boardMaterial.emissiveIntensity = 1.5;
+  const shouldTexture = textureToggle ? textureToggle.checked : true;
+  if (shouldTexture && map.backgroundUrl && textureCanvas.width && textureCanvas.height) {
     if (!three.boardTexture) {
       three.boardTexture = new THREE.CanvasTexture(textureCanvas);
       three.boardTexture.colorSpace = THREE.SRGBColorSpace;
@@ -781,18 +867,44 @@ const updateBoardScene = () => {
   three.gridHelper.scale.set(boardWidth, 1, boardDepth);
   three.gridHelper.position.set(boardWidth / 2, surfaceY + 0.01, boardDepth / 2);
 
+  if (three.originMarker) {
+    three.originMarker.position.set(0, surfaceY + 0.02, 0);
+  }
+
   updateHeatmapFromHeights(map);
   rebuildPillars(boardWidth, boardDepth, surfaceY);
-  rebuildHeatMesh(boardWidth, boardDepth, surfaceY);
+  const cellUnit = boardWidth / state.map.cols;
+  rebuildHeatMesh(boardWidth, boardDepth, surfaceY, cellUnit);
   if (three.pillarGroup) three.pillarGroup.visible = !!state.heatmap.showVolumes;
   if (three.meshGroup) three.meshGroup.visible = !!state.heatmap.showMesh;
-  // Only show the base plane when we don't have a textured mesh
-  three.boardMesh.visible = !(state.heatmap.showMesh && three.boardTexture);
-  updateTokens3d(boardWidth, boardDepth, surfaceY);
+  three.boardMesh.visible = true;
+  if (three.boardWire) three.boardWire.visible = true;
+  if (three.arenaGrid) {
+    const visible = arenaGridToggle?.checked;
+    three.arenaGrid.xy.visible = visible;
+    three.arenaGrid.yz.visible = visible;
+    three.arenaGrid.xz.visible = visible;
+    three.arenaGrid.xy.position.set(boardWidth / 2, surfaceY, boardDepth / 2);
+    three.arenaGrid.yz.position.set(boardWidth / 2, surfaceY, boardDepth / 2);
+    three.arenaGrid.xz.position.set(boardWidth / 2, surfaceY, boardDepth / 2);
+    const scale = Math.max(boardWidth, boardDepth);
+    [three.arenaGrid.xy, three.arenaGrid.yz, three.arenaGrid.xz].forEach((g) => {
+      g.scale.set(scale, scale, scale);
+    });
+  }
+  updateTokens3d(boardWidth, boardDepth, surfaceY, cellUnit);
 
-  const target = new THREE.Vector3(boardWidth / 2, surfaceY + 0.25, boardDepth / 2);
-  three.controls.target.copy(target);
-  three.controls.update();
+  if (three.controls) {
+    const sceneRadius = Math.max(boardWidth, boardDepth);
+    three.controls.minDistance = Math.max(4, sceneRadius * 0.2);
+    three.controls.maxDistance = Math.max(sceneRadius, sceneRadius * 2.5);
+  }
+
+  if (three.controls && !three.restoredCamera) {
+    const target = new THREE.Vector3(boardWidth / 2, surfaceY + 0.25, boardDepth / 2);
+    three.controls.target.copy(target);
+    three.controls.update();
+  }
   resizeRenderer();
 };
 
@@ -801,7 +913,9 @@ const computeViewportSize = (map) => {
   const availW = rect.width || 800;
   const availH = rect.height || 600;
   const baseW =
-    map.gridType === "hex" ? map.gridSizePx * (map.cols + 0.5) : map.cols * map.gridSizePx;
+    map.gridType === "hex"
+      ? map.gridSizePx * (map.cols + 0.5)
+      : map.cols * map.gridSizePx;
   const baseH =
     map.gridType === "hex"
       ? map.gridSizePx * (0.75 * map.rows + 0.25)
@@ -841,6 +955,16 @@ const render2d = () => {
   canvas.width = Math.round(mapWidthPx);
   canvas.height = Math.round(mapHeightPx);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Origin marker in 2D
+  ctx.strokeStyle = "#ff0000";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -6);
+  ctx.lineTo(0, 6);
+  ctx.moveTo(-6, 0);
+  ctx.lineTo(6, 0);
+  ctx.stroke();
 
   if (map.backgroundUrl) {
     ctx.globalAlpha = 0.95;
@@ -980,7 +1104,8 @@ if (scriptPicker) {
     { file: "map-hex.txt", type: "map", name: "Hex Board" },
     { file: "map-grid.txt", type: "map", name: "Grid Board" },
     { file: "pop-first-team.txt", type: "pop", name: "First Team" },
-    { file: "pop-templates.txt", type: "pop", name: "Template Samples" }
+    { file: "pop-templates.txt", type: "pop", name: "Template Samples" },
+    { file: "move-templates.txt", type: "move", name: "Template Moves" }
   ];
   const populateScripts = async () => {
     let entries = defaultScripts;
@@ -997,7 +1122,10 @@ if (scriptPicker) {
     entries
       .filter((f) => f && f.file && f.file.endsWith(".txt"))
       .forEach((entry) => {
-        const labelPrefix = entry.type === "map" ? "Map:" : entry.type === "pop" ? "Pop:" : "Script:";
+        let labelPrefix = "Script:";
+        if (entry.type === "map") labelPrefix = "Map:";
+        else if (entry.type === "pop") labelPrefix = "Pop:";
+        else if (entry.type === "move") labelPrefix = "Move:";
         const option = document.createElement("option");
         option.value = `scripts/${entry.file}`;
         option.textContent = `${labelPrefix} ${entry.name || entry.file}`;
@@ -1021,8 +1149,17 @@ if (logOpenBtn && logWindow) {
   logOpenBtn.addEventListener("click", () => {
     logWindow.classList.add("open");
     const saved = JSON.parse(localStorage.getItem("log-window-state") || "{}");
-    if (saved.left !== undefined) logWindow.style.left = `${saved.left}px`;
-    if (saved.top !== undefined) logWindow.style.top = `${saved.top}px`;
+    if (saved.left !== undefined && saved.top !== undefined) {
+      logWindow.style.left = `${saved.left}px`;
+      logWindow.style.top = `${saved.top}px`;
+      logWindow.style.right = "auto";
+      logWindow.style.bottom = "auto";
+    } else {
+      logWindow.style.left = "";
+      logWindow.style.top = "";
+      logWindow.style.right = "";
+      logWindow.style.bottom = "";
+    }
     if (saved.width) logWindow.style.width = saved.width;
     if (saved.height) logWindow.style.height = saved.height;
     if (saved.open) logWindow.classList.add("open");
@@ -1072,6 +1209,8 @@ if (logWindow) {
     const y = e.clientY - dragOffset.y;
     logWindow.style.left = `${x}px`;
     logWindow.style.top = `${y}px`;
+    logWindow.style.right = "auto";
+    logWindow.style.bottom = "auto";
   };
 
   const endDrag = () => {
@@ -1108,11 +1247,13 @@ document.getElementById("clear-btn").addEventListener("click", () => {
 viewRadios.forEach((radio) =>
   radio.addEventListener("change", (e) => {
     state.viewMode = e.target.value;
+    localStorage.setItem("view-mode", state.viewMode);
     if (state.viewMode === "3d") {
       initThree();
       ensureRandomHeights(state.map);
       updateBoardScene();
       resizeRenderer();
+      applySavedCamera();
     }
     render();
   })
@@ -1163,6 +1304,23 @@ camButtons.forEach((btn) =>
   })
 );
 
+if (arenaGridToggle) {
+  arenaGridToggle.addEventListener("change", () => {
+    localStorage.setItem("arena-grid", arenaGridToggle.checked);
+    updateBoardScene();
+    render();
+  });
+}
+
+if (textureToggle) {
+  textureToggle.checked = savedTexture;
+  textureToggle.addEventListener("change", () => {
+    localStorage.setItem("show-texture", textureToggle.checked);
+    updateBoardScene();
+    render();
+  });
+}
+
 // Sidebar drag-to-resize
 if (resizer && appEl) {
   let isResizing = false;
@@ -1198,8 +1356,44 @@ initThree();
 updateBoardScene();
 render();
 
+// Restore persisted view mode on load
+const savedView = localStorage.getItem("view-mode");
+if (savedView === "2d" || savedView === "3d") {
+  state.viewMode = savedView;
+  viewRadios.forEach((r) => {
+    r.checked = r.value === savedView;
+  });
+  render();
+}
+
+if (arenaGridToggle) {
+  arenaGridToggle.checked = !!savedArenaGrid;
+}
+
+const applySavedCamera = () => {
+  if (!three.camera || !three.controls) return;
+  let saved = savedCameraState;
+  try {
+    const dynamic = localStorage.getItem("camera-state");
+    if (dynamic) saved = JSON.parse(dynamic);
+  } catch {
+    /* ignore */
+  }
+  if (!saved || !saved.position || !saved.target) return;
+  try {
+    three.camera.position.fromArray(saved.position);
+    three.controls.target.fromArray(saved.target);
+    three.controls.update();
+    three.restoredCamera = true;
+    render();
+  } catch (err) {
+    console.warn("Failed to restore camera state", err);
+  }
+};
+
 const fallbackScript = `
 # Provide your own script here
 `;
 
 loadExampleScript("scripts/map-hex.txt", fallbackScript);
+applySavedCamera();

@@ -1,0 +1,6 @@
+# Example moves for template tokens
+MOVE SC TO B2
+MOVE WR TO M2
+MOVE GD TO M9
+MOVE SC TO B9
+MOVE WR TO H6
