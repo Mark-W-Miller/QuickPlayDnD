@@ -1,11 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 import { buildAxisArena } from "./axes.js";
-import { updateHeatmapFromHeights, sampleHeatHeight, rebuildHeatMesh } from "./heatmap.js";
+import { updateHeightMapFromHeights, sampleHeightMap, rebuildHeightMesh } from "./heightmap.js";
 import { tokenTemplates, buildTemplateSvg, ensureTemplateDef } from "./tokens.js";
 
 const canvas = document.getElementById("map-canvas");
-const ctx = canvas.getContext("2d", { willReadFrequently: true });
 const logEl = document.getElementById("log");
 const inputEl = document.getElementById("script-input");
 const scriptPicker = document.getElementById("script-picker");
@@ -35,7 +34,9 @@ const savedCameraState = (() => {
     return null;
   }
 })();
-const viewRadios = document.querySelectorAll('input[name="view-mode"]');
+const fallbackScript = `
+# Provide your own script here
+`;
 const camButtons = document.querySelectorAll("[data-cam]");
 const heatHeightSlider = document.getElementById("heat-height");
 const heatHeightValue = document.getElementById("heat-height-value");
@@ -62,8 +63,8 @@ const state = {
   },
   tokenDefs: [],
   tokens: [],
-  viewMode: "2d",
-  heatmap: {
+  viewMode: "3d",
+  heightMap: {
     showVolumes: false,
     showMesh: true,
     heightScale: 3,
@@ -323,12 +324,12 @@ const applyInstructions = (instructions) => {
         if (instr.scope === "tokens") {
           working.tokens = [];
         } else {
-          working = { map: null, tokenDefs: [], tokens: [], viewMode: working.viewMode || "2d" };
+          working = { map: null, tokenDefs: [], tokens: [], viewMode: "3d" };
         }
         break;
       }
       case "reset": {
-        working = { map: null, tokenDefs: [], tokens: [], viewMode: "2d" };
+        working = { map: null, tokenDefs: [], tokens: [], viewMode: "3d" };
         if (three.boardTexture) {
           three.boardTexture.dispose();
           three.boardTexture = null;
@@ -399,12 +400,6 @@ const applyInstructions = (instructions) => {
     return;
   }
   if (!state.map) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (three.renderer) {
-      three.renderer.clear();
-      three.boardMesh.visible = false;
-      three.gridHelper.visible = false;
-    }
     log(`Applied ${instructions.length} instruction(s)`);
     return;
   }
@@ -454,26 +449,19 @@ const setBackground = (url, opts = {}) => {
   if (!silent) log(`Background set: ${url}`);
 };
 
-const drawHex = (cx, cy, size, fill, stroke) => {
-  const r = size / 2;
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const angle = Math.PI / 3 * i + Math.PI / 6;
-    const x = cx + r * Math.cos(angle);
-    const y = cy + r * Math.sin(angle);
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.strokeStyle = stroke;
-  ctx.lineWidth = 1;
-  ctx.fill();
-  ctx.stroke();
-};
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const smoothstep = (t) => t * t * (3 - 2 * t);
+const colLabel = (idx) => {
+  let n = idx;
+  let label = "";
+  do {
+    label = String.fromCharCode(65 + (n % 26)) + label;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return label;
+};
 const charHeight = (ch) => {
   if (!ch) return 0;
   if (ch === "." || ch === "_" || ch === " ") return 0;
@@ -492,6 +480,31 @@ const ensureRandomHeights = (map) => {
       map.heights[`${c},${r}`] = Math.random() * 10;
     }
   }
+};
+const buildDefaultMap = () => {
+  const cols = 100;
+  const rows = 80;
+  const size = 10;
+  const heights = {};
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const h =
+        Math.sin(c * 0.08) * 2 +
+        Math.cos(r * 0.06) * 1.5 +
+        Math.sin((c + r) * 0.04) * 1.2;
+      heights[`${c},${r}`] = h;
+    }
+  }
+  state.map = {
+    id: "default-map",
+    name: "Default Grid",
+    gridSizePx: size,
+    gridType: "square",
+    cols,
+    rows,
+    backgroundUrl: "images/grid-default-map.png",
+    heights
+  };
 };
 const clearGroup = (group) => {
   if (!group) return;
@@ -516,7 +529,7 @@ const initThree = () => {
   three.renderer.setPixelRatio(window.devicePixelRatio || 1);
 
   const rect = mapPanel.getBoundingClientRect();
-  three.camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.1, 1000);
+  three.camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.01, 2000);
   three.camera.position.set(5.5, 9, 5.5);
 
   three.controls = new OrbitControls(three.camera, three.renderer.domElement);
@@ -532,7 +545,7 @@ const initThree = () => {
     RIGHT: THREE.MOUSE.PAN
   };
   three.controls.addEventListener("change", () => {
-    if (state.viewMode === "3d") render3d();
+    render3d();
     const camState = {
       position: three.camera.position.toArray(),
       target: three.controls.target.toArray()
@@ -613,13 +626,16 @@ const initThree = () => {
 
 const resizeRenderer = () => {
   if (!three.renderer || !three.camera || !state.map) return;
-  const size = computeViewportSize(state.map);
-  three.renderer.setSize(size.pxW, size.pxH, false);
-  three.camera.aspect = size.cssW / size.cssH;
+  const rect = mapPanel.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, rect.width);
+  const h = Math.max(1, rect.height);
+  three.renderer.setSize(w * dpr, h * dpr, false);
+  three.camera.aspect = w / h;
   three.camera.updateProjectionMatrix();
-  webglCanvas.style.width = `${size.cssW}px`;
-  webglCanvas.style.height = `${size.cssH}px`;
-  if (state.viewMode === "3d") render3d();
+  webglCanvas.style.width = `${w}px`;
+  webglCanvas.style.height = `${h}px`;
+  render3d();
 };
 
 const rebuildPillars = (boardWidth, boardDepth, surfaceY) => {
@@ -650,8 +666,8 @@ const buildTokenMesh = (token, cellHeight, boardWidth, boardDepth, cellUnit) => 
 const getSurfaceHeightAt = (col, row, boardWidth, boardDepth, surfaceY, cellUnit) => {
   const u = (col + 0.5) / Math.max(1, state.map.cols);
   const v = (row + 0.5) / Math.max(1, state.map.rows);
-  const h = sampleHeatHeight(u, v);
-  return surfaceY + cellUnit * 0.1 + h * state.heatmap.heightScale * cellUnit * 0.25;
+  const h = sampleHeightMap(state, u, v);
+  return surfaceY + cellUnit * 0.1 + h * state.heightMap.heightScale * cellUnit * 0.25;
 };
 
 const updateTokens3d = (boardWidth, boardDepth, surfaceY, cellUnit) => {
@@ -674,7 +690,7 @@ const updateBoardScene = () => {
   const surfaceY = maxCellHeight > 0 ? Math.min(map.gridSizePx * 0.5, maxCellHeight * map.gridSizePx * 0.05) : 0;
 
   three.boardMesh.geometry.dispose();
-  three.boardMesh.geometry = new THREE.PlaneGeometry(boardWidth, boardDepth, 64, 64);
+  three.boardMesh.geometry = new THREE.PlaneGeometry(boardWidth, boardDepth, 32, 32);
   three.boardMesh.rotation.set(-Math.PI / 2, 0, 0);
   three.boardMesh.position.set(boardWidth / 2, surfaceY + 0.001, boardDepth / 2);
 
@@ -685,14 +701,23 @@ const updateBoardScene = () => {
 
   const boardMaterial = three.boardMesh.material;
   boardMaterial.emissive = new THREE.Color(0xffffff);
-  boardMaterial.emissiveIntensity = 1.5;
+  boardMaterial.emissiveIntensity = 0.2;
   const shouldTexture = textureToggle ? textureToggle.checked : true;
-  if (shouldTexture && map.backgroundUrl && textureCanvas.width && textureCanvas.height) {
-    if (!three.boardTexture) {
+  const texReady = shouldTexture && map.backgroundUrl && textureCanvas.width > 0 && textureCanvas.height > 0;
+  if (texReady) {
+    const needsRecreate =
+      !three.boardTexture ||
+      three.boardTexture.image?.width !== textureCanvas.width ||
+      three.boardTexture.image?.height !== textureCanvas.height;
+    if (needsRecreate) {
+      if (three.boardTexture) three.boardTexture.dispose();
       three.boardTexture = new THREE.CanvasTexture(textureCanvas);
       three.boardTexture.colorSpace = THREE.SRGBColorSpace;
       three.boardTexture.wrapS = three.boardTexture.wrapT = THREE.ClampToEdgeWrapping;
       three.boardTexture.anisotropy = 4;
+      three.boardTexture.generateMipmaps = false;
+      three.boardTexture.minFilter = THREE.LinearFilter;
+      three.boardTexture.magFilter = THREE.LinearFilter;
     } else {
       three.boardTexture.needsUpdate = true;
     }
@@ -713,12 +738,12 @@ const updateBoardScene = () => {
     three.originMarker.position.set(0, surfaceY + 0.02, 0);
   }
 
-  updateHeatmapFromHeights(state, map);
+  updateHeightMapFromHeights(state, map);
   rebuildPillars(boardWidth, boardDepth, surfaceY);
   const cellUnit = boardWidth / state.map.cols;
-  rebuildHeatMesh(three, state, boardWidth, boardDepth, surfaceY, cellUnit, textureToggle);
-  if (three.pillarGroup) three.pillarGroup.visible = !!state.heatmap.showVolumes;
-  if (three.meshGroup) three.meshGroup.visible = !!state.heatmap.showMesh;
+  rebuildHeightMesh(three, state, boardWidth, boardDepth, surfaceY, cellUnit, textureToggle, three.boardTexture);
+  if (three.pillarGroup) three.pillarGroup.visible = !!state.heightMap.showVolumes;
+  if (three.meshGroup) three.meshGroup.visible = !!state.heightMap.showMesh;
   three.boardMesh.visible = true;
   if (three.boardWire) three.boardWire.visible = true;
   if (three.arenaGrid) {
@@ -751,149 +776,6 @@ const updateBoardScene = () => {
   resizeRenderer();
 };
 
-const computeViewportSize = (map) => {
-  const rect = mapPanel.getBoundingClientRect();
-  const availW = rect.width || 800;
-  const availH = rect.height || 600;
-  const baseW =
-    map.gridType === "hex"
-      ? map.gridSizePx * (map.cols + 0.5)
-      : map.cols * map.gridSizePx;
-  const baseH =
-    map.gridType === "hex"
-      ? map.gridSizePx * (0.75 * map.rows + 0.25)
-      : map.rows * map.gridSizePx;
-  const aspect = baseW / baseH || 1;
-  let cssW = availW;
-  let cssH = cssW / aspect;
-  if (cssH > availH) {
-    cssH = availH;
-    cssW = cssH * aspect;
-  }
-  const dpr = window.devicePixelRatio || 1;
-  return {
-    cssW,
-    cssH,
-    pxW: Math.round(cssW * dpr),
-    pxH: Math.round(cssH * dpr),
-    scale: cssW / baseW,
-    baseW,
-    baseH
-  };
-};
-
-const render2d = () => {
-  const map = state.map;
-  if (!map) return;
-  if (!state.heatmap.grid?.length) updateHeatmapFromHeights(map);
-  const size = computeViewportSize(map);
-  const scalePx = size.pxW / size.baseW;
-  const scaledCell = map.gridSizePx * scalePx;
-  const mapWidthPx = size.baseW * scalePx;
-  const mapHeightPx = size.baseH * scalePx;
-  const offsetX = 0;
-  const offsetY = 0;
-  canvas.style.width = `${size.cssW}px`;
-  canvas.style.height = `${size.cssH}px`;
-  canvas.width = Math.round(mapWidthPx);
-  canvas.height = Math.round(mapHeightPx);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Origin marker in 2D
-  ctx.strokeStyle = "#ff0000";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, -6);
-  ctx.lineTo(0, 6);
-  ctx.moveTo(-6, 0);
-  ctx.lineTo(6, 0);
-  ctx.stroke();
-
-  if (map.backgroundUrl) {
-    ctx.globalAlpha = 0.95;
-    ctx.drawImage(textureCanvas, offsetX, offsetY, mapWidthPx, mapHeightPx);
-    ctx.globalAlpha = 1;
-  } else {
-    // Shade terrain based on heights when no background
-    const maxH = Math.max(0.001, ...Object.values(map.heights || { 0: 0 }));
-    for (let r = 0; r < map.rows; r++) {
-      for (let c = 0; c < map.cols; c++) {
-        const h = map.heights?.[`${c},${r}`] || 0;
-        const t = clamp(h / maxH, 0, 1);
-        const shade = Math.floor(40 + t * 80);
-        ctx.fillStyle = `rgba(${shade + 10},${shade + 20},${shade + 40},0.5)`;
-        const x = offsetX + c * scaledCell + (map.gridType === "hex" && r % 2 ? scaledCell / 2 : 0);
-        const y = offsetY + r * (map.gridType === "hex" ? scaledCell * 0.75 : scaledCell);
-        ctx.fillRect(x, y, scaledCell, scaledCell);
-      }
-    }
-  }
-
-  for (let r = 0; r < map.rows; r++) {
-    for (let c = 0; c < map.cols; c++) {
-      const x =
-        offsetX +
-        c * scaledCell +
-        scaledCell / 2 +
-        (map.gridType === "hex" && r % 2 ? scaledCell / 2 : 0);
-      const y =
-        offsetY + r * (map.gridType === "hex" ? scaledCell * 0.75 : scaledCell) + scaledCell / 2;
-      if (map.gridType === "hex") {
-        drawHex(x, y, scaledCell, "rgba(255,255,255,0.03)", "rgba(255,255,255,0.08)");
-      } else {
-        ctx.fillStyle = "rgba(255,255,255,0.02)";
-        ctx.strokeStyle = "rgba(255,255,255,0.08)";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x - scaledCell / 2, y - scaledCell / 2, scaledCell, scaledCell);
-        ctx.fillRect(x - scaledCell / 2, y - scaledCell / 2, scaledCell, scaledCell);
-      }
-    }
-  }
-
-  state.tokens.forEach((token) => {
-    const def = state.tokenDefs.find((d) => d.id === token.defId);
-    if (!def) return;
-    const x =
-      offsetX +
-      token.col * scaledCell +
-      scaledCell / 2 +
-      (map.gridType === "hex" && token.row % 2 ? scaledCell / 2 : 0);
-    const y =
-      offsetY +
-      token.row * (map.gridType === "hex" ? scaledCell * 0.75 : scaledCell) +
-      scaledCell / 2;
-    const sizePx = scaledCell * def.baseSize;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.beginPath();
-    ctx.arc(0, 0, sizePx / 2, 0, Math.PI * 2);
-    ctx.fillStyle = def.colorTint ? `${def.colorTint}55` : "#ffffff33";
-    ctx.fill();
-    ctx.strokeStyle = "#ffffffaa";
-    ctx.stroke();
-    ctx.clip();
-    const imgSrc = token.svgUrl || def.svgUrl;
-    if (imgSrc) {
-      const img = new Image();
-      img.onload = () => {
-        ctx.drawImage(img, -sizePx / 2, -sizePx / 2, sizePx, sizePx);
-      };
-      img.src = imgSrc;
-    }
-    ctx.fillStyle = "#e9eef7";
-    ctx.font = "bold 18px monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    const label = token.initials || token.id.slice(0, 3).toUpperCase();
-    ctx.fillText(label, 0, 0);
-    ctx.restore();
-
-    ctx.fillStyle = "#e9eef7";
-    ctx.font = "12px monospace";
-    ctx.fillText(token.id, x - sizePx / 2, y - sizePx / 2 - 4);
-  });
-};
-
 const render3d = () => {
   if (!three.renderer || !three.scene || !three.camera) return;
   three.renderer.render(three.scene, three.camera);
@@ -902,14 +784,10 @@ const render3d = () => {
 const render = () => {
   const map = state.map;
   if (!map) return;
-  canvas.style.display = state.viewMode === "2d" ? "block" : "none";
-  webglCanvas.style.display = state.viewMode === "3d" ? "block" : "none";
-  if (state.viewMode === "2d") {
-    render2d();
-  } else {
-    resizeRenderer();
-    render3d();
-  }
+  canvas.style.display = "none";
+  webglCanvas.style.display = "block";
+  resizeRenderer();
+  render3d();
 };
 
 const runCurrentScript = () => {
@@ -1087,27 +965,12 @@ document.getElementById("clear-btn").addEventListener("click", () => {
   applyInstructions([{ type: "clear", scope: "tokens" }]);
 });
 
-viewRadios.forEach((radio) =>
-  radio.addEventListener("change", (e) => {
-    state.viewMode = e.target.value;
-    localStorage.setItem("view-mode", state.viewMode);
-    if (state.viewMode === "3d") {
-      initThree();
-      ensureRandomHeights(state.map);
-      updateBoardScene();
-      resizeRenderer();
-      applySavedCamera();
-    }
-    render();
-  })
-);
-
 const syncHeatControls = () => {
-  heatHeightValue.textContent = `${state.heatmap.heightScale.toFixed(1)}x`;
+  heatHeightValue.textContent = `${state.heightMap.heightScale.toFixed(1)}x`;
 };
 
 heatHeightSlider.addEventListener("input", (e) => {
-  state.heatmap.heightScale = parseFloat(e.target.value) || 1;
+  state.heightMap.heightScale = parseFloat(e.target.value) || 1;
   syncHeatControls();
   updateBoardScene();
   render();
@@ -1138,7 +1001,7 @@ const setCameraPreset = (preset) => {
   three.camera.position.copy(position);
   three.controls.target.copy(target);
   three.controls.update();
-  if (state.viewMode === "3d") render3d();
+  render3d();
 };
 
 camButtons.forEach((btn) =>
@@ -1174,11 +1037,7 @@ if (resizer && appEl) {
     const rect = appEl.getBoundingClientRect();
     const newWidth = clamp(e.clientX - rect.left, minW, maxW);
     document.documentElement.style.setProperty("--sidebar-width", `${newWidth}px`);
-    if (state.viewMode === "3d") {
-      resizeRenderer();
-    } else {
-      render2d();
-    }
+    resizeRenderer();
   };
   const end = () => {
     isResizing = false;
@@ -1193,21 +1052,12 @@ if (resizer && appEl) {
   });
 }
 
+buildDefaultMap();
+setBackground(state.map.backgroundUrl, { silent: true });
 syncHeatControls();
-ensureRandomHeights(state.map);
 initThree();
 updateBoardScene();
 render();
-
-// Restore persisted view mode on load
-const savedView = localStorage.getItem("view-mode");
-if (savedView === "2d" || savedView === "3d") {
-  state.viewMode = savedView;
-  viewRadios.forEach((r) => {
-    r.checked = r.value === savedView;
-  });
-  render();
-}
 
 if (arenaGridToggle) {
   arenaGridToggle.checked = !!savedArenaGrid;
@@ -1234,9 +1084,4 @@ const applySavedCamera = () => {
   }
 };
 
-const fallbackScript = `
-# Provide your own script here
-`;
-
-loadExampleScript("scripts/map-hex.txt", fallbackScript);
 applySavedCamera();

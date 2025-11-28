@@ -1,0 +1,26 @@
+{
+  "name": "quickplaydnd",
+  "version": "1.0.0",
+  "description": "- Script: `tools/generate-maps.js` (uses `canvas`). - Install deps: `npm install canvas`. - Run: `node tools/generate-maps.js`. - Outputs: `images/grid-default-map.png` (20x16 square, 5ft cells) and `images/hex-default-map.png` (20x14 pointy-top hex, 10-yard cells).",
+  "main": "app.js",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mark-W-Miller/QuickPlayDnD.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Mark-W-Miller/QuickPlayDnD/issues"
+  },
+  "homepage": "https://github.com/Mark-W-Miller/QuickPlayDnD#readme",
+  "dependencies": {
+    "canvas": "^3.2.0"
+  }
+}
