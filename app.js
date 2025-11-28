@@ -5,15 +5,12 @@ const canvas = document.getElementById("map-canvas");
 const ctx = canvas.getContext("2d", { willReadFrequently: true });
 const logEl = document.getElementById("log");
 const inputEl = document.getElementById("script-input");
-const bgUrlInput = document.getElementById("bg-url");
-const bgUrlBtn = document.getElementById("bg-url-btn");
-const bgFileInput = document.getElementById("bg-file");
 const viewRadios = document.querySelectorAll('input[name="view-mode"]');
 const camButtons = document.querySelectorAll("[data-cam]");
 const heatHeightSlider = document.getElementById("heat-height");
 const heatHeightValue = document.getElementById("heat-height-value");
-const meshRadiusSlider = document.getElementById("mesh-radius");
-const meshRadiusValue = document.getElementById("mesh-radius-value");
+const panelWidthSlider = document.getElementById("panel-width");
+const panelWidthValue = document.getElementById("panel-width-value");
 const mapPanel = document.querySelector(".map-panel");
 
 const textureCanvas = document.createElement("canvas");
@@ -37,8 +34,6 @@ HEIGHT B4=1,C4=1,D4=0.5,F6=1,H7=2,I7=2
 `;
 
 inputEl.value = starterScript;
-bgUrlInput.value = "images/wight-battle.png";
-
 const state = {
   map: {
     id: "default",
@@ -57,7 +52,6 @@ const state = {
     showVolumes: false,
     showMesh: true,
     heightScale: 3,
-    meshRadius: 1,
     grid: [],
     maxThreat: 1,
     maxSupport: 1
@@ -298,14 +292,20 @@ const applyInstructions = (instructions) => {
   state.map = working.map;
   state.tokenDefs = working.tokenDefs;
   state.tokens = working.tokens;
+  if (state.map?.backgroundUrl) {
+    setBackground(state.map.backgroundUrl, { silent: true });
+    log(`Applied ${instructions.length} instruction(s)`);
+    return;
+  }
   updateBoardScene();
   render();
   log(`Applied ${instructions.length} instruction(s)`);
 };
 
-const setBackground = (url) => {
+const setBackground = (url, opts = {}) => {
+  const { silent } = opts;
   if (!url) {
-    log("No background URL provided");
+    if (!silent) log("No background URL provided");
     return;
   }
   state.map = state.map || {
@@ -329,11 +329,11 @@ const setBackground = (url) => {
     render();
   };
   img.onerror = () => {
-    log("Failed to load background");
+    if (!silent) log("Failed to load background");
     render();
   };
   img.src = url;
-  log(`Background set: ${url}`);
+  if (!silent) log(`Background set: ${url}`);
 };
 
 const drawHex = (cx, cy, size, fill, stroke) => {
@@ -515,7 +515,7 @@ const rebuildHeatMesh = (boardWidth, boardDepth, surfaceY) => {
   for (let i = 0; i < position.count; i++) {
     const x = position.getX(i) / boardWidth;
     const z = position.getZ(i) / boardDepth;
-    const height = sampleHeatHeight(x * state.heatmap.meshRadius, z * state.heatmap.meshRadius);
+    const height = sampleHeatHeight(x, z);
     position.setY(i, surfaceY + 0.12 + height * state.heatmap.heightScale);
   }
   geometry.computeVertexNormals();
@@ -552,12 +552,18 @@ const buildTokenMesh = (token, cellHeight, boardWidth, boardDepth) => {
   return mesh;
 };
 
+const getSurfaceHeightAt = (col, row, boardWidth, boardDepth, surfaceY) => {
+  const u = (col + 0.5) / Math.max(1, state.map.cols);
+  const v = (row + 0.5) / Math.max(1, state.map.rows);
+  const h = sampleHeatHeight(u, v);
+  return surfaceY + 0.12 + h * state.heatmap.heightScale;
+};
+
 const updateTokens3d = (boardWidth, boardDepth, surfaceY) => {
   if (!three.tokenGroup) return;
   clearGroup(three.tokenGroup);
   state.tokens.forEach((token) => {
-    const h = state.map.heights?.[`${token.col},${token.row}`] || 0;
-    const cellHeight = surfaceY + Math.max(0, h * 0.2);
+    const cellHeight = getSurfaceHeightAt(token.col, token.row, boardWidth, boardDepth, surfaceY);
     const mesh = buildTokenMesh(token, cellHeight, boardWidth, boardDepth);
     if (mesh) three.tokenGroup.add(mesh);
   });
@@ -652,28 +658,6 @@ const render2d = () => {
     }
   }
 
-  // Heatmap overlay in 2D
-  if (state.heatmap.grid?.length) {
-    const cellW = (map.cols * cell) / 8;
-    const cellH = (map.rows * cell) / 8;
-    state.heatmap.grid.forEach((row, r) => {
-      row.forEach((cellData, c) => {
-        const threatNorm = cellData.threat / (state.heatmap.maxThreat || 1);
-        const supportNorm = cellData.support / (state.heatmap.maxSupport || 1);
-        const x = c * cellW;
-        const y = r * cellH;
-        if (threatNorm > 0) {
-          ctx.fillStyle = `rgba(255,54,27,${clamp(threatNorm, 0, 1)})`;
-          ctx.fillRect(x, y, cellW, cellH);
-        }
-        if (supportNorm > 0) {
-          ctx.fillStyle = `rgba(0,255,128,${clamp(supportNorm, 0, 1) * 0.6})`;
-          ctx.fillRect(x, y, cellW, cellH);
-        }
-      });
-    });
-  }
-
   state.tokens.forEach((token) => {
     const def = state.tokenDefs.find((d) => d.id === token.defId);
     if (!def) return;
@@ -734,20 +718,6 @@ document.getElementById("clear-btn").addEventListener("click", () => {
   applyInstructions([{ type: "clear", scope: "tokens" }]);
 });
 
-bgUrlBtn.addEventListener("click", () => {
-  setBackground(bgUrlInput.value.trim());
-});
-
-bgFileInput.addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (evt) => {
-    setBackground(evt.target.result);
-  };
-  reader.readAsDataURL(file);
-});
-
 viewRadios.forEach((radio) =>
   radio.addEventListener("change", (e) => {
     state.viewMode = e.target.value;
@@ -763,7 +733,6 @@ viewRadios.forEach((radio) =>
 
 const syncHeatControls = () => {
   heatHeightValue.textContent = `${state.heatmap.heightScale.toFixed(1)}x`;
-  meshRadiusValue.textContent = state.heatmap.meshRadius.toFixed(2);
 };
 
 heatHeightSlider.addEventListener("input", (e) => {
@@ -773,11 +742,14 @@ heatHeightSlider.addEventListener("input", (e) => {
   render();
 });
 
-meshRadiusSlider.addEventListener("input", (e) => {
-  state.heatmap.meshRadius = parseFloat(e.target.value) || 1;
-  syncHeatControls();
-  updateBoardScene();
-  render();
+const syncLayoutControls = () => {
+  panelWidthValue.textContent = `${panelWidthSlider.value}px`;
+};
+
+panelWidthSlider.addEventListener("input", (e) => {
+  const val = parseInt(e.target.value, 10) || 360;
+  document.documentElement.style.setProperty("--sidebar-width", `${val}px`);
+  syncLayoutControls();
 });
 
 const setCameraPreset = (preset) => {
@@ -815,6 +787,8 @@ camButtons.forEach((btn) =>
 );
 
 syncHeatControls();
+syncLayoutControls();
+document.documentElement.style.setProperty("--sidebar-width", `${panelWidthSlider.value}px`);
 ensureRandomHeights(state.map);
 initThree();
 updateBoardScene();

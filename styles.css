@@ -1,3 +1,7 @@
+:root {
+  --sidebar-width: 360px;
+}
+
 *,
 *::before,
 *::after {
@@ -12,11 +16,12 @@ body {
 }
 
 .app {
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100vw;
+  min-height: 100vh;
+  margin: 0;
   padding: 16px;
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: var(--sidebar-width) 1fr;
   grid-template-rows: auto auto 1fr;
   gap: 12px;
 }
@@ -58,6 +63,7 @@ body {
 .map-panel {
   grid-row: span 2;
   padding: 0;
+  display: flex;
 }
 
 .log-panel {
@@ -152,20 +158,18 @@ button:active {
   white-space: pre-wrap;
 }
 
-#map-canvas {
+#map-canvas,
+#map-webgl {
   width: 100%;
   height: calc(100vh - 180px);
+  flex: 1;
   display: block;
   background: #0a101a;
   border-radius: 10px;
 }
 
 #map-webgl {
-  width: 100%;
-  height: calc(100vh - 180px);
   display: none;
-  background: #0a101a;
-  border-radius: 10px;
 }
 
 .log-entry {
