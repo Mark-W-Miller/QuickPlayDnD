@@ -1,5 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+import { buildAxisArena } from "./axes.js";
+import { updateHeatmapFromHeights, sampleHeatHeight, rebuildHeatMesh } from "./heatmap.js";
+import { tokenTemplates, buildTemplateSvg, ensureTemplateDef } from "./tokens.js";
 
 const canvas = document.getElementById("map-canvas");
 const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -88,54 +91,6 @@ const three = {
   arenaGrid: null
 };
 
-const tokenTemplates = {
-  "scout-small": {
-    id: "scout-small",
-    name: "Scout (Small)",
-    baseSize: 1,
-    colorTint: "#3b82f6",
-    bg: "#0b1220",
-    fg: "#3b82f6",
-    template: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-      <circle cx="60" cy="60" r="56" fill="$BG" stroke="$FG" stroke-width="8"/>
-      <circle cx="60" cy="60" r="40" fill="#152540" stroke="$FG" stroke-width="6"/>
-      <path d="M60 30 L78 60 L60 90 L42 60 Z" fill="$FG" opacity="0.9"/>
-      <circle cx="60" cy="60" r="6" fill="$BG"/>
-      <text x="60" y="62" text-anchor="middle" font-size="32" font-family="monospace" font-weight="bold" fill="$FG">$INIT</text>
-    </svg>`
-  },
-  "warrior-medium": {
-    id: "warrior-medium",
-    name: "Warrior (Medium)",
-    baseSize: 1,
-    colorTint: "#f97316",
-    bg: "#0b1220",
-    fg: "#f97316",
-    template: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-      <circle cx="60" cy="60" r="56" fill="$BG" stroke="$FG" stroke-width="8"/>
-      <circle cx="60" cy="60" r="42" fill="#28160d" stroke="$FG" stroke-width="5"/>
-      <path d="M60 24 L84 48 L72 48 L72 88 L48 88 L48 48 L36 48 Z" fill="$FG" opacity="0.9"/>
-      <circle cx="60" cy="48" r="6" fill="$BG"/>
-      <text x="60" y="70" text-anchor="middle" font-size="30" font-family="monospace" font-weight="bold" fill="$BG">$INIT</text>
-    </svg>`
-  },
-  "guardian-large": {
-    id: "guardian-large",
-    name: "Guardian (Large)",
-    baseSize: 2,
-    colorTint: "#22c55e",
-    bg: "#0b1220",
-    fg: "#22c55e",
-    template: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
-      <circle cx="80" cy="80" r="74" fill="$BG" stroke="$FG" stroke-width="10"/>
-      <circle cx="80" cy="80" r="60" fill="#0f1f16" stroke="$FG" stroke-width="6"/>
-      <rect x="54" y="40" width="52" height="80" rx="14" fill="$FG" opacity="0.9"/>
-      <rect x="72" y="54" width="16" height="52" fill="$BG"/>
-      <circle cx="80" cy="60" r="8" fill="$BG"/>
-      <text x="80" y="88" text-anchor="middle" font-size="34" font-family="monospace" font-weight="bold" fill="$BG">$INIT</text>
-    </svg>`
-  }
-};
 
 const log = (msg) => {
   const div = document.createElement("div");
@@ -292,23 +247,6 @@ const applyInstructions = (instructions) => {
     if (idx >= 0) working.tokenDefs[idx] = def;
     else working.tokenDefs.push(def);
   };
-  const ensureTemplateDef = (templateId) => {
-    const tpl = tokenTemplates[templateId];
-    if (!tpl) return null;
-    const existing = working.tokenDefs.find((d) => d.code === tpl.id);
-    if (existing) return existing;
-    const def = {
-      id: tpl.id,
-      code: tpl.id.toUpperCase(),
-      name: tpl.name,
-      category: "Object",
-      svgUrl: buildTemplateSvg(templateId, { initials: tpl.name?.slice(0, 2) || "??" }),
-      baseSize: tpl.baseSize,
-      colorTint: tpl.colorTint
-    };
-    addDef(def);
-    return def;
-  };
 
   const setHeight = (col, row, h) => {
     if (!working.map) working.map = ensureMap();
@@ -405,7 +343,7 @@ const applyInstructions = (instructions) => {
         break;
       }
       case "create": {
-        const def = ensureTemplateDef(instr.templateId);
+        const def = ensureTemplateDef(working, instr.templateId, addDef);
         if (!def) {
           log(`Unknown template ${instr.templateId}`);
           return;
@@ -536,15 +474,6 @@ const drawHex = (cx, cy, size, fill, stroke) => {
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const smoothstep = (t) => t * t * (3 - 2 * t);
-const buildTemplateSvg = (templateId, { bg, fg, initials }) => {
-  const tpl = tokenTemplates[templateId];
-  if (!tpl || !tpl.template) return null;
-  const svg = tpl.template
-    .replace(/\$BG/g, bg || tpl.bg || "#0b1220")
-    .replace(/\$FG/g, fg || tpl.fg || "#ffffff")
-    .replace(/\$INIT/g, (initials || "??").slice(0, 3));
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-};
 const charHeight = (ch) => {
   if (!ch) return 0;
   if (ch === "." || ch === "_" || ch === " ") return 0;
@@ -642,14 +571,6 @@ const initThree = () => {
   three.boardWire.rotation.x = -Math.PI / 2;
   three.scene.add(three.boardWire);
 
-  three.gridHelper = new THREE.GridHelper(1, 8, 0x1f2937, 0x1f2937);
-  three.gridHelper.position.y = 0.002;
-  three.gridHelper.material.transparent = true;
-  three.gridHelper.material.opacity = 0.85;
-  three.gridHelper.material.color = new THREE.Color(0xffffff);
-  three.gridHelper.material.needsUpdate = true;
-  three.scene.add(three.gridHelper);
-
   const originGeo = new THREE.BufferGeometry().setFromPoints([
     new THREE.Vector3(-0.5, 0.02, 0),
     new THREE.Vector3(0.5, 0.02, 0),
@@ -701,84 +622,8 @@ const resizeRenderer = () => {
   if (state.viewMode === "3d") render3d();
 };
 
-const updateHeatmapFromHeights = (map) => {
-  const grid = Array.from({ length: 8 }, () =>
-    Array.from({ length: 8 }, () => ({ threat: 0, support: 0 }))
-  );
-  Object.entries(map.heights || {}).forEach(([key, val]) => {
-    const [col, row] = key.split(",").map(Number);
-    if (Number.isNaN(col) || Number.isNaN(row)) return;
-    const gx = clamp(Math.floor((col / Math.max(1, map.cols)) * 8), 0, 7);
-    const gz = clamp(Math.floor((row / Math.max(1, map.rows)) * 8), 0, 7);
-    const threat = Math.max(0, val);
-    const support = Math.max(0, -val);
-    grid[gz][gx].threat = Math.max(grid[gz][gx].threat, threat);
-    grid[gz][gx].support = Math.max(grid[gz][gx].support, support);
-  });
-
-  const allThreat = grid.flat().map((c) => c.threat);
-  const allSupport = grid.flat().map((c) => c.support);
-  state.heatmap.maxThreat = Math.max(0.001, ...allThreat, 0.001);
-  state.heatmap.maxSupport = Math.max(0.001, ...allSupport, 0.001);
-  state.heatmap.grid = grid;
-};
-
-const sampleHeatHeight = (u, v) => {
-  const x = clamp(u, 0, 1) * 7;
-  const z = clamp(v, 0, 1) * 7;
-  const x0 = Math.floor(x);
-  const z0 = Math.floor(z);
-  const x1 = clamp(x0 + 1, 0, 7);
-  const z1 = clamp(z0 + 1, 0, 7);
-  const fx = smoothstep(x - x0);
-  const fz = smoothstep(z - z0);
-  const h00 = state.heatmap.grid[z0][x0];
-  const h10 = state.heatmap.grid[z0][x1];
-  const h01 = state.heatmap.grid[z1][x0];
-  const h11 = state.heatmap.grid[z1][x1];
-  const heightVal = (cell) =>
-    Math.max(
-      cell.threat / (state.heatmap.maxThreat || 1),
-      cell.support / (state.heatmap.maxSupport || 1)
-    );
-  const hx0 = lerp(heightVal(h00), heightVal(h10), fx);
-  const hx1 = lerp(heightVal(h01), heightVal(h11), fx);
-  return lerp(hx0, hx1, fz);
-};
-
 const rebuildPillars = (boardWidth, boardDepth, surfaceY) => {
   if (three.pillarGroup) clearGroup(three.pillarGroup);
-};
-
-const rebuildHeatMesh = (boardWidth, boardDepth, surfaceY, cellUnit) => {
-  if (!three.meshGroup) return;
-  clearGroup(three.meshGroup);
-  if (!state.heatmap.showMesh) return;
-  const subdivisions = 64;
-  const geometry = new THREE.PlaneGeometry(boardWidth, boardDepth, subdivisions, subdivisions);
-  geometry.rotateX(-Math.PI / 2);
-  geometry.translate(boardWidth / 2, 0, boardDepth / 2);
-  const position = geometry.attributes.position;
-  for (let i = 0; i < position.count; i++) {
-    const x = position.getX(i) / boardWidth;
-    const z = position.getZ(i) / boardDepth;
-    const height = sampleHeatHeight(x, z);
-    position.setY(i, surfaceY + cellUnit * 0.1 + height * state.heatmap.heightScale * cellUnit * 0.25);
-  }
-  geometry.computeVertexNormals();
-  const material = new THREE.MeshStandardMaterial({
-    color: three.boardTexture ? 0xffffff : 0x9aa4b5,
-    map: three.boardTexture || null,
-    transparent: true,
-    opacity: 0.35,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    emissive: new THREE.Color(0xffffff),
-    emissiveIntensity: 0.6
-  });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.renderOrder = 2;
-  three.meshGroup.add(mesh);
 };
 
 const buildTokenMesh = (token, cellHeight, boardWidth, boardDepth, cellUnit) => {
@@ -864,32 +709,30 @@ const updateBoardScene = () => {
   }
   boardMaterial.needsUpdate = true;
 
-  three.gridHelper.scale.set(boardWidth, 1, boardDepth);
-  three.gridHelper.position.set(boardWidth / 2, surfaceY + 0.01, boardDepth / 2);
-
   if (three.originMarker) {
     three.originMarker.position.set(0, surfaceY + 0.02, 0);
   }
 
-  updateHeatmapFromHeights(map);
+  updateHeatmapFromHeights(state, map);
   rebuildPillars(boardWidth, boardDepth, surfaceY);
   const cellUnit = boardWidth / state.map.cols;
-  rebuildHeatMesh(boardWidth, boardDepth, surfaceY, cellUnit);
+  rebuildHeatMesh(three, state, boardWidth, boardDepth, surfaceY, cellUnit, textureToggle);
   if (three.pillarGroup) three.pillarGroup.visible = !!state.heatmap.showVolumes;
   if (three.meshGroup) three.meshGroup.visible = !!state.heatmap.showMesh;
   three.boardMesh.visible = true;
   if (three.boardWire) three.boardWire.visible = true;
   if (three.arenaGrid) {
     const visible = arenaGridToggle?.checked;
-    three.arenaGrid.xy.visible = visible;
-    three.arenaGrid.yz.visible = visible;
-    three.arenaGrid.xz.visible = visible;
-    three.arenaGrid.xy.position.set(boardWidth / 2, surfaceY, boardDepth / 2);
-    three.arenaGrid.yz.position.set(boardWidth / 2, surfaceY, boardDepth / 2);
-    three.arenaGrid.xz.position.set(boardWidth / 2, surfaceY, boardDepth / 2);
-    const scale = Math.max(boardWidth, boardDepth);
-    [three.arenaGrid.xy, three.arenaGrid.yz, three.arenaGrid.xz].forEach((g) => {
-      g.scale.set(scale, scale, scale);
+    const g = three.arenaGrid;
+    const scale = Math.max(boardWidth, boardDepth, map.gridSizePx * Math.max(map.cols, map.rows));
+    const grids = g.xyMajor
+      ? [g.xyMajor, g.xyMinor, g.yzMajor, g.yzMinor, g.xzMajor, g.xzMinor]
+      : [g.xy, g.yz, g.xz];
+    grids.forEach((grid) => {
+      if (!grid) return;
+      grid.visible = visible;
+      grid.position.set(boardWidth / 2, surfaceY, boardDepth / 2);
+      grid.scale.set(scale, scale, scale);
     });
   }
   updateTokens3d(boardWidth, boardDepth, surfaceY, cellUnit);
