@@ -86,12 +86,25 @@ export const rebuildHeightMesh = (three, state, boardWidth, boardDepth, surfaceY
       transparent: false,
       opacity: 1,
       depthWrite: true,
-      side: THREE.DoubleSide
+      side: THREE.FrontSide
     });
     const mesh = new THREE.Mesh(geometry, baseMaterial);
     mesh.renderOrder = 2;
     three.meshGroup.add(mesh);
   }
+
+  // Underside grid so the bottom is a translucent red wireframe instead of a black plane.
+  const undersideMaterial = new THREE.MeshBasicMaterial({
+    color: 0xff3333,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.35,
+    depthWrite: false,
+    side: THREE.BackSide
+  });
+  const undersideMesh = new THREE.Mesh(geometry.clone(), undersideMaterial);
+  undersideMesh.renderOrder = 1;
+  three.meshGroup.add(undersideMesh);
 
   // Wireframe overlay for the height mesh outline
   if (showWire) {

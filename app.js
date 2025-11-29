@@ -3,41 +3,34 @@ import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/cont
 import { buildAxisArena } from "./axes.js";
 import { updateHeightMapFromHeights, sampleHeightMap, rebuildHeightMesh } from "./heightmap.js";
 import { tokenTemplates, buildTemplateSvg, ensureTemplateDef } from "./tokens.js";
+import { initLogger } from "./logger.js";
+import { createCameraManager } from "./camera.js";
 
 const canvas = document.getElementById("map-canvas");
-const logEl = document.getElementById("log");
 const inputEl = document.getElementById("script-input");
 const scriptPicker = document.getElementById("script-picker");
-const logOpenBtn = document.getElementById("log-open");
-const logCloseBtn = document.getElementById("log-close");
-const logWindow = document.getElementById("log-window");
 const arenaGridToggle = document.getElementById("arena-grid");
 const textureToggle = document.getElementById("show-texture");
 const heightToggle = document.getElementById("show-height");
-const savedArenaGrid = (() => {
+const safeJsonParse = (val, fallback) => {
   try {
-    return JSON.parse(localStorage.getItem("arena-grid") || "false");
+    return JSON.parse(val);
   } catch {
-    return false;
+    return fallback;
   }
+};
+const savedArenaGrid = (() => {
+  return safeJsonParse(localStorage.getItem("arena-grid") || "false", false);
 })();
 const savedTexture = (() => {
-  try {
-    return JSON.parse(localStorage.getItem("show-texture") || "true");
-  } catch {
-    return true;
-  }
+  return safeJsonParse(localStorage.getItem("show-texture") || "true", true);
 })();
 const savedHeight = (() => {
-  try {
-    return JSON.parse(localStorage.getItem("show-heightmap") || "true");
-  } catch {
-    return true;
-  }
+  return safeJsonParse(localStorage.getItem("show-heightmap") || "true", true);
 })();
-const savedCameraState = (() => {
+const savedScriptPath = (() => {
   try {
-    return JSON.parse(localStorage.getItem("camera-state") || "null");
+    return localStorage.getItem("last-script-path");
   } catch {
     return null;
   }
@@ -98,14 +91,7 @@ const three = {
   arenaGrid: null
 };
 
-
-const log = (msg) => {
-  const div = document.createElement("div");
-  div.className = "log-entry";
-  div.textContent = `${new Date().toLocaleTimeString()} — ${msg}`;
-  logEl.prepend(div);
-  while (logEl.children.length > 50) logEl.removeChild(logEl.lastChild);
-};
+const { log, logClass } = initLogger();
 
 const coordToIndex = (coord) => {
   const match = /^([A-Z])(\d+)$/i.exec(coord.trim());
@@ -442,6 +428,8 @@ const setBackground = (url, opts = {}) => {
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const smoothstep = (t) => t * t * (3 - 2 * t);
+const cameraManager = createCameraManager({ three, state, textureCanvas, clamp, logClass });
+
 const ensureRandomHeights = (map) => {
   if (!map) return;
   if (map.disableRandomHeights) return;
@@ -517,14 +505,6 @@ const initThree = () => {
     MIDDLE: THREE.MOUSE.DOLLY,
     RIGHT: THREE.MOUSE.PAN
   };
-  three.controls.addEventListener("change", () => {
-    render3d();
-    const camState = {
-      position: three.camera.position.toArray(),
-      target: three.controls.target.toArray()
-    };
-    localStorage.setItem("camera-state", JSON.stringify(camState));
-  });
 
   three.ambient = new THREE.AmbientLight(0xffffff, 1.2);
   three.scene.add(three.ambient);
@@ -671,14 +651,19 @@ const updateBoardScene = () => {
       three.boardTexture.image?.height !== textureCanvas.height;
     if (needsRecreate) {
       if (three.boardTexture) three.boardTexture.dispose();
-      three.boardTexture = new THREE.CanvasTexture(textureCanvas);
+      if (textureCanvas.width > 0 && textureCanvas.height > 0) {
+        three.boardTexture = new THREE.CanvasTexture(textureCanvas);
+      } else {
+        three.boardTexture = null;
+      }
+    }
+    if (three.boardTexture) {
       three.boardTexture.colorSpace = THREE.SRGBColorSpace;
       three.boardTexture.wrapS = three.boardTexture.wrapT = THREE.ClampToEdgeWrapping;
       three.boardTexture.anisotropy = 4;
       three.boardTexture.generateMipmaps = false;
       three.boardTexture.minFilter = THREE.LinearFilter;
       three.boardTexture.magFilter = THREE.LinearFilter;
-    } else {
       three.boardTexture.needsUpdate = true;
     }
   } else if (three.boardTexture) {
@@ -723,9 +708,15 @@ const updateBoardScene = () => {
   updateTokens3d(boardWidth, boardDepth, surfaceY, cellUnit);
 
   if (three.controls) {
-    const sceneRadius = Math.max(boardWidth, boardDepth);
-    three.controls.minDistance = Math.max(4, sceneRadius * 0.2);
-    three.controls.maxDistance = Math.max(sceneRadius, sceneRadius * 2.5);
+  const sceneRadius = Math.max(boardWidth, boardDepth);
+  three.controls.minDistance = Math.max(4, sceneRadius * 0.2);
+  three.controls.maxDistance = Math.max(sceneRadius, sceneRadius * 2.5);
+  const camInfo = cameraManager.getLastSavedCamera ? cameraManager.getLastSavedCamera() : null;
+  if (camInfo?.distance) {
+    const dist = Math.max(0.1, camInfo.distance);
+    three.controls.minDistance = Math.min(three.controls.minDistance, dist * 0.9);
+    three.controls.maxDistance = Math.max(three.controls.maxDistance, dist * 1.1);
+  }
   }
 
   if (three.controls && !three.restoredCamera) {
@@ -759,17 +750,19 @@ const runCurrentScript = () => {
   applyInstructions(instructions);
 };
 
-const loadExampleScript = async (path, fallback) => {
+const loadExampleScript = async (path, fallback, autoRun = false) => {
   try {
     const res = await fetch(path);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
     inputEl.value = text.trim();
     log(`Loaded script: ${path}`);
+    if (autoRun) runCurrentScript();
   } catch (err) {
     if (fallback) {
       inputEl.value = fallback.trim();
       log(`Loaded fallback script (failed to load ${path})`);
+      if (autoRun) runCurrentScript();
     } else {
       log(`Failed to load example ${path}: ${err.message}`);
     }
@@ -813,112 +806,22 @@ if (scriptPicker) {
         scriptPicker.appendChild(option);
       });
     const defaultVal = "scripts/map-hex.txt";
+    const availableValues = entries.map((e) => `scripts/${e.file}`);
+    const initialVal = savedScriptPath && availableValues.includes(savedScriptPath) ? savedScriptPath : defaultVal;
     if (scriptPicker.options.length) {
-      scriptPicker.value = defaultVal;
-      loadExampleScript(defaultVal, fallbackScript);
+      scriptPicker.value = initialVal;
+      loadExampleScript(initialVal, fallbackScript, true);
     }
   };
 
   populateScripts();
   scriptPicker.addEventListener("change", (e) => {
     const val = e.target.value;
-    if (val) loadExampleScript(val, fallbackScript);
-  });
-}
-
-if (logOpenBtn && logWindow) {
-  logOpenBtn.addEventListener("click", () => {
-    logWindow.classList.add("open");
-    const saved = JSON.parse(localStorage.getItem("log-window-state") || "{}");
-    if (saved.left !== undefined && saved.top !== undefined) {
-      logWindow.style.left = `${saved.left}px`;
-      logWindow.style.top = `${saved.top}px`;
-      logWindow.style.right = "auto";
-      logWindow.style.bottom = "auto";
-    } else {
-      logWindow.style.left = "";
-      logWindow.style.top = "";
-      logWindow.style.right = "";
-      logWindow.style.bottom = "";
+    if (val) {
+      localStorage.setItem("last-script-path", val);
+      loadExampleScript(val, fallbackScript, true);
     }
-    if (saved.width) logWindow.style.width = saved.width;
-    if (saved.height) logWindow.style.height = saved.height;
-    if (saved.open) logWindow.classList.add("open");
   });
-}
-
-if (logCloseBtn && logWindow) {
-  logCloseBtn.addEventListener("click", () => {
-    logWindow.classList.remove("open");
-    const rect = logWindow.getBoundingClientRect();
-    localStorage.setItem(
-      "log-window-state",
-      JSON.stringify({
-        left: rect.left,
-        top: rect.top,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
-        open: false
-      })
-    );
-  });
-}
-
-// Log window drag
-if (logWindow) {
-  const header = logWindow.querySelector(".log-window-header");
-  let dragging = false;
-  let dragOffset = { x: 0, y: 0 };
-
-  const saveState = () => {
-    const rect = logWindow.getBoundingClientRect();
-    localStorage.setItem(
-      "log-window-state",
-      JSON.stringify({
-        left: rect.left,
-        top: rect.top,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
-        open: logWindow.classList.contains("open")
-      })
-    );
-  };
-
-  const onMove = (e) => {
-    if (!dragging) return;
-    const x = e.clientX - dragOffset.x;
-    const y = e.clientY - dragOffset.y;
-    logWindow.style.left = `${x}px`;
-    logWindow.style.top = `${y}px`;
-    logWindow.style.right = "auto";
-    logWindow.style.bottom = "auto";
-  };
-
-  const endDrag = () => {
-    if (!dragging) return;
-    dragging = false;
-    window.removeEventListener("mousemove", onMove);
-    window.removeEventListener("mouseup", endDrag);
-    saveState();
-  };
-
-  if (header) {
-    header.addEventListener("mousedown", (e) => {
-      if (e.target.tagName === "BUTTON") return; // avoid drag when clicking close
-      dragging = true;
-      const rect = logWindow.getBoundingClientRect();
-      dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", endDrag);
-    });
-  }
-
-  const saved = JSON.parse(localStorage.getItem("log-window-state") || "{}");
-  if (saved.left !== undefined) logWindow.style.left = `${saved.left}px`;
-  if (saved.top !== undefined) logWindow.style.top = `${saved.top}px`;
-  if (saved.width) logWindow.style.width = saved.width;
-  if (saved.height) logWindow.style.height = saved.height;
-  if (saved.open) logWindow.classList.add("open");
 }
 
 document.getElementById("clear-btn").addEventListener("click", () => {
@@ -937,31 +840,7 @@ heatHeightSlider.addEventListener("input", (e) => {
 });
 
 const setCameraPreset = (preset) => {
-  if (!three.controls || !state.map) return;
-  const map = state.map || { cols: 20, rows: 20 };
-  const boardWidth = Math.max(1, map.cols);
-  const boardDepth = Math.max(1, map.rows);
-  const target = new THREE.Vector3(boardWidth / 2, 0, boardDepth / 2);
-  const maxCellHeight = Math.max(0, ...Object.values(map.heights || {}));
-  target.y = maxCellHeight > 0 ? Math.min(1.5, maxCellHeight * 0.2) : 0;
-
-  const baseDistance = clamp(Math.max(boardWidth, boardDepth) * 0.9, 4, 30);
-  const presets = {
-    top: { theta: 0, phi: 0.28 },
-    nw: { theta: -Math.PI / 4, phi: 0.95 },
-    ne: { theta: Math.PI / 4, phi: 0.95 },
-    sw: { theta: (-3 * Math.PI) / 4, phi: 0.95 },
-    se: { theta: (3 * Math.PI) / 4, phi: 0.95 }
-  };
-  const presetAngles = presets[preset];
-  if (!presetAngles) return;
-  const phi = clamp(presetAngles.phi, three.controls.minPolarAngle, three.controls.maxPolarAngle);
-  const spherical = new THREE.Spherical(baseDistance, phi, presetAngles.theta);
-  const position = new THREE.Vector3().setFromSpherical(spherical).add(target);
-  three.camera.position.copy(position);
-  three.controls.target.copy(target);
-  three.controls.update();
-  render3d();
+  cameraManager.setCameraPreset(preset, render3d);
 };
 
 camButtons.forEach((btn) =>
@@ -1026,31 +905,10 @@ setBackground(state.map.backgroundUrl, { silent: true });
 syncHeatControls();
 initThree();
 updateBoardScene();
+cameraManager.applySavedCamera();
+cameraManager.attachControlListeners(render3d);
 render();
 
 if (arenaGridToggle) {
   arenaGridToggle.checked = !!savedArenaGrid;
 }
-
-const applySavedCamera = () => {
-  if (!three.camera || !three.controls) return;
-  let saved = savedCameraState;
-  try {
-    const dynamic = localStorage.getItem("camera-state");
-    if (dynamic) saved = JSON.parse(dynamic);
-  } catch {
-    /* ignore */
-  }
-  if (!saved || !saved.position || !saved.target) return;
-  try {
-    three.camera.position.fromArray(saved.position);
-    three.controls.target.fromArray(saved.target);
-    three.controls.update();
-    three.restoredCamera = true;
-    render();
-  } catch (err) {
-    console.warn("Failed to restore camera state", err);
-  }
-};
-
-applySavedCamera();
