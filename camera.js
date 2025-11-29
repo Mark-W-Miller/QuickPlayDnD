@@ -62,51 +62,22 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
     return best.payload;
   };
 
-  const saveCameraState = () => {
-    if (!three.camera || !three.controls) return;
-    try {
-      const target = three.controls.target.clone();
-      const distance = three.camera.position.distanceTo(target);
-      const payload = {
-        position: three.camera.position.toArray(),
-        target: target.toArray(),
-        distance,
-        azimuth: three.controls.getAzimuthalAngle(),
-        polar: three.controls.getPolarAngle(),
-        up: three.camera.up.toArray(),
-        time: Date.now()
-      };
-      if (
-        lastSavedCamera &&
-        sameVec3(payload.position, lastSavedCamera.position) &&
-        sameVec3(payload.target, lastSavedCamera.target) &&
-        nearlyEqual(payload.distance, lastSavedCamera.distance, 1e-3) &&
-        nearlyEqual(payload.azimuth, lastSavedCamera.azimuth, 1e-3) &&
-        nearlyEqual(payload.polar, lastSavedCamera.polar, 1e-3)
-      ) {
-        return;
-      }
-      localStorage.setItem("camera-state", JSON.stringify(payload));
-      lastSavedCamera = payload;
-      if (logClass) {
-        const fmt = (arr) => arr.map((n) => Number(n).toFixed(2)).join(", ");
-        logClass(
-          "CAMERA",
-          `Saved pos [${fmt(payload.position)}] target [${fmt(payload.target)}] dist ${distance.toFixed(
-            2
-          )} az ${payload.azimuth.toFixed(2)} polar ${payload.polar.toFixed(2)}`,
-          payload
-        );
-      }
-    } catch {
-      /* ignore persistence failures */
-    }
+  const buildPayload = () => {
+    const target = three.controls?.target?.clone() || new THREE.Vector3();
+    const distance = three.camera?.position?.distanceTo ? three.camera.position.distanceTo(target) : 0;
+    return {
+      position: three.camera?.position?.toArray ? three.camera.position.toArray() : [0, 0, 0],
+      target: target.toArray(),
+      distance,
+      azimuth: three.controls?.getAzimuthalAngle ? three.controls.getAzimuthalAngle() : 0,
+      polar: three.controls?.getPolarAngle ? three.controls.getPolarAngle() : Math.PI / 4,
+      up: three.camera?.up?.toArray ? three.camera.up.toArray() : [0, 1, 0],
+      time: Date.now()
+    };
   };
 
-  const applySavedCamera = () => {
-    if (!three.camera || !three.controls) return;
-    const saved = getLatestCameraPayload();
-    if (!saved || !Array.isArray(saved.target)) return;
+  const applyCameraPayload = (saved) => {
+    if (!three.camera || !three.controls || !saved || !Array.isArray(saved.target)) return;
     try {
       const target = new THREE.Vector3().fromArray(saved.target);
       const hasPos = Array.isArray(saved.position);
@@ -160,6 +131,41 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
     }
   };
 
+  const saveCameraState = () => {
+    if (!three.camera || !three.controls) return;
+    try {
+      const payload = buildPayload();
+      if (
+        lastSavedCamera &&
+        sameVec3(payload.position, lastSavedCamera.position) &&
+        sameVec3(payload.target, lastSavedCamera.target) &&
+        nearlyEqual(payload.distance, lastSavedCamera.distance, 1e-3) &&
+        nearlyEqual(payload.azimuth, lastSavedCamera.azimuth, 1e-3) &&
+        nearlyEqual(payload.polar, lastSavedCamera.polar, 1e-3)
+      ) {
+        return;
+      }
+      localStorage.setItem("camera-state", JSON.stringify(payload));
+      lastSavedCamera = payload;
+      if (logClass) {
+        const fmt = (arr) => arr.map((n) => Number(n).toFixed(2)).join(", ");
+        logClass(
+          "CAMERA",
+          `Saved pos [${fmt(payload.position)}] target [${fmt(payload.target)}] dist ${distance.toFixed(
+            2
+          )} az ${payload.azimuth.toFixed(2)} polar ${payload.polar.toFixed(2)}`,
+          payload
+        );
+      }
+    } catch {
+      /* ignore persistence failures */
+    }
+  };
+
+  const applySavedCamera = () => {
+    applyCameraPayload(getLatestCameraPayload());
+  };
+
   const setCameraPreset = (preset, render3d) => {
     if (!three.controls || !state.map) return;
     const map = state.map || { cols: 20, rows: 20 };
@@ -199,12 +205,15 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
   };
 
   const getLastSavedCamera = () => lastSavedCamera;
+  const getCurrentCamera = () => buildPayload();
 
   return {
     saveCameraState,
     applySavedCamera,
+    applyCameraPayload,
     setCameraPreset,
     attachControlListeners,
-    getLastSavedCamera
+    getLastSavedCamera,
+    getCurrentCamera
   };
 };

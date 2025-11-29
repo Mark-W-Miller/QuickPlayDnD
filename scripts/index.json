@@ -1,8 +1,11 @@
 [
   { "file": "map-hex.txt", "type": "map", "name": "Hex Board" },
   { "file": "map-grid.txt", "type": "map", "name": "Grid Board" },
+  { "file": "map-hex-flat.txt", "type": "map", "name": "Hex Board (Flat)" },
+  { "file": "map-grid-flat.txt", "type": "map", "name": "Grid Board (Flat)" },
   { "file": "wight-map-setup.txt", "type": "map", "name": "Wight Battle" },
   { "file": "pop-first-team.txt", "type": "pop", "name": "First Team" },
   { "file": "pop-templates.txt", "type": "pop", "name": "Template Samples" },
+  { "file": "pop-every-other.txt", "type": "pop", "name": "Every Other Cell" },
   { "file": "move-templates.txt", "type": "move", "name": "Template Moves" }
 ]

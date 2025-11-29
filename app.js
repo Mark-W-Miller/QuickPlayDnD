@@ -35,15 +35,31 @@ const savedScriptPath = (() => {
     return null;
   }
 })();
+const savedMapScript = (() => {
+  try {
+    return localStorage.getItem("last-map-script");
+  } catch {
+    return null;
+  }
+})();
+const savedPopScript = (() => {
+  try {
+    return localStorage.getItem("last-pop-script");
+  } catch {
+    return null;
+  }
+})();
 const fallbackScript = `
 # Provide your own script here
 `;
-const camButtons = document.querySelectorAll("[data-cam]");
 const heatHeightSlider = document.getElementById("heat-height");
 const heatHeightValue = document.getElementById("heat-height-value");
 const mapPanel = document.querySelector(".map-panel");
 const appEl = document.querySelector(".app");
 const resizer = document.getElementById("sidebar-resizer");
+const camSlotButtons = document.querySelectorAll("[data-cam-slot]");
+const clearCamViewsBtn = document.getElementById("clear-cam-views");
+const currentMapLabel = document.getElementById("current-map-label");
 
 const textureCanvas = document.createElement("canvas");
 const textureCtx = textureCanvas.getContext("2d", { willReadFrequently: true });
@@ -438,7 +454,8 @@ const ensureRandomHeights = (map) => {
   map.heights = {};
   for (let r = 0; r < map.rows; r++) {
     for (let c = 0; c < map.cols; c++) {
-      map.heights[`${c},${r}`] = Math.random() * 10;
+      // Default to flat surface when no heights are provided to avoid unintended wobble.
+      map.heights[`${c},${r}`] = 0;
     }
   }
 };
@@ -597,15 +614,28 @@ const buildTokenMesh = (token, cellHeight, boardWidth, boardDepth, cellUnit) => 
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true;
-  const x = (token.col + 0.5) * (boardWidth / state.map.cols);
-  const z = (token.row + 0.5) * (boardDepth / state.map.rows);
-  mesh.position.set(x, cellHeight + cellUnit * 0.15, z);
+  const isHex = state.map.gridType === "hex";
+  const cellW = boardWidth / state.map.cols;
+  const cellH = boardDepth / state.map.rows;
+  // Stagger hex rows: even rows shift left by half, odd rows shift right by half.
+  let hexOffset = 0;
+  if (isHex) {
+    if (token.row % 2 === 0) hexOffset = 0.5; // odd rows shift left
+    else hexOffset = 0; // even rows shift right
+  }
+  const x = (token.col + hexOffset + 0.5) * cellW;
+  const effRow = clamp(token.row + 1, 0, state.map.rows - 1); // push tokens one row down
+  const z = (effRow + 0.5) * cellH;
+  // Keep tokens just above the surface to avoid z-fighting, not floating well above it.
+  const yOffset = cellUnit * 0.02;
+  mesh.position.set(x, cellHeight + yOffset + 1, z);
   return mesh;
 };
 
 const getSurfaceHeightAt = (col, row, boardWidth, boardDepth, surfaceY, cellUnit) => {
+  const effRow = clamp(row + 1, 0, state.map.rows - 1); // match token row shift
   const u = (col + 0.5) / Math.max(1, state.map.cols);
-  const v = (row + 0.5) / Math.max(1, state.map.rows);
+  const v = (effRow + 0.5) / Math.max(1, state.map.rows);
   const h = sampleHeightMap(state, u, v);
   return surfaceY + cellUnit * 0.1 + h * state.heightMap.heightScale * cellUnit * 0.25;
 };
@@ -750,18 +780,20 @@ const runCurrentScript = () => {
   applyInstructions(instructions);
 };
 
-const loadExampleScript = async (path, fallback, autoRun = false) => {
+const loadExampleScript = async (path, fallback, autoRun = false, meta = {}) => {
   try {
     const res = await fetch(path);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
     inputEl.value = text.trim();
     log(`Loaded script: ${path}`);
+    if (meta.type === "map" && currentMapLabel) currentMapLabel.textContent = path;
     if (autoRun) runCurrentScript();
   } catch (err) {
     if (fallback) {
       inputEl.value = fallback.trim();
       log(`Loaded fallback script (failed to load ${path})`);
+      if (meta.type === "map" && currentMapLabel) currentMapLabel.textContent = "Fallback map";
       if (autoRun) runCurrentScript();
     } else {
       log(`Failed to load example ${path}: ${err.message}`);
@@ -802,15 +834,29 @@ if (scriptPicker) {
         else if (entry.type === "move") labelPrefix = "Move:";
         const option = document.createElement("option");
         option.value = `scripts/${entry.file}`;
+        option.dataset.type = entry.type || "script";
         option.textContent = `${labelPrefix} ${entry.name || entry.file}`;
         scriptPicker.appendChild(option);
       });
-    const defaultVal = "scripts/map-hex.txt";
+
     const availableValues = entries.map((e) => `scripts/${e.file}`);
-    const initialVal = savedScriptPath && availableValues.includes(savedScriptPath) ? savedScriptPath : defaultVal;
-    if (scriptPicker.options.length) {
-      scriptPicker.value = initialVal;
-      loadExampleScript(initialVal, fallbackScript, true);
+    const pickExisting = (val) => (val && availableValues.includes(val) ? val : null);
+    const mapChoice = pickExisting(savedMapScript) || pickExisting("scripts/map-hex.txt") || scriptPicker.options[0]?.value;
+    const popChoice =
+      pickExisting(savedPopScript) ||
+      availableValues.find((v) => entries.find((e) => `scripts/${e.file}` === v && e.type === "pop")) ||
+      null;
+
+    // Run map first, then pop. Keep picker on pop if we ran one, else on map.
+    if (mapChoice) {
+      scriptPicker.value = mapChoice;
+      const type = scriptPicker.selectedOptions[0]?.dataset?.type || "script";
+      loadExampleScript(mapChoice, fallbackScript, true, { type });
+    }
+    if (popChoice) {
+      scriptPicker.value = popChoice;
+      const type = scriptPicker.selectedOptions[0]?.dataset?.type || "script";
+      loadExampleScript(popChoice, fallbackScript, true, { type });
     }
   };
 
@@ -818,8 +864,16 @@ if (scriptPicker) {
   scriptPicker.addEventListener("change", (e) => {
     const val = e.target.value;
     if (val) {
-      localStorage.setItem("last-script-path", val);
-      loadExampleScript(val, fallbackScript, true);
+      const type = e.target.selectedOptions[0]?.dataset?.type || "script";
+      if (type === "map") {
+        localStorage.setItem("last-map-script", val);
+        if (currentMapLabel) currentMapLabel.textContent = val;
+      } else if (type === "pop") {
+        localStorage.setItem("last-pop-script", val);
+      } else {
+        localStorage.setItem("last-script-path", val);
+      }
+      loadExampleScript(val, fallbackScript, true, { type });
     }
   });
 }
@@ -843,11 +897,54 @@ const setCameraPreset = (preset) => {
   cameraManager.setCameraPreset(preset, render3d);
 };
 
-camButtons.forEach((btn) =>
-  btn.addEventListener("click", (e) => {
-    setCameraPreset(e.target.getAttribute("data-cam"));
+const refreshCamSlotIndicators = () => {
+  camSlotButtons.forEach((btn) => {
+    const slot = btn.getAttribute("data-cam-slot");
+    const stored = localStorage.getItem(`camera-slot-${slot}`);
+    if (stored) btn.classList.add("cam-set");
+    else btn.classList.remove("cam-set");
+  });
+};
+
+const applyCamSlot = (slot) => {
+  const raw = localStorage.getItem(`camera-slot-${slot}`);
+  if (!raw) return;
+  const parsed = safeJsonParse(raw, null);
+  if (!parsed) return;
+  cameraManager.applyCameraPayload(parsed);
+  render3d();
+};
+
+const saveCamSlot = (slot) => {
+  const payload = cameraManager.getCurrentCamera();
+  try {
+    localStorage.setItem(`camera-slot-${slot}`, JSON.stringify(payload));
+    refreshCamSlotIndicators();
+    if (logClass) logClass("CAMERA", `Saved view slot ${slot}`, payload);
+  } catch {
+    /* ignore */
+  }
+};
+
+camSlotButtons.forEach((btn) =>
+  btn.addEventListener("click", () => {
+    const slot = btn.getAttribute("data-cam-slot");
+    const has = localStorage.getItem(`camera-slot-${slot}`);
+    if (has) applyCamSlot(slot);
+    else saveCamSlot(slot);
   })
 );
+
+if (clearCamViewsBtn) {
+  clearCamViewsBtn.addEventListener("click", () => {
+    camSlotButtons.forEach((btn) => {
+      const slot = btn.getAttribute("data-cam-slot");
+      localStorage.removeItem(`camera-slot-${slot}`);
+    });
+    refreshCamSlotIndicators();
+    if (logClass) logClass("CAMERA", "Cleared all camera view slots");
+  });
+}
 
 if (arenaGridToggle) {
   arenaGridToggle.addEventListener("change", () => {
@@ -912,3 +1009,7 @@ render();
 if (arenaGridToggle) {
   arenaGridToggle.checked = !!savedArenaGrid;
 }
+
+refreshCamSlotIndicators();
+
+refreshCamSlotIndicators();

@@ -28,6 +28,7 @@
             <option value="scripts/hex-demo.txt">Hex Demo</option>
             <option value="scripts/grid-demo.txt">Grid Demo</option>
           </select>
+          <div class="current-map-label">Current map: <span id="current-map-label">None</span></div>
         </div>
         <textarea id="script-input" class="console" spellcheck="false"></textarea>
         <div class="actions">
@@ -39,11 +40,13 @@
         <div class="bg-controls">
           <div class="field cam-buttons">
             <label>Cameras</label>
-            <button data-cam="top">Top</button>
-            <button data-cam="nw">NW</button>
-            <button data-cam="ne">NE</button>
-            <button data-cam="sw">SW</button>
-            <button data-cam="se">SE</button>
+            <button data-cam-slot="1">View 1</button>
+            <button data-cam-slot="2">View 2</button>
+            <button data-cam-slot="3">View 3</button>
+            <button data-cam-slot="4">View 4</button>
+            <button data-cam-slot="5">View 5</button>
+            <button data-cam-slot="6">View 6</button>
+            <button id="clear-cam-views">Clear Views</button>
           </div>
           <div class="field slider-field">
             <label for="heat-height">Heat height</label>
