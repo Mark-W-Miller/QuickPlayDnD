@@ -10,6 +10,7 @@ Plain text commands, one per line. Lines starting with `#` are comments.
 - `PLACE <CODE> @ A1,B2,...` — place sprite instances of the given code at coordinates. Instances auto-name `<CODE>-N`.
 - `MOVE <tokenId> TO C3` — move the first token whose id starts with `tokenId`.
 - `REMOVE <tokenId>` — remove the first token whose id starts with `tokenId`.
+- `REMOVE HEIGHTMAP` — clear all height values and flatten the terrain.
 - `CLEAR TOKENS` — remove all tokens.
 - `CLEAR ALL` — clear map, sprites, and tokens.
 - `RESET` — clear everything (map, sprites, tokens, backgrounds).

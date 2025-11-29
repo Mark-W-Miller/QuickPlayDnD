@@ -53,7 +53,7 @@ export const sampleHeightMap = (state, u, v) => {
 export const rebuildHeightMesh = (three, state, boardWidth, boardDepth, surfaceY, cellUnit, textureToggle, boardTexture) => {
   if (!three.meshGroup) return;
   clearGroup(three.meshGroup);
-  if (!state.heightMap.showMesh) return;
+  const showWire = !!state.heightMap.showMesh;
   // number of segments for a smoother displacement surface
   const subdivisions = 64;
   // base grid
@@ -76,22 +76,36 @@ export const rebuildHeightMesh = (three, state, boardWidth, boardDepth, surfaceY
   // fix lighting after displacement
   geometry.computeVertexNormals();
   const shouldTexture = textureToggle ? textureToggle.checked : true;
-  const material = new THREE.MeshStandardMaterial({
-    // plain tint if no texture
-    color: shouldTexture && boardTexture ? 0xffffff : 0x9aa4b5,
-    // apply texture when enabled/available
-    map: shouldTexture ? boardTexture || null : null,
-    transparent: false,
-    opacity: 1,
-    depthWrite: true,
-    side: THREE.DoubleSide,
-    emissive: new THREE.Color(0xffffff),
-    emissiveIntensity: 0.15
-  });
-  const mesh = new THREE.Mesh(geometry, material);
-  // ensure it renders above the base board
-  mesh.renderOrder = 2;
-  three.meshGroup.add(mesh);
+
+  const hasTexture = shouldTexture && !!boardTexture;
+  // Textured surface mesh (shows the map) — unlit so the texture is not altered by lighting.
+  if (hasTexture) {
+    const baseMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      map: boardTexture,
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      side: THREE.DoubleSide
+    });
+    const mesh = new THREE.Mesh(geometry, baseMaterial);
+    mesh.renderOrder = 2;
+    three.meshGroup.add(mesh);
+  }
+
+  // Wireframe overlay for the height mesh outline
+  if (showWire) {
+    const wireMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff5555,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false
+    });
+    const wireMesh = new THREE.Mesh(geometry.clone(), wireMaterial);
+    wireMesh.renderOrder = 3;
+    three.meshGroup.add(wireMesh);
+  }
 };
 
 const clearGroup = (group) => {

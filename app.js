@@ -13,6 +13,7 @@ const logCloseBtn = document.getElementById("log-close");
 const logWindow = document.getElementById("log-window");
 const arenaGridToggle = document.getElementById("arena-grid");
 const textureToggle = document.getElementById("show-texture");
+const heightToggle = document.getElementById("show-height");
 const savedArenaGrid = (() => {
   try {
     return JSON.parse(localStorage.getItem("arena-grid") || "false");
@@ -23,6 +24,13 @@ const savedArenaGrid = (() => {
 const savedTexture = (() => {
   try {
     return JSON.parse(localStorage.getItem("show-texture") || "true");
+  } catch {
+    return true;
+  }
+})();
+const savedHeight = (() => {
+  try {
+    return JSON.parse(localStorage.getItem("show-heightmap") || "true");
   } catch {
     return true;
   }
@@ -66,7 +74,7 @@ const state = {
   viewMode: "3d",
   heightMap: {
     showVolumes: false,
-    showMesh: true,
+    showMesh: savedHeight,
     heightScale: 3,
     grid: [],
     maxThreat: 1,
@@ -86,7 +94,6 @@ const three = {
   ambient: null,
   directional: null,
   boardTexture: null,
-  boardWire: null,
   originMarker: null,
   arenaGrid: null
 };
@@ -201,6 +208,10 @@ const parseScript = (script) => {
     }
     if ((match = /^REMOVE\s+(\w+)$/i.exec(line))) {
       instructions.push({ type: "remove", tokenId: match[1] });
+      continue;
+    }
+    if (/^REMOVE\s+HEIGHTMAP$/i.test(line)) {
+      instructions.push({ type: "remove-heightmap" });
       continue;
     }
     if ((match = /^CLEAR\s+(TOKENS|ALL)$/i.exec(line))) {
@@ -333,6 +344,13 @@ const applyInstructions = (instructions) => {
         instr.entries.forEach(({ col, row, h }) => setHeight(col, row, h));
         break;
       }
+      case "remove-heightmap": {
+        const map = ensureMap();
+        map.heights = {};
+        map.disableRandomHeights = true;
+        state.heightMap.grid = [];
+        break;
+      }
       case "create": {
         const def = ensureTemplateDef(working, instr.templateId, addDef);
         if (!def) {
@@ -426,6 +444,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const smoothstep = (t) => t * t * (3 - 2 * t);
 const ensureRandomHeights = (map) => {
   if (!map) return;
+  if (map.disableRandomHeights) return;
   const hasHeights = map.heights && Object.keys(map.heights).length > 0;
   if (hasHeights) return;
   map.heights = {};
@@ -483,14 +502,14 @@ const initThree = () => {
   three.renderer.setPixelRatio(window.devicePixelRatio || 1);
 
   const rect = mapPanel.getBoundingClientRect();
-  three.camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.01, 2000);
+  three.camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.01, 5000);
   three.camera.position.set(5.5, 9, 5.5);
 
   three.controls = new OrbitControls(three.camera, three.renderer.domElement);
   three.controls.enablePan = true;
   three.controls.enableDamping = false;
   three.controls.minDistance = 4;
-  three.controls.maxDistance = 30;
+  three.controls.maxDistance = 200;
   three.controls.minPolarAngle = 0.05;
   three.controls.maxPolarAngle = Math.PI / 2 - 0.05;
   three.controls.mouseButtons = {
@@ -530,13 +549,6 @@ const initThree = () => {
   three.boardMesh.rotation.x = -Math.PI / 2;
   three.boardMesh.receiveShadow = true;
   three.scene.add(three.boardMesh);
-
-  three.boardWire = new THREE.Mesh(
-    new THREE.PlaneGeometry(1, 1, 1, 1),
-    new THREE.MeshBasicMaterial({ color: 0xff5555, wireframe: true, transparent: true, opacity: 0.4 })
-  );
-  three.boardWire.rotation.x = -Math.PI / 2;
-  three.scene.add(three.boardWire);
 
   const originGeo = new THREE.BufferGeometry().setFromPoints([
     new THREE.Vector3(-0.5, 0.02, 0),
@@ -644,16 +656,14 @@ const updateBoardScene = () => {
   three.boardMesh.rotation.set(-Math.PI / 2, 0, 0);
   three.boardMesh.position.set(boardWidth / 2, surfaceY + 0.001, boardDepth / 2);
 
-  three.boardWire.geometry.dispose();
-  three.boardWire.geometry = new THREE.PlaneGeometry(boardWidth, boardDepth, 64, 64);
-  three.boardWire.rotation.set(-Math.PI / 2, 0, 0);
-  three.boardWire.position.set(boardWidth / 2, surfaceY + 0.01, boardDepth / 2);
+  // board wire removed
 
   const boardMaterial = three.boardMesh.material;
   boardMaterial.emissive = new THREE.Color(0x111111);
   boardMaterial.emissiveIntensity = 0.05;
   const shouldTexture = textureToggle ? textureToggle.checked : true;
   const texReady = shouldTexture && map.backgroundUrl && textureCanvas.width > 0 && textureCanvas.height > 0;
+  const useFlatTexture = texReady && !state.heightMap.showMesh;
   if (texReady) {
     const needsRecreate =
       !three.boardTexture ||
@@ -671,15 +681,18 @@ const updateBoardScene = () => {
     } else {
       three.boardTexture.needsUpdate = true;
     }
-  } else {
-    if (three.boardTexture) {
-      three.boardTexture.dispose();
-      three.boardTexture = null;
-    }
+  } else if (three.boardTexture) {
+    three.boardTexture.dispose();
+    three.boardTexture = null;
   }
-  // Bottom board should stay a simple dark plate (no texture); texture is only used on the displaced mesh.
-  boardMaterial.map = null;
-  boardMaterial.color = new THREE.Color(0x0f172a);
+  // Base board shows texture only when the height mesh is hidden; otherwise it stays a dark plate.
+  if (useFlatTexture && three.boardTexture) {
+    boardMaterial.map = three.boardTexture;
+    boardMaterial.color = new THREE.Color(0xffffff);
+  } else {
+    boardMaterial.map = null;
+    boardMaterial.color = new THREE.Color(0x0f172a);
+  }
   boardMaterial.side = THREE.DoubleSide;
   boardMaterial.needsUpdate = true;
 
@@ -692,7 +705,7 @@ const updateBoardScene = () => {
   rebuildHeightMesh(three, state, boardWidth, boardDepth, surfaceY, cellUnit, textureToggle, three.boardTexture);
   if (three.meshGroup) three.meshGroup.visible = !!state.heightMap.showMesh;
   three.boardMesh.visible = true;
-  if (three.boardWire) three.boardWire.visible = true;
+  // no bottom wireframe
   if (three.arenaGrid) {
     const visible = arenaGridToggle?.checked;
     const g = three.arenaGrid;
@@ -969,6 +982,15 @@ if (textureToggle) {
   textureToggle.checked = savedTexture;
   textureToggle.addEventListener("change", () => {
     localStorage.setItem("show-texture", textureToggle.checked);
+    updateBoardScene();
+    render();
+  });
+}
+if (heightToggle) {
+  heightToggle.checked = savedHeight;
+  heightToggle.addEventListener("change", () => {
+    state.heightMap.showMesh = heightToggle.checked;
+    localStorage.setItem("show-heightmap", heightToggle.checked);
     updateBoardScene();
     render();
   });
