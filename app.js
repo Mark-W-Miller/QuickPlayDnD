@@ -650,8 +650,8 @@ const updateBoardScene = () => {
   three.boardWire.position.set(boardWidth / 2, surfaceY + 0.01, boardDepth / 2);
 
   const boardMaterial = three.boardMesh.material;
-  boardMaterial.emissive = new THREE.Color(0xffffff);
-  boardMaterial.emissiveIntensity = 0.2;
+  boardMaterial.emissive = new THREE.Color(0x111111);
+  boardMaterial.emissiveIntensity = 0.05;
   const shouldTexture = textureToggle ? textureToggle.checked : true;
   const texReady = shouldTexture && map.backgroundUrl && textureCanvas.width > 0 && textureCanvas.height > 0;
   if (texReady) {
@@ -671,17 +671,16 @@ const updateBoardScene = () => {
     } else {
       three.boardTexture.needsUpdate = true;
     }
-    boardMaterial.map = three.boardTexture;
-    boardMaterial.color = new THREE.Color(0xffffff);
-    boardMaterial.side = THREE.DoubleSide;
   } else {
     if (three.boardTexture) {
       three.boardTexture.dispose();
       three.boardTexture = null;
     }
-    boardMaterial.map = null;
-    boardMaterial.color = new THREE.Color(0x0f172a);
   }
+  // Bottom board should stay a simple dark plate (no texture); texture is only used on the displaced mesh.
+  boardMaterial.map = null;
+  boardMaterial.color = new THREE.Color(0x0f172a);
+  boardMaterial.side = THREE.DoubleSide;
   boardMaterial.needsUpdate = true;
 
   if (three.originMarker) {

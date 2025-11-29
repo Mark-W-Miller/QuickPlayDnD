@@ -17,7 +17,7 @@ BACKGROUND images/wight-battle.png
 # Grid and board
 # ------------------------------------------------------------
 GRID hex SIZE 64
-BOARD 20x30
+BOARD 20x32
 
 # ------------------------------------------------------------
 # FULL HEIGHTMAP (A1–T30)
