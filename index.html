@@ -24,6 +24,7 @@
         <h3 class="section-title">Battle Language</h3>
         <div class="field">
           <label for="script-picker">Scripts</label>
+          <label class="debug-toggle"><input type="checkbox" id="show-debug" /> Show debug scripts</label>
           <select id="script-picker">
             <option value="scripts/hex-demo.txt">Hex Demo</option>
             <option value="scripts/grid-demo.txt">Grid Demo</option>
@@ -64,6 +65,9 @@
           </div>
           <div class="field">
             <label><input type="checkbox" id="show-overlay-grid" checked /> Show overlay grid/hex</label>
+          </div>
+          <div class="field">
+            <label><input type="checkbox" id="show-overlay-labels" checked /> Show grid refs (A0...)</label>
           </div>
         </div>
       </section>

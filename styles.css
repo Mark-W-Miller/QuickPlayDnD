@@ -103,6 +103,14 @@ body {
   gap: 8px;
 }
 
+.debug-toggle {
+  font-size: 0.85rem;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .bg-controls {
   display: flex;
   flex-direction: column;

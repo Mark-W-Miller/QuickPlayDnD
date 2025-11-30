@@ -83,8 +83,9 @@ export const createSceneBuilder = ({
       ? computeHexPlacement(token, boardWidth, boardDepth)
       : computeGridPlacement(token, boardWidth, boardDepth);
     if (logClass) logClass("DIM", `cellW=${placement.cellW.toFixed(3)} cellH=${placement.cellH.toFixed(3)}`);
-    const yOffset = cellUnit * 0.02;
-    mesh.position.set(placement.x, cellHeight + yOffset, placement.z);
+    const yOffset = cellUnit * 0.15; // lift tokens to sit on top of displaced surface
+    // Cylinder is centered at origin; add half its height so the base rests on the surface.
+    mesh.position.set(placement.x, cellHeight + yOffset + height / 2, placement.z);
     return mesh;
   };
 
@@ -93,7 +94,9 @@ export const createSceneBuilder = ({
     const u = (col + 0.5) / Math.max(1, state.map.cols);
     const v = (effRow + 0.5) / Math.max(1, state.map.rows);
     const h = sampleHeightMap(state, u, v);
-    return surfaceY + cellUnit * 0.1 + h * state.heightMap.heightScale * cellUnit * 0.25;
+    const baseLift = cellUnit * 0.05;
+    const scale = cellUnit * 0.6;
+    return surfaceY + baseLift + h * state.heightMap.heightScale * scale;
   };
 
   const updateTokens3d = (boardWidth, boardDepth, surfaceY, cellUnit) => {
@@ -218,8 +221,8 @@ export const createSceneBuilder = ({
     boardMaterial.emissive = new THREE.Color(0x111111);
     boardMaterial.emissiveIntensity = 0.05;
     const shouldTexture = textureToggle ? textureToggle.checked : true;
-    const texReady = shouldTexture && map.backgroundUrl && textureCanvas.width > 0 && textureCanvas.height > 0;
-    const useFlatTexture = texReady && !state.heightMap.showMesh;
+    const texReady = map.backgroundUrl && textureCanvas.width > 0 && textureCanvas.height > 0;
+    const useFlatTexture = shouldTexture && texReady && !state.heightMap.showMesh;
     if (texReady) {
       const needsRecreate =
         !three.boardTexture ||

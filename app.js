@@ -13,6 +13,8 @@ const arenaGridToggle = document.getElementById("arena-grid");
 const textureToggle = document.getElementById("show-texture");
 const heightToggle = document.getElementById("show-height");
 const overlayGridToggle = document.getElementById("show-overlay-grid");
+const overlayLabelToggle = document.getElementById("show-overlay-labels");
+const debugToggle = document.getElementById("show-debug");
 const safeJsonParse = (val, fallback) => {
   try {
     return JSON.parse(val);
@@ -31,6 +33,12 @@ const savedHeight = (() => {
 })();
 const savedOverlayGrid = (() => {
   return safeJsonParse(localStorage.getItem("show-overlay-grid") || "true", true);
+})();
+const savedOverlayLabels = (() => {
+  return safeJsonParse(localStorage.getItem("show-overlay-labels") || "true", true);
+})();
+const savedDebugScripts = (() => {
+  return safeJsonParse(localStorage.getItem("show-debug-scripts") || "false", false);
 })();
 const savedScriptPath = (() => {
   try {
@@ -161,6 +169,14 @@ const overlayGridOnTexture = (map) => {
         }
         textureCtx.closePath();
         textureCtx.stroke();
+        if (!overlayLabelToggle || overlayLabelToggle.checked) {
+          textureCtx.fillStyle = "rgba(240,240,240,0.7)";
+          textureCtx.font = "12px monospace";
+          textureCtx.textAlign = "center";
+          textureCtx.textBaseline = "middle";
+          const label = `${String.fromCharCode(65 + c)}${r}`;
+          textureCtx.fillText(label, cx, cy);
+        }
       }
     }
   } else {
@@ -176,6 +192,20 @@ const overlayGridOnTexture = (map) => {
       textureCtx.moveTo(0, y);
       textureCtx.lineTo(textureCanvas.width, y);
       textureCtx.stroke();
+    }
+    if (!overlayLabelToggle || overlayLabelToggle.checked) {
+      textureCtx.fillStyle = "rgba(240,240,240,0.7)";
+      textureCtx.font = "12px monospace";
+      textureCtx.textAlign = "center";
+      textureCtx.textBaseline = "middle";
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const x = c * cell + cell / 2;
+          const y = r * cell + cell / 2;
+          const label = `${String.fromCharCode(65 + c)}${r}`;
+          textureCtx.fillText(label, x, y);
+        }
+      }
     }
   }
   textureCtx.restore();
@@ -655,9 +685,13 @@ if (scriptPicker) {
       console.warn("Failed to load script manifest, using defaults", err);
     }
     scriptPicker.innerHTML = "";
+    const debugOn = debugToggle ? debugToggle.checked : false;
+    const savedVals = new Set([savedMapScript, savedPopScript, savedScriptPath].filter(Boolean));
     entries
       .filter((f) => f && f.file && f.file.endsWith(".txt"))
       .forEach((entry) => {
+        const isDebug = !!entry.debug;
+        if (!debugOn && isDebug && !savedVals.has(`scripts/${entry.file}`)) return;
         let labelPrefix = "Script:";
         if (entry.type === "map") labelPrefix = "Map:";
         else if (entry.type === "pop") labelPrefix = "Pop:";
@@ -665,6 +699,7 @@ if (scriptPicker) {
         const option = document.createElement("option");
         option.value = `scripts/${entry.file}`;
         option.dataset.type = entry.type || "script";
+        option.dataset.debug = isDebug ? "true" : "false";
         option.textContent = `${labelPrefix} ${entry.name || entry.file}`;
         scriptPicker.appendChild(option);
       });
@@ -691,6 +726,7 @@ if (scriptPicker) {
   };
 
   populateScripts();
+  scriptPicker.addEventListener("reload-scripts", populateScripts);
   scriptPicker.addEventListener("change", (e) => {
     const val = e.target.value;
     if (val) {
@@ -805,8 +841,28 @@ if (overlayGridToggle) {
   overlayGridToggle.checked = savedOverlayGrid;
   overlayGridToggle.addEventListener("change", () => {
     localStorage.setItem("show-overlay-grid", overlayGridToggle.checked);
+    if (state.map?.backgroundUrl) setBackground(state.map.backgroundUrl, { silent: true });
     updateBoardScene();
     render();
+  });
+}
+if (overlayLabelToggle) {
+  overlayLabelToggle.checked = savedOverlayLabels;
+  overlayLabelToggle.addEventListener("change", () => {
+    localStorage.setItem("show-overlay-labels", overlayLabelToggle.checked);
+    if (state.map?.backgroundUrl) setBackground(state.map.backgroundUrl, { silent: true });
+    updateBoardScene();
+    render();
+  });
+}
+if (debugToggle) {
+  debugToggle.checked = !!savedDebugScripts;
+  debugToggle.addEventListener("change", () => {
+    localStorage.setItem("show-debug-scripts", debugToggle.checked);
+    if (scriptPicker && scriptPicker.options.length) {
+      // Rebuild scripts list respecting debug toggle.
+      scriptPicker.dispatchEvent(new Event("reload-scripts"));
+    }
   });
 }
 
