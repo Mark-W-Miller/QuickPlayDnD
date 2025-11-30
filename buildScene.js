@@ -17,6 +17,8 @@ export const createSceneBuilder = ({
   clamp,
   logClass
 }) => {
+  // Attach logger to state so downstream utilities (heightmap) can log without guards.
+  state.logClass = logClass || (() => {});
   const clearGroup = (group) => {
     if (!group) return;
     group.children.forEach((child) => {
@@ -254,7 +256,8 @@ export const createSceneBuilder = ({
     const cellUnit = boardWidth / state.map.cols;
     rebuildHeightMesh(three, state, boardWidth, boardDepth, surfaceY, cellUnit, textureToggle, three.boardTexture);
     if (three.meshGroup) three.meshGroup.visible = !!state.heightMap.showMesh;
-    three.boardMesh.visible = true;
+    // Base board only shows when the height mesh is hidden (texture lives there in that case).
+    three.boardMesh.visible = !state.heightMap.showMesh;
     if (three.arenaGrid) {
       const visible = arenaGridToggle?.checked;
       const g = three.arenaGrid;

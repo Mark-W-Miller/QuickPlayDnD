@@ -130,7 +130,16 @@ const parseKeyValues = (input) => {
 const parseScript = (script) => {
   const lines = script.split(/\r?\n/);
   const instructions = [];
+  let pendingHeight = "";
+
+  const flushHeight = () => {
+    if (!pendingHeight.trim()) return;
+    instructions.push({ type: "height-raw", raw: pendingHeight });
+    pendingHeight = "";
+  };
+
   for (const raw of lines) {
+    logClass("PARSE", `Line: "${raw}"`);
     const line = raw.trim();
     if (!line || line.startsWith("#")) continue;
 
@@ -190,19 +199,20 @@ const parseScript = (script) => {
       }
       continue;
     }
-    if ((match = /^HEIGHT\s+(.+)$/i.exec(line))) {
-      const pairs = match[1].split(",").map((p) => p.trim()).filter(Boolean);
-      const entries = [];
-      pairs.forEach((pair) => {
-        const kvMatch = /^([A-Z]\d+)=(\-?\d+(?:\.\d+)?)$/i.exec(pair);
-        if (kvMatch) {
-          const coord = coordToIndex(kvMatch[1]);
-          if (coord) entries.push({ ...coord, h: Number(kvMatch[2]) });
-        }
-      });
-      if (entries.length) instructions.push({ type: "height", entries });
+    if ((match = /^HEIGHT\s*(.*)$/i.exec(line))) {
+      // Finish any prior HEIGHT block before starting a new one.
+      flushHeight();
+      pendingHeight = match[1].trim();
       continue;
     }
+    // Continuation lines for HEIGHT data (lines that look like coord=val pairs).
+    if (/^[A-Z]\d+=/i.test(line) && pendingHeight !== "") {
+      pendingHeight = `${pendingHeight},${line}`;
+      continue;
+    }
+    // On any other instruction, flush accumulated HEIGHT data first.
+    flushHeight();
+    // Debug log for every instruction line we recognized so far.
     if ((match = /^MOVE\s+(\w+)\s+TO\s+([A-Z]\d+)$/i.exec(line))) {
       const coord = coordToIndex(match[2]);
       if (coord) instructions.push({ type: "move", tokenId: match[1], coord });
@@ -225,6 +235,7 @@ const parseScript = (script) => {
       continue;
     }
   }
+  flushHeight();
   return instructions;
 };
 
@@ -272,6 +283,30 @@ const applyInstructions = (instructions) => {
 
   instructions.forEach((instr) => {
     switch (instr.type) {
+      case "height-raw": {
+        const raw = instr.raw || "";
+        const pairs = raw
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean);
+        const entries = [];
+        pairs.forEach((pair) => {
+          const kvMatch = /^([A-Z]\d+)=(\-?\d+(?:\.\d+)?)$/i.exec(pair);
+          if (kvMatch) {
+            const coord = coordToIndex(kvMatch[1]);
+            if (coord) entries.push({ ...coord, h: Number(kvMatch[2]) });
+          }
+        });
+        entries.forEach(({ col, row, h }) => setHeight(col, row, h));
+        // Log full height map for debugging
+        const keys = Object.keys(working.map.heights || {});
+        const preview = keys.slice(0, 5).map((k) => `${k}:${working.map.heights[k]}`);
+        logClass(
+          "BUILD",
+          `app.js:182 Height map parsed: ${keys.length} entries. Sample: ${preview.join(", ")}`
+        );
+        break;
+      }
       case "background": {
         const map = ensureMap();
         working.map = { ...map, backgroundUrl: instr.url };

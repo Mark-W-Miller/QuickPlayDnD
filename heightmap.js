@@ -52,6 +52,7 @@ export const sampleHeightMap = (state, u, v) => {
 
 export const rebuildHeightMesh = (three, state, boardWidth, boardDepth, surfaceY, cellUnit, textureToggle, boardTexture) => {
   if (!three.meshGroup) return;
+  state.logClass("BUILD", "heightmap.js:55 Rebuilding height mesh");
   clearGroup(three.meshGroup);
   const showWire = !!state.heightMap.showMesh;
   // number of segments for a smoother displacement surface
