@@ -222,6 +222,7 @@ export const createSceneBuilder = ({
     logClass("DIM", `board ${boardWidth.toFixed(1)}x${boardDepth.toFixed(1)} tex ${texW}x${texH}`);
     const maxCellHeight = Math.max(0, ...Object.values(map.heights || {}));
     const surfaceY = maxCellHeight > 0 ? Math.min(map.gridSizePx * 0.5, maxCellHeight * map.gridSizePx * 0.05) : 0;
+    state.lastBoard = { boardWidth, boardDepth, surfaceY, cellUnit: boardWidth / state.map.cols };
 
     three.boardMesh.geometry.dispose();
     three.boardMesh.geometry = new THREE.PlaneGeometry(boardWidth, boardDepth, 32, 32);

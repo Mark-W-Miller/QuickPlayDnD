@@ -63,6 +63,8 @@ const fallbackScript = `
 `;
 const heatHeightSlider = document.getElementById("heat-height");
 const heatHeightValue = document.getElementById("heat-height-value");
+const moveSpeedSlider = document.getElementById("move-speed-scale");
+const moveSpeedValue = document.getElementById("move-speed-scale-value");
 const mapPanel = document.querySelector(".map-panel");
 const appEl = document.querySelector(".app");
 const resizer = document.getElementById("sidebar-resizer");
@@ -99,7 +101,9 @@ const state = {
     grid: [],
     maxThreat: 1,
     maxSupport: 1
-  }
+  },
+  activeMoves: [],
+  moveSpeedScale: 1
 };
 
 const three = {
@@ -406,7 +410,7 @@ const applyInstructions = (instructions) => {
         break;
       }
       case "sprite-def": {
-        addDef(instr.def);
+        addDef({ ...instr.def, speed: Number(instr.def.speed) || 12 });
         break;
       }
       case "place": {
@@ -423,7 +427,8 @@ const applyInstructions = (instructions) => {
             defId: def.id,
             mapId: map.id,
             col: coord.col,
-            row: coord.row
+            row: coord.row,
+            speed: def.speed || 12
           });
         });
         break;
@@ -434,7 +439,14 @@ const applyInstructions = (instructions) => {
           log(`Token ${instr.tokenId} not found`);
           return;
         }
-        upsertToken({ ...token, col: instr.coord.col, row: instr.coord.row });
+        state.activeMoves = state.activeMoves.filter((m) => !m.tokenId.startsWith(instr.tokenId));
+        state.activeMoves.push({
+          tokenId: token.id,
+          from: { col: token.col, row: token.row },
+          to: { col: instr.coord.col, row: instr.coord.row },
+          speed: token.speed || 12,
+          progress: 0
+        });
         break;
       }
       case "remove": {
@@ -490,7 +502,8 @@ const applyInstructions = (instructions) => {
             col: coord.col,
             row: coord.row,
             initials,
-            svgUrl
+            svgUrl,
+            speed: Number(instr.kv.speed) || def.speed || 12
           });
         });
         break;
@@ -650,6 +663,51 @@ const render = () => {
   resizeRenderer();
   render3d();
 };
+
+let lastAnimTime = null;
+const stepActiveMoves = (dt) => {
+  let changed = false;
+  state.activeMoves = state.activeMoves.filter((move) => {
+    const token = state.tokens.find((t) => t.id.startsWith(move.tokenId));
+    if (!token) return false;
+    const dx = move.to.col - token.col;
+    const dz = move.to.row - token.row;
+    const dist = Math.hypot(dx, dz);
+    const speed = Math.max(0.01, token.speed || move.speed || 12);
+    if (dist < 1e-4) {
+      token.col = move.to.col;
+      token.row = move.to.row;
+      changed = true;
+      return false;
+    }
+    const step = speed * dt * (state.moveSpeedScale || 1);
+    const ratio = Math.min(1, step / dist);
+    token.col += dx * ratio;
+    token.row += dz * ratio;
+    changed = true;
+    if (ratio >= 1) {
+      token.col = move.to.col;
+      token.row = move.to.row;
+      return false;
+    }
+    return true;
+  });
+  return changed;
+};
+
+const tick = (ts) => {
+  if (lastAnimTime == null) lastAnimTime = ts;
+  const dt = (ts - lastAnimTime) / 1000;
+  lastAnimTime = ts;
+  const changed = stepActiveMoves(dt);
+  if (changed && state.lastBoard && sceneBuilder.updateTokens3d) {
+    const { boardWidth, boardDepth, surfaceY, cellUnit } = state.lastBoard;
+    sceneBuilder.updateTokens3d(boardWidth, boardDepth, surfaceY, cellUnit);
+    render3d();
+  }
+  requestAnimationFrame(tick);
+};
+requestAnimationFrame(tick);
 
 const runCurrentScript = () => {
   const instructions = parseScript(inputEl.value);
@@ -832,11 +890,20 @@ const syncHeatControls = () => {
   heatHeightValue.textContent = `${state.heightMap.heightScale.toFixed(1)}x`;
 };
 
+const syncMoveSpeedControls = () => {
+  moveSpeedValue.textContent = `${state.moveSpeedScale.toFixed(2)}x`;
+};
+
 heatHeightSlider.addEventListener("input", (e) => {
   state.heightMap.heightScale = parseFloat(e.target.value) || 1;
   syncHeatControls();
   updateBoardScene();
   render();
+});
+
+moveSpeedSlider.addEventListener("input", (e) => {
+  state.moveSpeedScale = parseFloat(e.target.value) || 1;
+  syncMoveSpeedControls();
 });
 
 const setCameraPreset = (preset) => {
@@ -964,6 +1031,7 @@ if (resizer && appEl) {
 buildDefaultMap();
 setBackground(state.map.backgroundUrl, { silent: true });
 syncHeatControls();
+syncMoveSpeedControls();
 initThree();
 updateBoardScene();
 cameraManager.applySavedCamera();
