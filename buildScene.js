@@ -32,21 +32,21 @@ export const createSceneBuilder = ({
   const computeGridPlacement = (token, boardWidth, boardDepth) => {
     const cellW = boardWidth / state.map.cols;
     const cellH = boardDepth / state.map.rows;
-    const x = 1 + (token.col + 0.5) * cellW;
+    const x = (token.col + 0.5) * cellW;
     const effRow = clamp(token.row + 1, 0, state.map.rows - 1);
-    const z = 2 + (effRow + 0.5) * cellH;
+    const z = (effRow + 0.5) * cellH;
     return { x, z, cellW, cellH };
   };
 
   const computeHexPlacement = (token, boardWidth, boardDepth) => {
-    const cellW = 0.977 * boardWidth / state.map.cols;
-    const cellH = 0.977 * boardDepth / state.map.rows;
+    const cellW = boardWidth / (state.map.cols + 0.5); // extra half column span for staggered rows
+    const cellH = 0.976 * boardDepth / state.map.rows;
     let hexOffset = 0;
     // Stagger hex rows: even rows shift right by half, odd rows stay centered.
     if (token.row % 2 === 0) hexOffset = 0.5;
-    const x = (token.col + hexOffset + 0.5) * cellW;
-    const effRow = clamp(token.row + 1, 0, state.map.rows - 1);
-    const z = 5.5 + (effRow + 0.5) * cellH;
+    const x = 1 + (token.col + hexOffset + 0.5) * cellW;
+    const effRow = clamp(token.row +1, 0, state.map.rows - 1);
+    const z = 5 + (effRow + 0.5) * cellH;
     return { x, z, cellW, cellH };
   };
 
