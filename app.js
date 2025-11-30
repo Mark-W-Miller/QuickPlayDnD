@@ -407,6 +407,22 @@ const applyInstructions = (instructions) => {
         mapChanged = true;
         break;
       }
+      case "height-rows": {
+        const map = ensureMap();
+        const rows = instr.rows || [];
+        let maxCols = map.cols || 0;
+        rows.forEach((rowStr, rowIdx) => {
+          const vals = rowStr.split(",").map((v) => Number(v.trim()));
+          vals.forEach((h, colIdx) => {
+            if (Number.isFinite(h)) setHeight(colIdx, rowIdx, h);
+          });
+          if (vals.length > maxCols) maxCols = vals.length;
+        });
+        if (rows.length > (map.rows || 0)) map.rows = rows.length;
+        if (maxCols > (map.cols || 0)) map.cols = maxCols;
+        mapChanged = true;
+        break;
+      }
       case "remove-heightmap": {
         const map = ensureMap();
         map.heights = {};

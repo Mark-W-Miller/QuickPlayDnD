@@ -20,6 +20,8 @@ export const parseScript = (script, { logClass } = {}) => {
   const lines = script.split(/\r?\n/);
   const instructions = [];
   let pendingHeight = "";
+  let inHeightBlock = false;
+  let heightRows = [];
 
   const flushHeight = () => {
     if (!pendingHeight.trim()) return;
@@ -33,6 +35,21 @@ export const parseScript = (script, { logClass } = {}) => {
     logClass?.("PARSE", `Line: "${raw}"`);
 
     let match;
+    if (/^HEIGHT_START$/i.test(line)) {
+      inHeightBlock = true;
+      heightRows = [];
+      continue;
+    }
+    if (inHeightBlock) {
+      if (/^END_HEIGHT\.?$/i.test(line)) {
+        instructions.push({ type: "height-rows", rows: heightRows.slice() });
+        inHeightBlock = false;
+        heightRows = [];
+      } else if (line) {
+        heightRows.push(line);
+      }
+      continue;
+    }
     if ((match = /^BACKGROUND\s+(.+)$/i.exec(line))) {
       instructions.push({ type: "background", url: match[1].trim() });
       continue;
@@ -175,5 +192,9 @@ export const parseScript = (script, { logClass } = {}) => {
     }
   }
   flushHeight();
+  // If file ended while in HEIGHT_START block, flush what we have.
+  if (inHeightBlock && heightRows.length) {
+    instructions.push({ type: "height-rows", rows: heightRows.slice() });
+  }
   return instructions;
 };
