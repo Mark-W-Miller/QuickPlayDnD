@@ -10,6 +10,7 @@
   { "file": "map-orange-grid.txt", "type": "map", "name": "Orange Grid (Flat)", "debug": true },
   { "file": "map-orange-hex.txt", "type": "map", "name": "Orange Hex (Flat)", "debug": true },
   { "file": "wight-map-setup.txt", "type": "map", "name": "Wight Battle" },
+  { "file": "wight-square-setup.txt", "type": "map", "name": "Wight Battle (Square)" },
   { "file": "pop-wight-battle.txt", "type": "pop", "name": "Wight Battle Pop" },
   { "file": "pop-templates.txt", "type": "pop", "name": "Template Samples", "debug": true },
   { "file": "pop-every-other.txt", "type": "pop", "name": "Every Other Cell", "debug": true },

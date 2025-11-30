@@ -35,7 +35,7 @@ export const createSceneBuilder = ({
     const cellW = boardWidth / state.map.cols;
     const cellH = boardDepth / state.map.rows;
     const x = (token.col + 0.5) * cellW;
-    const effRow = clamp(token.row, 0, state.map.rows - 1);
+    const effRow = clamp(token.row + 1, 0, state.map.rows - 1);
     const z = (effRow + 0.5) * cellH;
     return { x, z, cellW, cellH };
   };
@@ -48,8 +48,8 @@ export const createSceneBuilder = ({
     // Vertical spacing adds a half-row span to keep top/bottom aligned.
     const cellH = boardDepth / (rows + 0.5);
     // Stagger: odd rows shift right by half; even rows stay flush left.
-    const hexOffset = token.row % 2 !== 0 ? 0.5 : 0;
-    const effRow = clamp(token.row, 0, rows - 1);
+    const hexOffset = token.row % 2 !== 0 ? 0.5 : 0.7;
+    const effRow = clamp(token.row + 1, 0, rows - 1); // leave this +1 to align hex rows with map
     const x = (token.col + hexOffset + 0.5) * cellW;
     const z = (effRow + 0.5) * cellH;
     return { x, z, cellW, cellH };

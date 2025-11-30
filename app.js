@@ -544,11 +544,21 @@ const setBackground = (url, opts = {}) => {
     textureCanvas.height = img.height;
     textureCtx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
     textureCtx.drawImage(img, 0, 0, img.width, img.height);
-    overlayGridOnTexture(state.map);
     // If cols/rows are known, update grid size so cell spacing matches the new texture width.
     if (state.map.cols > 0) {
       state.map.gridSizePx = textureCanvas.width / state.map.cols;
+      const colsFromTex = Math.ceil(textureCanvas.width / state.map.gridSizePx);
+      const rowsFromTex = Math.ceil(textureCanvas.height / state.map.gridSizePx);
+      if (colsFromTex !== state.map.cols || rowsFromTex !== state.map.rows) {
+        state.map.cols = colsFromTex;
+        state.map.rows = rowsFromTex;
+        logClass(
+          "DIM",
+          `app.js:549 Adjusted board to cols=${colsFromTex} rows=${rowsFromTex} from texture ${img.width}x${img.height}`
+        );
+      }
     }
+    overlayGridOnTexture(state.map);
     updateBoardScene();
     render();
   };
