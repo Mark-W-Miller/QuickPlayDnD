@@ -1,0 +1,6 @@
+# Flat orange hex board
+RESET
+BACKGROUND images/orange-flat.png
+GRID hex SIZE 34
+BOARD 13x11
+REMOVE HEIGHTMAP

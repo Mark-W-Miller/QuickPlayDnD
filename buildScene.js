@@ -35,20 +35,23 @@ export const createSceneBuilder = ({
     const cellW = boardWidth / state.map.cols;
     const cellH = boardDepth / state.map.rows;
     const x = (token.col + 0.5) * cellW;
-    const effRow = clamp(token.row + 1, 0, state.map.rows - 1);
+    const effRow = clamp(token.row, 0, state.map.rows - 1);
     const z = (effRow + 0.5) * cellH;
     return { x, z, cellW, cellH };
   };
 
   const computeHexPlacement = (token, boardWidth, boardDepth) => {
-    const cellW = boardWidth / (state.map.cols + 0.5); // extra half column span for staggered rows
-    const cellH = 0.976 * boardDepth / state.map.rows;
-    let hexOffset = 0;
-    // Stagger hex rows: even rows shift right by half, odd rows stay centered.
-    if (token.row % 2 === 0) hexOffset = 0.5;
-    const x = 1 + (token.col + hexOffset + 0.5) * cellW;
-    const effRow = clamp(token.row +1, 0, state.map.rows - 1);
-    const z = 5 + (effRow + 0.5) * cellH;
+    const cols = Math.max(1, state.map.cols || 1);
+    const rows = Math.max(1, state.map.rows || 1);
+    // Horizontal span accounts for staggered half column.
+    const cellW = boardWidth / (cols + 0.5);
+    // Vertical spacing adds a half-row span to keep top/bottom aligned.
+    const cellH = boardDepth / (rows + 0.5);
+    // Stagger: odd rows shift right by half; even rows stay flush left.
+    const hexOffset = token.row % 2 !== 0 ? 0.5 : 0;
+    const effRow = clamp(token.row, 0, rows - 1);
+    const x = (token.col + hexOffset + 0.5) * cellW;
+    const z = (effRow + 0.5) * cellH;
     return { x, z, cellW, cellH };
   };
 

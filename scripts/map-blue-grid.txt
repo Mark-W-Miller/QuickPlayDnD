@@ -1,0 +1,6 @@
+# Flat blue grid board
+RESET
+BACKGROUND images/blue-flat.png
+GRID square SIZE 50
+BOARD 18x14
+REMOVE HEIGHTMAP

@@ -1,0 +1,6 @@
+# Flat green grid board
+RESET
+BACKGROUND images/green-flat.png
+GRID square SIZE 50
+BOARD 20x20
+REMOVE HEIGHTMAP

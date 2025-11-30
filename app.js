@@ -12,6 +12,7 @@ const scriptPicker = document.getElementById("script-picker");
 const arenaGridToggle = document.getElementById("arena-grid");
 const textureToggle = document.getElementById("show-texture");
 const heightToggle = document.getElementById("show-height");
+const overlayGridToggle = document.getElementById("show-overlay-grid");
 const safeJsonParse = (val, fallback) => {
   try {
     return JSON.parse(val);
@@ -27,6 +28,9 @@ const savedTexture = (() => {
 })();
 const savedHeight = (() => {
   return safeJsonParse(localStorage.getItem("show-heightmap") || "true", true);
+})();
+const savedOverlayGrid = (() => {
+  return safeJsonParse(localStorage.getItem("show-overlay-grid") || "true", true);
 })();
 const savedScriptPath = (() => {
   try {
@@ -125,6 +129,56 @@ const parseKeyValues = (input) => {
     out[key.toLowerCase()] = rawVal.replace(/^['"]|['"]$/g, "");
   }
   return out;
+};
+
+const overlayGridOnTexture = (map) => {
+  if (!textureCtx || !textureCanvas || !map || !textureCanvas.width || !textureCanvas.height) return;
+  if (overlayGridToggle && !overlayGridToggle.checked) return;
+  const cols = Math.max(1, map.cols || 1);
+  const rows = Math.max(1, map.rows || 1);
+  textureCtx.save();
+  textureCtx.strokeStyle = "rgba(255,255,255,0.35)";
+  textureCtx.lineWidth = 1;
+  if (map.gridType === "hex") {
+    const sqrt3 = Math.sqrt(3);
+    const sFromWidth = textureCanvas.width / (sqrt3 * (cols + 0.5));
+    const sFromHeight = textureCanvas.height / (1.5 * (rows - 1) + 2);
+    const s = Math.max(1, Math.max(sFromWidth, sFromHeight)); // ensure coverage, allow partial clipping
+    const hexW = sqrt3 * s;
+    const hexH = 2 * s;
+    const rowStep = hexH * 0.75;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cx = hexW * (c + 0.5 * (r & 1)) + hexW / 2;
+        const cy = rowStep * r + hexH / 2;
+        textureCtx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const ang = (Math.PI / 3) * i + Math.PI / 6;
+          const px = cx + s * Math.cos(ang);
+          const py = cy + s * Math.sin(ang);
+          if (i === 0) textureCtx.moveTo(px, py);
+          else textureCtx.lineTo(px, py);
+        }
+        textureCtx.closePath();
+        textureCtx.stroke();
+      }
+    }
+  } else {
+    const cell = Math.min(textureCanvas.width / cols, textureCanvas.height / rows);
+    for (let x = 0; x <= textureCanvas.width + cell; x += cell) {
+      textureCtx.beginPath();
+      textureCtx.moveTo(x, 0);
+      textureCtx.lineTo(x, textureCanvas.height);
+      textureCtx.stroke();
+    }
+    for (let y = 0; y <= textureCanvas.height + cell; y += cell) {
+      textureCtx.beginPath();
+      textureCtx.moveTo(0, y);
+      textureCtx.lineTo(textureCanvas.width, y);
+      textureCtx.stroke();
+    }
+  }
+  textureCtx.restore();
 };
 
 const parseScript = (script) => {
@@ -460,6 +514,7 @@ const setBackground = (url, opts = {}) => {
     textureCanvas.height = img.height;
     textureCtx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
     textureCtx.drawImage(img, 0, 0, img.width, img.height);
+    overlayGridOnTexture(state.map);
     // If cols/rows are known, update grid size so cell spacing matches the new texture width.
     if (state.map.cols > 0) {
       state.map.gridSizePx = textureCanvas.width / state.map.cols;
@@ -742,6 +797,14 @@ if (heightToggle) {
   heightToggle.addEventListener("change", () => {
     state.heightMap.showMesh = heightToggle.checked;
     localStorage.setItem("show-heightmap", heightToggle.checked);
+    updateBoardScene();
+    render();
+  });
+}
+if (overlayGridToggle) {
+  overlayGridToggle.checked = savedOverlayGrid;
+  overlayGridToggle.addEventListener("change", () => {
+    localStorage.setItem("show-overlay-grid", overlayGridToggle.checked);
     updateBoardScene();
     render();
   });

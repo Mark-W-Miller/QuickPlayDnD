@@ -72,7 +72,9 @@ export const rebuildHeightMesh = (three, state, boardWidth, boardDepth, surfaceY
     // sample procedural height
     const height = sampleHeightMap(state, x, z);
     // displace vertex up
-    position.setY(i, surfaceY + cellUnit * 0.1 + height * state.heightMap.heightScale * cellUnit * 0.25);
+    const baseLift = cellUnit * 0.05;
+    const scale = cellUnit * 0.6; // larger vertical influence
+    position.setY(i, surfaceY + baseLift + height * state.heightMap.heightScale * scale);
   }
   // fix lighting after displacement
   geometry.computeVertexNormals();

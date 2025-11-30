@@ -1,0 +1,6 @@
+# Flat orange grid board
+RESET
+BACKGROUND images/orange-flat.png
+GRID square SIZE 50
+BOARD 16x12
+REMOVE HEIGHTMAP
