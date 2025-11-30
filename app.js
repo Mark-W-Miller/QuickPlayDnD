@@ -14,7 +14,7 @@ const textureToggle = document.getElementById("show-texture");
 const heightToggle = document.getElementById("show-height");
 const overlayGridToggle = document.getElementById("show-overlay-grid");
 const overlayLabelToggle = document.getElementById("show-overlay-labels");
-const debugToggle = document.getElementById("show-debug");
+const scriptFilterInput = document.getElementById("script-filter");
 const safeJsonParse = (val, fallback) => {
   try {
     return JSON.parse(val);
@@ -36,9 +36,6 @@ const savedOverlayGrid = (() => {
 })();
 const savedOverlayLabels = (() => {
   return safeJsonParse(localStorage.getItem("show-overlay-labels") || "true", true);
-})();
-const savedDebugScripts = (() => {
-  return safeJsonParse(localStorage.getItem("show-debug-scripts") || "false", false);
 })();
 const savedScriptPath = (() => {
   try {
@@ -72,6 +69,8 @@ const resizer = document.getElementById("sidebar-resizer");
 const camSlotButtons = document.querySelectorAll("[data-cam-slot]");
 const clearCamViewsBtn = document.getElementById("clear-cam-views");
 const currentMapLabel = document.getElementById("current-map-label");
+const scriptMenuBtn = document.getElementById("script-menu-btn");
+const scriptMenuList = document.getElementById("script-menu-list");
 
 const textureCanvas = document.createElement("canvas");
 const textureCtx = textureCanvas.getContext("2d", { willReadFrequently: true });
@@ -697,43 +696,78 @@ if (inputEl) {
 }
 
 if (scriptPicker) {
-  const defaultScripts = [
-    { file: "map-hex.txt", type: "map", name: "Hex Board" },
-    { file: "map-grid.txt", type: "map", name: "Grid Board" },
-    { file: "pop-first-team.txt", type: "pop", name: "First Team" },
-    { file: "pop-templates.txt", type: "pop", name: "Template Samples" },
-    { file: "move-templates.txt", type: "move", name: "Template Moves" }
-  ];
+  const defaultScripts = [];
+  let cachedEntries = [];
   const populateScripts = async () => {
-    let entries = defaultScripts;
+    let entries = cachedEntries.length ? cachedEntries : defaultScripts;
     try {
       const res = await fetch("scripts/index.json");
       if (res.ok) {
         const parsed = await res.json();
-        if (Array.isArray(parsed) && parsed.length) entries = parsed;
+        if (Array.isArray(parsed) && parsed.length) {
+          entries = parsed;
+          cachedEntries = entries;
+        }
       }
     } catch (err) {
       console.warn("Failed to load script manifest, using defaults", err);
     }
     scriptPicker.innerHTML = "";
-    const debugOn = debugToggle ? debugToggle.checked : false;
-    const savedVals = new Set([savedMapScript, savedPopScript, savedScriptPath].filter(Boolean));
-    entries
-      .filter((f) => f && f.file && f.file.endsWith(".txt"))
-      .forEach((entry) => {
-        const isDebug = !!entry.debug;
-        if (!debugOn && isDebug && !savedVals.has(`scripts/${entry.file}`)) return;
+    const filterText = (scriptFilterInput?.value || "").toLowerCase().trim();
+    const filtered = entries.filter((f) => f && f.file && f.file.endsWith(".txt")).filter((e) => {
+      if (!filterText) return true;
+      return (
+        e.file.toLowerCase().includes(filterText) ||
+        (e.name || "").toLowerCase().includes(filterText) ||
+        (e.type || "").toLowerCase().includes(filterText)
+      );
+    });
+    const groups = new Map();
+    filtered.forEach((entry) => {
+      const dir = entry.file.includes("/") ? entry.file.split("/").slice(0, -1).join("/") : "root";
+      if (!groups.has(dir)) groups.set(dir, []);
+      groups.get(dir).push(entry);
+    });
+    // Build hidden select and visible menu
+    scriptPicker.innerHTML = "";
+    if (scriptMenuList) scriptMenuList.innerHTML = "";
+    groups.forEach((list, dir) => {
+      const optgroup = document.createElement("optgroup");
+      optgroup.label = dir === "root" ? "root" : dir;
+      const li = document.createElement("li");
+      li.textContent = dir === "root" ? "root" : dir;
+      const submenu = document.createElement("ul");
+      submenu.className = "submenu";
+      list.forEach((entry) => {
         let labelPrefix = "Script:";
         if (entry.type === "map") labelPrefix = "Map:";
         else if (entry.type === "pop") labelPrefix = "Pop:";
         else if (entry.type === "move") labelPrefix = "Move:";
+        const value = `scripts/${entry.file}`;
+        const label = `${labelPrefix} ${entry.name || entry.file}`;
         const option = document.createElement("option");
-        option.value = `scripts/${entry.file}`;
+        option.value = value;
         option.dataset.type = entry.type || "script";
-        option.dataset.debug = isDebug ? "true" : "false";
-        option.textContent = `${labelPrefix} ${entry.name || entry.file}`;
-        scriptPicker.appendChild(option);
+        option.textContent = label;
+        optgroup.appendChild(option);
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "script-option";
+        btn.dataset.value = value;
+        btn.dataset.type = entry.type || "script";
+        btn.textContent = label;
+        btn.addEventListener("click", () => {
+          scriptPicker.value = value;
+          scriptPicker.dispatchEvent(new Event("change"));
+          if (scriptMenuBtn?.parentElement) scriptMenuBtn.parentElement.classList.remove("open");
+        });
+        submenu.appendChild(document.createElement("li")).appendChild(btn);
       });
+      scriptPicker.appendChild(optgroup);
+      li.appendChild(submenu);
+      if (scriptMenuList) scriptMenuList.appendChild(li);
+    });
 
     const availableValues = entries.map((e) => `scripts/${e.file}`);
     const pickExisting = (val) => (val && availableValues.includes(val) ? val : null);
@@ -758,6 +792,21 @@ if (scriptPicker) {
 
   populateScripts();
   scriptPicker.addEventListener("reload-scripts", populateScripts);
+  if (scriptFilterInput) {
+    scriptFilterInput.addEventListener("input", () => {
+      populateScripts();
+    });
+  }
+  if (scriptMenuBtn && scriptMenuList) {
+    scriptMenuBtn.addEventListener("click", () => {
+      scriptMenuBtn.parentElement.classList.toggle("open");
+    });
+    document.addEventListener("click", (e) => {
+      if (!scriptMenuBtn.parentElement.contains(e.target)) {
+        scriptMenuBtn.parentElement.classList.remove("open");
+      }
+    });
+  }
   scriptPicker.addEventListener("change", (e) => {
     const val = e.target.value;
     if (val) {
@@ -884,16 +933,6 @@ if (overlayLabelToggle) {
     if (state.map?.backgroundUrl) setBackground(state.map.backgroundUrl, { silent: true });
     updateBoardScene();
     render();
-  });
-}
-if (debugToggle) {
-  debugToggle.checked = !!savedDebugScripts;
-  debugToggle.addEventListener("change", () => {
-    localStorage.setItem("show-debug-scripts", debugToggle.checked);
-    if (scriptPicker && scriptPicker.options.length) {
-      // Rebuild scripts list respecting debug toggle.
-      scriptPicker.dispatchEvent(new Event("reload-scripts"));
-    }
   });
 }
 
