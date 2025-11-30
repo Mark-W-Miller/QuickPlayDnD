@@ -103,6 +103,7 @@ const state = {
     maxSupport: 1
   },
   activeMoves: [],
+  activeEffects: [],
   moveSpeedScale: 1
 };
 
@@ -253,6 +254,7 @@ const parseScript = (script) => {
           name: kv.name || code,
           category: kv.category || "Object",
           svgUrl: kv.url || kv.svg || "",
+          modelUrl: kv.model || kv.modelurl || "",
           baseSize: kv.size ? Number(kv.size) : 1,
           colorTint: kv.tint
         }
@@ -302,6 +304,30 @@ const parseScript = (script) => {
     if ((match = /^MOVE\s+(\w+)\s+TO\s+([A-Z]\d+)$/i.exec(line))) {
       const coord = coordToIndex(match[2]);
       if (coord) instructions.push({ type: "move", tokenId: match[1], coord });
+      continue;
+    }
+    if ((match = /^ATTACK\s+(\w+)\s*->\s*(\w+)\s+TYPE\s+(physical|magic)(?:\s+SPEED\s+(\d+(?:\.\d+)?))?(?:\s+DUR\s+(\d+))?/i.exec(line))) {
+      instructions.push({
+        type: "attack",
+        attackerId: match[1],
+        targetId: match[2],
+        attackType: match[3].toLowerCase(),
+        speed: match[4] ? Number(match[4]) : 12,
+        duration: match[5] ? Number(match[5]) : 600
+      });
+      continue;
+    }
+    if ((match = /^EFFECT\s+(\w+)\s+AT\s+([A-Z]\d+)(?:\s+DUR\s+(\d+))?(?:\s+SPEED\s+(\d+(?:\.\d+)?))?/i.exec(line))) {
+      const at = coordToIndex(match[2]);
+      if (at) {
+        instructions.push({
+          type: "effect",
+          effectType: match[1].toLowerCase(),
+          at,
+          duration: match[3] ? Number(match[3]) : 600,
+          speed: match[4] ? Number(match[4]) : 12
+        });
+      }
       continue;
     }
     if ((match = /^REMOVE\s+(\w+)$/i.exec(line))) {
@@ -449,6 +475,36 @@ const applyInstructions = (instructions) => {
         });
         break;
       }
+      case "attack": {
+        const attacker = working.tokens.find((t) => t.id.startsWith(instr.attackerId));
+        const target = working.tokens.find((t) => t.id.startsWith(instr.targetId));
+        if (!attacker || !target) {
+          log(`Attack failed: missing ${!attacker ? instr.attackerId : instr.targetId}`);
+          return;
+        }
+        state.activeEffects.push({
+          id: `fx-${Date.now()}-${Math.random()}`,
+          type: instr.attackType || "physical",
+          fromTokenId: attacker.id,
+          toTokenId: target.id,
+          speed: instr.speed || 12,
+          duration: instr.duration || 600,
+          age: 0
+        });
+        break;
+      }
+      case "effect": {
+        state.activeEffects.push({
+          id: `fx-${Date.now()}-${Math.random()}`,
+          type: instr.effectType || "magic",
+          fromCoord: instr.at,
+          toCoord: instr.at,
+          speed: instr.speed || 12,
+          duration: instr.duration || 600,
+          age: 0
+        });
+        break;
+      }
       case "remove": {
         removeToken(instr.tokenId);
         break;
@@ -550,11 +606,30 @@ const setBackground = (url, opts = {}) => {
   const img = new Image();
   img.crossOrigin = "anonymous";
   img.onload = () => {
-    // Match the canvas exactly to the image; lets the board size follow the texture.
-    textureCanvas.width = img.width;
-    textureCanvas.height = img.height;
+    // Match the canvas to the image, but clamp to GPU texture limits to avoid GL_INVALID_VALUE uploads.
+    const detectMaxTex = () => {
+      if (three.renderer?.capabilities?.maxTextureSize) return three.renderer.capabilities.maxTextureSize;
+      // Fallback query if renderer not ready yet.
+      try {
+        const gl =
+          webglCanvas.getContext("webgl2", { failIfMajorPerformanceCaveat: false }) ||
+          webglCanvas.getContext("webgl", { failIfMajorPerformanceCaveat: false }) ||
+          webglCanvas.getContext("experimental-webgl");
+        if (gl) return gl.getParameter(gl.MAX_TEXTURE_SIZE) || 2048;
+      } catch {}
+      return 2048;
+    };
+    const maxTexSize = detectMaxTex();
+    const scale =
+      maxTexSize && Math.max(img.width, img.height) > maxTexSize
+        ? maxTexSize / Math.max(img.width, img.height)
+        : 1;
+    const drawW = Math.max(1, Math.round(img.width * scale));
+    const drawH = Math.max(1, Math.round(img.height * scale));
+    textureCanvas.width = drawW;
+    textureCanvas.height = drawH;
     textureCtx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
-    textureCtx.drawImage(img, 0, 0, img.width, img.height);
+    textureCtx.drawImage(img, 0, 0, drawW, drawH);
     // If cols/rows are known, update grid size so cell spacing matches the new texture width.
     if (state.map.cols > 0) {
       state.map.gridSizePx = textureCanvas.width / state.map.cols;
@@ -613,7 +688,7 @@ const sceneBuilder = createSceneBuilder({
   clamp,
   logClass
 });
-const { initThree, updateBoardScene, clearGroup, render3d, resizeRenderer } = sceneBuilder;
+const { initThree, updateBoardScene, clearGroup, render3d, resizeRenderer, updateEffects3d } = sceneBuilder;
 const cameraManager = createCameraManager({ three, state, textureCanvas, clamp, logClass });
 
 const ensureRandomHeights = (map) => {
@@ -699,11 +774,18 @@ const tick = (ts) => {
   if (lastAnimTime == null) lastAnimTime = ts;
   const dt = (ts - lastAnimTime) / 1000;
   lastAnimTime = ts;
-  const changed = stepActiveMoves(dt);
-  if (changed && state.lastBoard && sceneBuilder.updateTokens3d) {
+  const moved = stepActiveMoves(dt);
+  if (state.lastBoard) {
     const { boardWidth, boardDepth, surfaceY, cellUnit } = state.lastBoard;
-    sceneBuilder.updateTokens3d(boardWidth, boardDepth, surfaceY, cellUnit);
-    render3d();
+    if (moved) {
+      sceneBuilder.updateTokens3d(boardWidth, boardDepth, surfaceY, cellUnit);
+      render3d();
+    }
+    state.activeEffects = state.activeEffects.filter((fx) => {
+      fx.age += dt * (state.moveSpeedScale || 1);
+      return fx.age <= (fx.duration || 600);
+    });
+    updateEffects3d(boardWidth, boardDepth, surfaceY, cellUnit);
   }
   requestAnimationFrame(tick);
 };
@@ -1007,11 +1089,12 @@ if (overlayLabelToggle) {
 if (resizer && appEl) {
   let isResizing = false;
   const minW = 240;
-  const maxW = 520;
   const onMove = (e) => {
     if (!isResizing) return;
     const rect = appEl.getBoundingClientRect();
-    const newWidth = clamp(e.clientX - rect.left, minW, maxW);
+    // Allow the panel to grow to roughly half (or more) of the viewport width.
+    const dynamicMax = Math.max(minW, window.innerWidth * 0.8);
+    const newWidth = clamp(e.clientX - rect.left, minW, dynamicMax);
     document.documentElement.style.setProperty("--sidebar-width", `${newWidth}px`);
     resizeRenderer();
   };

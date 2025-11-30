@@ -1,0 +1,17 @@
+# Demo attacks/effects on wight map
+
+# Move a couple tokens so effects are visible
+MOVE VC TO G10
+MOVE SS TO L15
+
+# Physical attack VC -> SS
+ATTACK VC -> SS TYPE physical SPEED 10 DUR 800
+
+# Magic attack SS -> VC
+ATTACK SS -> VC TYPE magic SPEED 12 DUR 1000
+
+# Effect at a point (magic burst)
+EFFECT magic AT J12 DUR 700 SPEED 8
+
+# Effect at a point (physical burst)
+EFFECT physical AT H18 DUR 600 SPEED 6

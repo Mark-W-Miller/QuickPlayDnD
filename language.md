@@ -6,16 +6,18 @@ Plain text commands, one per line. Lines starting with `#` are comments.
 - `BACKGROUND <url>` — set a background image for the board. Accepts absolute URLs or local paths such as `images/wight-battle.png` placed beside `index.html`.
 - `GRID square SIZE <px>` or `GRID hex SIZE <px>` — set grid type and cell size in pixels.
 - `BOARD <cols>x<rows>` — set board dimensions.
-- `SPRITE DEF <CODE> name="Name" url="https://..." size=<n> tint=#RRGGBB category=<PC|NPC|Monster|Object>` — define or update a sprite type.
+- `SPRITE DEF <CODE> name="Name" url="https://..." size=<n> tint=#RRGGBB category=<PC|NPC|Monster|Object> speed=<ft>` — define or update a sprite type; `speed` defaults to 12 if omitted.
 - `PLACE <CODE> @ A1,B2,...` — place sprite instances of the given code at coordinates. Instances auto-name `<CODE>-N`.
-- `MOVE <tokenId> TO C3` — move the first token whose id starts with `tokenId`.
+- `CREATE <TemplateId> id=<TokenId> initials=<XX> bg=#RRGGBB fg=#RRGGBB speed=<ft> @ A1,B2,...` — spawn tokens from built-in templates. `id` is required and expands with an increment per placement; `initials` is optional (defaults to first letters of the id); `bg`/`fg` override template colors; `speed` sets the per-token move speed (defaults to 12).
+- `MOVE <tokenId> TO C3` — animate the first token whose id starts with `tokenId` toward the destination using its speed.
+- `ATTACK <attackerId> -> <targetId> TYPE physical|magic [SPEED <n>] [DUR <ms>]` — play a transient effect from attacker to target.
+- `EFFECT <magic|physical> AT A1 [SPEED <n>] [DUR <ms>]` — spawn a transient ground effect at a coordinate.
 - `REMOVE <tokenId>` — remove the first token whose id starts with `tokenId`.
 - `REMOVE HEIGHTMAP` — clear all height values and flatten the terrain.
 - `CLEAR TOKENS` — remove all tokens.
 - `CLEAR ALL` — clear map, sprites, and tokens.
 - `RESET` — clear everything (map, sprites, tokens, backgrounds).
-- `HEIGHT A1=2,B3=0,...` — set height values (numbers) per grid cell; used in 3D mode to raise/lower tiles.
-- `CREATE <TemplateId> id=<TokenId> initials=<XX> bg=#RRGGBB fg=#RRGGBB @ A1,B2,...` — spawn tokens from built-in templates. `id` is required and expands with an increment per placement; `initials` is optional (defaults to first letters of the id); `bg`/`fg` override template colors.
+- `HEIGHT A1=2,B3=0,...` — set height values (numbers) per grid cell; used in 3D mode to raise/lower tiles. Multiple `HEIGHT` lines are merged.
 
 ## Coordinates
 `<ColumnLetter><RowNumber>` (A1, H7). Columns A-Z, rows start at 1.
@@ -25,7 +27,7 @@ Plain text commands, one per line. Lines starting with `#` are comments.
 - `warrior-medium` — medium token (1 square), orange warrior marker.
 - `guardian-large` — large token (2x2 squares), green guardian marker.
 
-## Example
+## Examples
 ```
 # Scene setup
 BACKGROUND https://images.unsplash.com/photo-1501785888041-af3ef285b470
@@ -40,7 +42,11 @@ SPRITE DEF DR name="Drake"   url="https://upload.wikimedia.org/wikipedia/commons
 PLACE VC @ B4,C4
 PLACE DR @ H7
 
-# Movement
+# Movement (animated at per-token speed)
 MOVE VC TO D6
 MOVE DR TO I8
+
+# Attacks and effects
+ATTACK VC -> DR TYPE physical SPEED 18 DUR 800
+EFFECT magic AT H7 DUR 1200
 ```

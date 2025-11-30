@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
 
 export const createSceneBuilder = ({
   state,
@@ -17,6 +18,67 @@ export const createSceneBuilder = ({
   clamp,
   logClass
 }) => {
+  const formatTokenLabel = (t) => {
+    if (!t) return "unknown";
+    const col = Number.isFinite(t.col) && t.col % 1 !== 0 ? t.col.toFixed(2) : t.col;
+    const row = Number.isFinite(t.row) && t.row % 1 !== 0 ? t.row.toFixed(2) : t.row;
+    return `${t.id || "unnamed"} @ (${col},${row})`;
+  };
+  // Cache token face textures (SVG data URLs) to avoid reloading each frame.
+  const textureLoader = new THREE.TextureLoader();
+  const tokenTextureCache = new Map();
+  const getTokenTexture = (def) => {
+    if (!def?.svgUrl) return null;
+    if (tokenTextureCache.has(def.svgUrl)) return tokenTextureCache.get(def.svgUrl);
+    const tex = textureLoader.load(def.svgUrl);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    tokenTextureCache.set(def.svgUrl, tex);
+    return tex;
+  };
+
+  // Cache GLB models for 3D tokens.
+  const gltfLoader = new GLTFLoader();
+  const modelCache = new Map();
+  const getModelEntry = (url) => {
+    if (!url) return null;
+    if (modelCache.has(url)) return modelCache.get(url);
+    const entry = { scene: null, bbox: null, promise: null };
+    logClass("3DLOAD", `Start loading model ${url}`);
+    entry.promise = new Promise((resolve, reject) => {
+      gltfLoader.load(
+        url,
+        (gltf) => {
+          entry.scene = gltf.scene || gltf.scenes?.[0];
+          entry.bbox = new THREE.Box3().setFromObject(entry.scene);
+          const size = new THREE.Vector3();
+          entry.bbox.getSize(size);
+          logClass(
+            "3DLOAD",
+            `Loaded ${url} size(${size.x.toFixed(2)},${size.y.toFixed(2)},${size.z.toFixed(2)})`
+          );
+          resolve(entry);
+        },
+        undefined,
+        (err) => {
+          logClass("3DLOAD", `Failed to load ${url}: ${err?.message || err}`);
+          reject(err);
+        }
+      );
+    });
+    modelCache.set(url, entry);
+    return entry;
+  };
+
+  // Refresh tokens when async model finishes loading.
+  let updateTokensRef = null;
+  let renderRef = null;
+  const requestTokenRefresh = () => {
+    if (!state.lastBoard || !updateTokensRef) return;
+    const { boardWidth, boardDepth, surfaceY, cellUnit } = state.lastBoard;
+    updateTokensRef(boardWidth, boardDepth, surfaceY, cellUnit);
+    renderRef && renderRef();
+  };
   // Attach logger to state so downstream utilities (heightmap) can log without guards.
   state.logClass = logClass || (() => {});
   const clearGroup = (group) => {
@@ -57,29 +119,9 @@ export const createSceneBuilder = ({
   };
 
   const buildTokenMesh = (token, boardWidth, boardDepth, surfaceY, cellUnit) => {
+    logClass("3DLOAD", `Build Token: ${formatTokenLabel(token)}`);
     const def = state.tokenDefs.find((d) => d.id === token.defId);
     if (!def) return null;
-    const radius = Math.max(0.2, def.baseSize * cellUnit * 0.35);
-    const height = Math.max(0.2, cellUnit * 0.2);
-    const geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
-    const color = new THREE.Color(def.colorTint || "#ffffff");
-    const topBottomMat = new THREE.MeshStandardMaterial({
-      color,
-      emissive: color.clone(),
-      emissiveIntensity: 1.5,
-      metalness: 0.1,
-      roughness: 0.35
-    });
-    const sideMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color("#b59b2a"), // dull yellow sides
-      emissive: new THREE.Color("#b59b2a"),
-      emissiveIntensity: 0.15,
-      metalness: 0.05,
-      roughness: 0.8
-    });
-    const mesh = new THREE.Mesh(geometry, [sideMat, topBottomMat, topBottomMat]);
-    mesh.castShadow = true;
-
     const placement = state.map.gridType === "hex"
       ? computeHexPlacement(token, boardWidth, boardDepth)
       : computeGridPlacement(token, boardWidth, boardDepth);
@@ -104,6 +146,62 @@ export const createSceneBuilder = ({
     const dx = (hR - hL) / (2 * deltaU * Math.max(1, boardWidth));
     const dz = (hU - hD) / (2 * deltaV * Math.max(1, boardDepth));
     const normal = new THREE.Vector3(-dx, 1, -dz).normalize();
+
+    // If a model URL is provided, use the GLB instead of the cylinder token.
+    if (def.modelUrl) {
+     logClass("3DLOAD", `Build Token: ${def.modelUrl}`);
+     const entry = getModelEntry(def.modelUrl);
+      if (!entry) return null;
+      if (!entry.scene) {
+        logClass("3DLOAD", `Model pending for ${def.modelUrl} — will retry on load`);
+        entry.promise?.then(() => requestTokenRefresh()).catch(() => {});
+        return null;
+      }
+      logClass("3DLOAD", `Using cached model ${def.modelUrl}`);
+      const clone = entry.scene.clone(true);
+      clone.traverse((n) => {
+        if (n.isMesh) {
+          n.castShadow = true;
+          n.receiveShadow = true;
+          if (n.material?.clone) n.material = n.material.clone();
+        }
+      });
+      const bbox = entry.bbox || new THREE.Box3().setFromObject(clone);
+      const size = new THREE.Vector3();
+      bbox.getSize(size);
+      const maxXZ = Math.max(size.x, size.z, 1e-3);
+      const desired = (def.baseSize || 1) * cellUnit * 0.9;
+      const scale = desired / maxXZ;
+      clone.scale.setScalar(scale);
+      const minY = bbox.min.y * scale;
+      const yOffsetModel = cellUnit * 0.02 - minY; // lift to sit on surface
+      clone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+      clone.position.set(placement.x, hCenter + yOffsetModel, placement.z);
+      return clone;
+    }
+
+    const faceTexture = getTokenTexture(def);
+    const radius = Math.max(0.2, def.baseSize * cellUnit * 0.35);
+    const height = Math.max(0.2, cellUnit * 0.2);
+    const geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
+    const color = new THREE.Color(def.colorTint || "#ffffff");
+    const topBottomMat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color.clone().multiplyScalar(0.2),
+      emissiveIntensity: 0.5,
+      metalness: 0.1,
+      roughness: 0.35,
+      map: faceTexture || null
+    });
+    const sideMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color("#b59b2a"), // dull yellow sides
+      emissive: new THREE.Color("#b59b2a"),
+      emissiveIntensity: 0.15,
+      metalness: 0.05,
+      roughness: 0.8
+    });
+    const mesh = new THREE.Mesh(geometry, [sideMat, topBottomMat, topBottomMat]);
+    mesh.castShadow = true;
     mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
 
     const yOffset = cellUnit * 0.01; // tiny lift to avoid z-fight
@@ -119,11 +217,78 @@ export const createSceneBuilder = ({
       if (mesh) three.tokenGroup.add(mesh);
     });
   };
+  updateTokensRef = updateTokens3d;
+
+  const updateEffects3d = (boardWidth, boardDepth, surfaceY, cellUnit) => {
+    if (!three.effectGroup) return;
+    clearGroup(three.effectGroup);
+    const makeBall = (color) =>
+      new THREE.Mesh(
+        new THREE.SphereGeometry(Math.max(0.1, cellUnit * 0.15), 12, 12),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85 })
+      );
+    const getPos = (coord) => {
+      if (!coord) return null;
+      if (state.map.gridType === "hex") {
+        const cols = Math.max(1, state.map.cols || 1);
+        const rows = Math.max(1, state.map.rows || 1);
+        const cellW = boardWidth / (cols + 0.5);
+        const cellH = boardDepth / (rows + 0.5);
+        const isOdd = coord.row % 2 !== 0;
+        const rowOffset = isOdd ? cellW * 0.5 : -cellW * 0.5;
+        const effRow = clamp(coord.row + 1, 0, rows - 1);
+        return {
+          x: (coord.col + 0.5) * cellW + rowOffset,
+          z: (effRow + 0.5) * cellH
+        };
+      }
+      const cellW = boardWidth / state.map.cols;
+      const cellH = boardDepth / state.map.rows;
+      const effRow = clamp(coord.row + 1, 0, state.map.rows - 1);
+      return { x: (coord.col + 0.5) * cellW, z: (effRow + 0.5) * cellH };
+    };
+    const surfaceHeightAt = (x, z) => {
+      const u = THREE.MathUtils.clamp(x / Math.max(1, boardWidth), 0, 1);
+      const v = THREE.MathUtils.clamp(z / Math.max(1, boardDepth), 0, 1);
+      const hNorm = sampleHeightMap(state, u, v);
+      const baseLift = cellUnit * 0.05;
+      const scale = cellUnit * 0.6;
+      return surfaceY + baseLift + hNorm * state.heightMap.heightScale * scale;
+    };
+
+    (state.activeEffects || []).forEach((fx) => {
+      let from = null;
+      let to = null;
+      if (fx.fromTokenId) {
+        const t = state.tokens.find((tk) => tk.id === fx.fromTokenId);
+        if (t) from = { col: t.col, row: t.row };
+      }
+      if (fx.toTokenId) {
+        const t = state.tokens.find((tk) => tk.id === fx.toTokenId);
+        if (t) to = { col: t.col, row: t.row };
+      }
+      if (fx.fromCoord) from = fx.fromCoord;
+      if (fx.toCoord) to = fx.toCoord;
+      const fromPos = getPos(from || to);
+      const toPos = getPos(to || from);
+      if (!fromPos || !toPos) return;
+      const tNorm = Math.min(1, Math.max(0, fx.age / (fx.duration || 600)));
+      const x = fromPos.x + (toPos.x - fromPos.x) * tNorm;
+      const z = fromPos.z + (toPos.z - fromPos.z) * tNorm;
+      const y = surfaceHeightAt(x, z) + cellUnit * 0.05;
+      const color = fx.type === "magic" ? 0x66ccff : 0xffaa55;
+      const ball = makeBall(color);
+      ball.position.set(x, y, z);
+      ball.material.opacity = 0.5 + 0.5 * (1 - tNorm);
+      three.effectGroup.add(ball);
+    });
+  };
 
   const render3d = () => {
     if (!three.renderer || !three.scene || !three.camera) return;
     three.renderer.render(three.scene, three.camera);
   };
+  renderRef = render3d;
 
   const resizeRenderer = () => {
     if (!three.renderer || !three.camera || !state.map) return;
@@ -204,8 +369,10 @@ export const createSceneBuilder = ({
     three.meshGroup = new THREE.Group();
     three.meshGroup.renderOrder = 2;
     three.tokenGroup = new THREE.Group();
+    three.effectGroup = new THREE.Group();
     three.scene.add(three.meshGroup);
     three.scene.add(three.tokenGroup);
+    three.scene.add(three.effectGroup);
 
     resizeRenderer();
     window.addEventListener("resize", resizeRenderer);
@@ -313,6 +480,7 @@ export const createSceneBuilder = ({
     render3d,
     resizeRenderer,
     initThree,
-    updateBoardScene
+    updateBoardScene,
+    updateEffects3d
   };
 };

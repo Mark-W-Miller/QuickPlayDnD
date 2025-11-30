@@ -74,6 +74,13 @@ export const initLogger = ({
     if (Array.isArray(saved)) state.entries = saved.slice(0, maxStored);
   };
 
+  // Load persisted history and class filters, then bootstrap defaults.
+  loadHistory();
+  loadEnabled();
+  const bootstrapClasses = ["INFO", "DIM", "BUILD", "PARSE", "CAMERA", "3DLOAD"];
+  bootstrapClasses.forEach((c) => state.classes.add(c));
+  if (!state.enabledClasses.size) bootstrapClasses.forEach((c) => state.enabledClasses.add(c));
+
   const applyState = (saved = {}) => {
     if (!logWindow) return;
     if (saved.left !== undefined && saved.top !== undefined) {
@@ -270,6 +277,11 @@ export const initLogger = ({
     const header = logWindow.querySelector(".log-window-header");
     let dragging = false;
     let dragOffset = { x: 0, y: 0 };
+    const resizeObserver = new ResizeObserver(() => {
+      const rect = logWindow.getBoundingClientRect();
+      persistState({ width: `${rect.width}px`, height: `${rect.height}px` });
+    });
+    resizeObserver.observe(logWindow);
 
     const saveState = () => {
       const rect = logWindow.getBoundingClientRect();

@@ -21,6 +21,7 @@
   },
   "homepage": "https://github.com/Mark-W-Miller/QuickPlayDnD#readme",
   "dependencies": {
-    "canvas": "^3.2.0"
+    "canvas": "^3.2.0",
+    "obj2gltf": "^3.2.0"
   }
 }
