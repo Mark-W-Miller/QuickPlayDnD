@@ -37,21 +37,66 @@ body {
 .header {
   grid-column: 1 / -1;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 12px;
 }
 
-.title {
-  font-size: 1.2rem;
-  letter-spacing: 0.08em;
+.header-left,
+.header-right {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.tag {
-  background: #1b7ed6;
-  color: #fff;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.8rem;
+.header-cams button {
+  padding: 6px 10px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.params-window {
+  position: fixed;
+  bottom: 64px;
+  right: 64px;
+  width: 380px;
+  height: 320px;
+  background: rgba(11, 18, 32, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  display: none;
+  overflow: hidden;
+  z-index: 12;
+}
+
+.params-window.open {
+  display: flex;
+  flex-direction: column;
+}
+
+.params-window-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+  cursor: move;
+}
+
+.params-body {
+  flex: 1;
+  padding: 10px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .console-panel {

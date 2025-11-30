@@ -41,7 +41,8 @@ export const initLogger = ({
 
   const persistState = (winState) => {
     const saved = safeJsonParse(localStorage.getItem(storageKey) || "{}", {});
-    localStorage.setItem(storageKey, JSON.stringify({ ...saved, ...winState }));
+    const merged = { ...saved, ...winState };
+    localStorage.setItem(storageKey, JSON.stringify(merged));
   };
   const persistDbState = (winState) => {
     const saved = safeJsonParse(localStorage.getItem("db-window-state") || "{}", {});
@@ -88,11 +89,6 @@ export const initLogger = ({
       logWindow.style.top = `${saved.top}px`;
       logWindow.style.right = "auto";
       logWindow.style.bottom = "auto";
-    } else {
-      logWindow.style.left = "";
-      logWindow.style.top = "";
-      logWindow.style.right = "";
-      logWindow.style.bottom = "";
     }
     if (saved.width) logWindow.style.width = coercePx(saved.width, `${MIN_W}px`, MIN_W);
     else logWindow.style.width = `${MIN_W}px`;
@@ -111,12 +107,13 @@ export const initLogger = ({
   const closeLogWindow = () => {
     if (!logWindow) return;
     logWindow.classList.remove("open");
+    const prev = safeJsonParse(localStorage.getItem(storageKey) || "{}", {});
     const rect = logWindow.getBoundingClientRect();
     persistState({
-      left: rect.left,
-      top: rect.top,
-      width: `${rect.width}px`,
-      height: `${rect.height}px`,
+      left: rect.width ? rect.left : prev.left,
+      top: rect.height ? rect.top : prev.top,
+      width: rect.width ? `${rect.width}px` : prev.width,
+      height: rect.height ? `${rect.height}px` : prev.height,
       open: false
     });
   };
@@ -203,7 +200,8 @@ export const initLogger = ({
   if (logOpenBtn) {
     logOpenBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      openLogWindow();
+      if (logWindow?.classList.contains("open")) closeLogWindow();
+      else openLogWindow();
     });
   }
   if (logCloseBtn) {
@@ -235,6 +233,10 @@ export const initLogger = ({
   if (dbOpenBtn && dbWindow && dbBody) {
     dbOpenBtn.addEventListener("click", (e) => {
       e.preventDefault();
+      if (dbWindow.classList.contains("open")) {
+        dbWindow.classList.remove("open");
+        return;
+      }
       const entries = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -285,6 +287,7 @@ export const initLogger = ({
 
     const saveState = () => {
       const rect = logWindow.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
       persistState({
         left: rect.left,
         top: rect.top,

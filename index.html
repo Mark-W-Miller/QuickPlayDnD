@@ -16,8 +16,26 @@
   <body>
     <main class="app">
       <header class="panel header">
-        <div class="title">Tactical Battle Board</div>
-        <div class="tag">In-memory · Text-driven</div>
+        <div class="header-left">
+          <div class="current-map-label">Current map: <span id="current-map-label">None</span></div>
+          <div class="cam-buttons header-cams">
+            <button data-cam-slot="1">View 1</button>
+            <button data-cam-slot="2">View 2</button>
+            <button data-cam-slot="3">View 3</button>
+            <button data-cam-slot="4">View 4</button>
+            <button data-cam-slot="5">View 5</button>
+            <button data-cam-slot="6">View 6</button>
+            <button id="clear-cam-views">Clear Views</button>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="actions header-actions">
+            <button id="log-open">Open Log</button>
+            <button id="db-open">Open DB</button>
+            <button id="tokens-open">Open Tokens</button>
+            <button id="params-open">View Parameters</button>
+          </div>
+        </div>
       </header>
 
       <section class="panel console-panel">
@@ -33,52 +51,11 @@
             <option value="scripts/hex-demo.txt">Hex Demo</option>
             <option value="scripts/grid-demo.txt">Grid Demo</option>
           </select>
-          <div class="current-map-label">Current map: <span id="current-map-label">None</span></div>
         </div>
         <textarea id="script-input" class="console" spellcheck="false"></textarea>
         <div class="actions">
           <button id="run-btn">Run Script</button>
           <button id="clear-btn">Clear Tokens</button>
-          <button id="log-open">Open Log</button>
-          <button id="db-open">Open DB</button>
-          <button id="tokens-open">Open Tokens</button>
-        </div>
-        <div class="bg-controls">
-          <div class="field slider-field">
-            <label for="move-speed-scale">Move speed</label>
-            <input id="move-speed-scale" type="range" min="0.1" max="2" step="0.05" value="1" />
-            <span class="slider-value" id="move-speed-scale-value">1.00x</span>
-          </div>
-          <div class="field cam-buttons">
-            <label>Cameras</label>
-            <button data-cam-slot="1">View 1</button>
-            <button data-cam-slot="2">View 2</button>
-            <button data-cam-slot="3">View 3</button>
-            <button data-cam-slot="4">View 4</button>
-            <button data-cam-slot="5">View 5</button>
-            <button data-cam-slot="6">View 6</button>
-            <button id="clear-cam-views">Clear Views</button>
-          </div>
-          <div class="field slider-field">
-            <label for="heat-height">Heat height</label>
-            <input id="heat-height" type="range" min="1" max="6" step="0.2" value="3" />
-            <span class="slider-value" id="heat-height-value">3.0x</span>
-          </div>
-          <div class="field">
-            <label><input type="checkbox" id="arena-grid" /> Show XYZ arena grid</label>
-          </div>
-          <div class="field">
-            <label><input type="checkbox" id="show-texture" checked /> Show texture map</label>
-          </div>
-          <div class="field">
-            <label><input type="checkbox" id="show-height" checked /> Show height map</label>
-          </div>
-          <div class="field">
-            <label><input type="checkbox" id="show-overlay-grid" checked /> Show overlay grid/hex</label>
-          </div>
-          <div class="field">
-            <label><input type="checkbox" id="show-overlay-labels" checked /> Show grid refs (A0...)</label>
-          </div>
         </div>
       </section>
 
@@ -116,6 +93,40 @@
         <button id="tokens-close">Close</button>
       </div>
       <div id="tokens-body" class="tokens-body"></div>
+    </div>
+
+    <div id="params-window" class="params-window">
+      <div class="params-window-header">
+        <span>View Parameters</span>
+        <button id="params-close">Close</button>
+      </div>
+      <div class="params-body">
+        <div class="field slider-field">
+          <label for="move-speed-scale">Move speed</label>
+          <input id="move-speed-scale" type="range" min="0.1" max="2" step="0.05" value="1" />
+          <span class="slider-value" id="move-speed-scale-value">1.00x</span>
+        </div>
+        <div class="field slider-field">
+          <label for="heat-height">Height map scale</label>
+          <input id="heat-height" type="range" min="1" max="6" step="0.2" value="3" />
+          <span class="slider-value" id="heat-height-value">3.0x</span>
+        </div>
+        <div class="field">
+          <label><input type="checkbox" id="arena-grid" /> Show XYZ arena grid</label>
+        </div>
+        <div class="field">
+          <label><input type="checkbox" id="show-texture" checked /> Show texture map</label>
+        </div>
+        <div class="field">
+          <label><input type="checkbox" id="show-height" checked /> Show height map</label>
+        </div>
+        <div class="field">
+          <label><input type="checkbox" id="show-overlay-grid" checked /> Show overlay grid/hex</label>
+        </div>
+        <div class="field">
+          <label><input type="checkbox" id="show-overlay-labels" checked /> Show grid refs (A0...)</label>
+        </div>
+      </div>
     </div>
 
     <script type="module" src="app.js"></script>

@@ -30,6 +30,9 @@ const tokensOpenBtn = document.getElementById("tokens-open");
 const tokensCloseBtn = document.getElementById("tokens-close");
 const tokensWindow = document.getElementById("tokens-window");
 const tokensBody = document.getElementById("tokens-body");
+const paramsOpenBtn = document.getElementById("params-open");
+const paramsCloseBtn = document.getElementById("params-close");
+const paramsWindow = document.getElementById("params-window");
 const safeJsonParse = (val, fallback) => {
   try {
     return JSON.parse(val);
@@ -1020,6 +1023,51 @@ if (overlayLabelToggle) {
   });
 }
 
+// Parameters window (fixed size, draggable)
+if (paramsOpenBtn && paramsWindow) {
+  const header = paramsWindow.querySelector(".params-window-header");
+  let dragging = false;
+  let dragOffset = { x: 0, y: 0 };
+
+  const onMove = (e) => {
+    if (!dragging) return;
+    const x = e.clientX - dragOffset.x;
+    const y = e.clientY - dragOffset.y;
+    paramsWindow.style.left = `${x}px`;
+    paramsWindow.style.top = `${y}px`;
+    paramsWindow.style.right = "auto";
+    paramsWindow.style.bottom = "auto";
+  };
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", endDrag);
+  };
+  if (header) {
+    header.addEventListener("mousedown", (e) => {
+      if (e.target.tagName === "BUTTON") return;
+      dragging = true;
+      const rect = paramsWindow.getBoundingClientRect();
+      dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", endDrag);
+    });
+  }
+
+  paramsOpenBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (paramsWindow.classList.contains("open")) paramsWindow.classList.remove("open");
+    else paramsWindow.classList.add("open");
+  });
+  if (paramsCloseBtn) {
+    paramsCloseBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      paramsWindow.classList.remove("open");
+    });
+  }
+}
+
 // Tokens window (movable/resizable, persisted)
 if (tokensOpenBtn && tokensWindow && tokensBody) {
   const header = tokensWindow.querySelector(".tokens-window-header");
@@ -1089,6 +1137,18 @@ if (tokensOpenBtn && tokensWindow && tokensBody) {
 
   tokensOpenBtn.addEventListener("click", (e) => {
     e.preventDefault();
+    if (tokensWindow.classList.contains("open")) {
+      const rect = tokensWindow.getBoundingClientRect();
+      persistTokenWinState({
+        left: rect.left,
+        top: rect.top,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`,
+        open: false
+      });
+      tokensWindow.classList.remove("open");
+      return;
+    }
     const saved = safeJsonParse(localStorage.getItem("token-window-state") || "{}", {});
     applyTokenWinState(saved);
     renderTokensWindow();
