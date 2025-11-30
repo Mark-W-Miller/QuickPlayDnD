@@ -74,11 +74,24 @@ export const parseScript = (script, { logClass } = {}) => {
       if (coords.length) instructions.push({ type: "place", code, coords });
       continue;
     }
-    if ((match = /^CREATE\s+(\w[\w-]+)\s+(.+?)\s+@\s+([A-Z0-9,\s]+)$/i.exec(line))) {
-      const templateId = match[1];
-      const kv = parseKeyValues(match[2]);
-      logClass?.("PARSE", `Create ${templateId}: ${JSON.stringify(kv)}`);
-      const coords = match[3]
+    if ((match = /^CREATE\s+(.+?)\s+@\s+([A-Z0-9,\s]+)$/i.exec(line))) {
+      const kv = parseKeyValues(match[1]);
+      const templateField = kv.template || kv.tpl || kv.model || null;
+      const templateParts = (templateField || "")
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean);
+      const templateId = templateParts[0] || null;
+      const svgTemplateId = kv.svg || templateParts[1] || templateId;
+      if (!templateId) {
+        logClass?.("PARSE", `Create missing template: ${line}`);
+        continue;
+      }
+      logClass?.(
+        "PARSE",
+        `Create template=${templateId}${svgTemplateId ? ` svg=${svgTemplateId}` : ""}: ${JSON.stringify(kv)}`
+      );
+      const coords = match[2]
         .split(",")
         .map((c) => coordToIndex(c))
         .filter(Boolean);
@@ -86,6 +99,7 @@ export const parseScript = (script, { logClass } = {}) => {
         instructions.push({
           type: "create",
           templateId,
+          svgTemplateId,
           kv,
           coords
         });

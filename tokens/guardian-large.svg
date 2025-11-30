@@ -4,5 +4,5 @@
   <rect x="54" y="40" width="52" height="80" rx="14" fill="$FG" opacity="0.9"/>
   <rect x="72" y="54" width="16" height="52" fill="$BG"/>
   <circle cx="80" cy="60" r="8" fill="$BG"/>
-  <text x="80" y="88" text-anchor="middle" font-size="34" font-family="monospace" font-weight="bold" fill="$BG">$INIT</text>
+  <text x="80" y="92" text-anchor="middle" font-size="40" font-family="monospace" font-weight="bold" fill="#ffffff" stroke="#000000" stroke-width="4" paint-order="stroke">$INIT</text>
 </svg>

@@ -395,23 +395,34 @@ const applyInstructions = (instructions) => {
         break;
       }
       case "create": {
+        const templateKey = instr.templateId;
+        const templateKeyLower = templateKey?.toLowerCase();
+        const templateKeyUpper = templateKey?.toUpperCase();
+        const svgTemplate = instr.svgTemplateId || instr.templateId;
         // Prefer an existing sprite def that matches the templateId; otherwise fall back to built-ins.
         let def = working.tokenDefs.find(
-          (d) => d.id === instr.templateId || d.code === instr.templateId.toUpperCase()
+          (d) =>
+            d.id?.toLowerCase?.() === templateKeyLower ||
+            d.code === templateKeyUpper ||
+            d.id === templateKey ||
+            d.code?.toLowerCase?.() === templateKeyLower
         );
         if (!def) {
-          def = ensureTemplateDef(working, instr.templateId, addDef);
+          def = ensureTemplateDef(working, templateKeyLower || templateKey, addDef);
         }
         if (!def) {
-          log(`Unknown template ${instr.templateId}`);
+          log(`Unknown template ${templateKey}`);
           return;
         }
         const map = ensureMap();
         const baseId = instr.kv.id || def.code;
         const initials = (instr.kv.initials || baseId.slice(0, 2)).toUpperCase().slice(0, 3);
-        const bg = instr.kv.bg || tokenTemplates[instr.templateId]?.bg;
-        const fg = instr.kv.fg || tokenTemplates[instr.templateId]?.fg;
-        const svgUrl = buildTemplateSvg(instr.templateId, { bg, fg, initials });
+        const svgKey = svgTemplate?.toLowerCase();
+        const tplKey = templateKeyLower;
+        const bg = instr.kv.bg || tokenTemplates[svgKey]?.bg || tokenTemplates[tplKey]?.bg;
+        const fg = instr.kv.fg || tokenTemplates[svgKey]?.fg || tokenTemplates[tplKey]?.fg;
+        const svgSource = tokenTemplates[svgKey] ? svgKey : tplKey || templateKey;
+        const svgUrl = buildTemplateSvg(svgSource, { bg, fg, initials });
         const existingCount = working.tokens.filter((t) => t.id.startsWith(baseId)).length;
         instr.coords.forEach((coord, idx) => {
           upsertToken({

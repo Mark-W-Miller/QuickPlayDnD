@@ -12,7 +12,7 @@ export const tokenTemplates = {
       <circle cx="60" cy="60" r="40" fill="#152540" stroke="$FG" stroke-width="6"/>
       <path d="M60 30 L78 60 L60 90 L42 60 Z" fill="$FG" opacity="0.9"/>
       <circle cx="60" cy="60" r="6" fill="$BG"/>
-      <text x="60" y="62" text-anchor="middle" font-size="32" font-family="monospace" font-weight="bold" fill="#ffffff">$INIT</text>
+      <text x="60" y="64" text-anchor="middle" font-size="38" font-family="monospace" font-weight="bold" fill="#ffffff" stroke="#000000" stroke-width="3" paint-order="stroke">$INIT</text>
     </svg>`
   },
   "warrior-medium": {
@@ -27,7 +27,7 @@ export const tokenTemplates = {
       <circle cx="60" cy="60" r="42" fill="#28160d" stroke="$FG" stroke-width="5"/>
       <path d="M60 24 L84 48 L72 48 L72 88 L48 88 L48 48 L36 48 Z" fill="$FG" opacity="0.9"/>
       <circle cx="60" cy="48" r="6" fill="$BG"/>
-      <text x="60" y="70" text-anchor="middle" font-size="30" font-family="monospace" font-weight="bold" fill="#ffffff">$INIT</text>
+      <text x="60" y="72" text-anchor="middle" font-size="36" font-family="monospace" font-weight="bold" fill="#ffffff" stroke="#000000" stroke-width="3" paint-order="stroke">$INIT</text>
     </svg>`
   },
   "guardian-large": {
@@ -43,7 +43,7 @@ export const tokenTemplates = {
       <rect x="54" y="40" width="52" height="80" rx="14" fill="$FG" opacity="0.9"/>
       <rect x="72" y="54" width="16" height="52" fill="$BG"/>
       <circle cx="80" cy="60" r="8" fill="$BG"/>
-      <text x="80" y="88" text-anchor="middle" font-size="34" font-family="monospace" font-weight="bold" fill="#ffffff">$INIT</text>
+      <text x="80" y="92" text-anchor="middle" font-size="40" font-family="monospace" font-weight="bold" fill="#ffffff" stroke="#000000" stroke-width="4" paint-order="stroke">$INIT</text>
     </svg>`
   }
 };

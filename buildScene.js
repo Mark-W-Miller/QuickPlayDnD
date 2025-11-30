@@ -27,13 +27,23 @@ export const createSceneBuilder = ({
   // Cache token face textures (SVG data URLs) to avoid reloading each frame.
   const textureLoader = new THREE.TextureLoader();
   const tokenTextureCache = new Map();
-  const getTokenTexture = (def) => {
-    if (!def?.svgUrl) return null;
-    if (tokenTextureCache.has(def.svgUrl)) return tokenTextureCache.get(def.svgUrl);
-    const tex = textureLoader.load(def.svgUrl);
+  const getTokenTexture = (svgUrl) => {
+    if (!svgUrl) return null;
+    if (tokenTextureCache.has(svgUrl)) return tokenTextureCache.get(svgUrl);
+    const tex = textureLoader.load(
+      svgUrl,
+      (loaded) => {
+        loaded.colorSpace = THREE.SRGBColorSpace;
+        loaded.wrapS = loaded.wrapT = THREE.ClampToEdgeWrapping;
+        loaded.needsUpdate = true;
+        requestTokenRefresh();
+      },
+      undefined,
+      () => {}
+    );
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-    tokenTextureCache.set(def.svgUrl, tex);
+    tokenTextureCache.set(svgUrl, tex);
     return tex;
   };
 
@@ -151,17 +161,17 @@ export const createSceneBuilder = ({
     const normal = new THREE.Vector3(-dx, 1, -dz).normalize();
 
     // Build base disk
-    const faceTexture = getTokenTexture(def);
+    const faceTexture = getTokenTexture(token.svgUrl || def.svgUrl);
     const radius = Math.max(0.2, def.baseSize * cellUnit * 0.35);
     const height = Math.max(0.2, cellUnit * 0.2);
     const geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
     const color = new THREE.Color(def.colorTint || "#ffffff");
     const topBottomMat = new THREE.MeshStandardMaterial({
-      color,
-      emissive: color.clone().multiplyScalar(0.2),
-      emissiveIntensity: 0.5,
+      color: new THREE.Color(0xffffff), // keep caps neutral so SVG colors stay true
+      emissive: new THREE.Color(0x000000),
+      emissiveIntensity: 0,
       metalness: 0.1,
-      roughness: 0.35,
+      roughness: 0.4,
       map: faceTexture || null
     });
     const sideMat = new THREE.MeshStandardMaterial({
