@@ -16,6 +16,10 @@ const heightToggle = document.getElementById("show-height");
 const overlayGridToggle = document.getElementById("show-overlay-grid");
 const overlayLabelToggle = document.getElementById("show-overlay-labels");
 const scriptFilterInput = document.getElementById("script-filter");
+const tokensOpenBtn = document.getElementById("tokens-open");
+const tokensCloseBtn = document.getElementById("tokens-close");
+const tokensWindow = document.getElementById("tokens-window");
+const tokensBody = document.getElementById("tokens-body");
 const safeJsonParse = (val, fallback) => {
   try {
     return JSON.parse(val);
@@ -106,6 +110,12 @@ const state = {
   activeMoves: [],
   activeEffects: [],
   moveSpeedScale: 1
+};
+
+const coercePx = (val, fallback, min) => {
+  const n = parseFloat(val);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return `${Math.max(n, min)}px`;
 };
 
 const three = {
@@ -426,6 +436,8 @@ const applyInstructions = (instructions) => {
   state.map = working.map;
   state.tokenDefs = working.tokenDefs;
   state.tokens = working.tokens;
+  renderTokensWindow();
+  renderTokensWindow();
   if (state.map?.backgroundUrl) {
     setBackground(state.map.backgroundUrl, { silent: true });
     log(`Applied ${instructions.length} instruction(s)`);
@@ -691,6 +703,7 @@ if (inputEl) {
 if (scriptPicker) {
   const defaultScripts = [];
   let cachedEntries = [];
+  let initialLoad = true;
   const populateScripts = async () => {
     let entries = cachedEntries.length ? cachedEntries : defaultScripts;
     try {
@@ -770,15 +783,19 @@ if (scriptPicker) {
       availableValues.find((v) => entries.find((e) => `scripts/${e.file}` === v && e.type === "pop")) ||
       null;
 
-    // Select stored choices but do not auto-run.
+    // Select stored choices; on first load, also auto-run them to restore state.
     if (mapChoice) {
       scriptPicker.value = mapChoice;
       const type = scriptPicker.selectedOptions[0]?.dataset?.type || "map";
       if (type === "map" && currentMapLabel) currentMapLabel.textContent = mapChoice;
+      if (initialLoad) loadExampleScript(mapChoice, fallbackScript, true, { type });
     }
     if (popChoice) {
       scriptPicker.value = popChoice;
+      const type = scriptPicker.selectedOptions[0]?.dataset?.type || "pop";
+      if (initialLoad) loadExampleScript(popChoice, fallbackScript, true, { type });
     }
+    initialLoad = false;
   };
 
   populateScripts();
@@ -825,6 +842,18 @@ const syncHeatControls = () => {
 
 const syncMoveSpeedControls = () => {
   moveSpeedValue.textContent = `${state.moveSpeedScale.toFixed(2)}x`;
+};
+
+const renderTokensWindow = () => {
+  if (!tokensBody) return;
+  const lines = (state.tokens || [])
+    .map((t) => {
+      const col = Number.isFinite(t.col) ? t.col.toFixed(2) : t.col;
+      const row = Number.isFinite(t.row) ? t.row.toFixed(2) : t.row;
+      return `${t.id} (${t.defId}) @ (${col},${row}) speed=${t.speed || 0}`;
+    })
+    .sort((a, b) => a.localeCompare(b));
+  tokensBody.textContent = lines.join("\n");
 };
 
 heatHeightSlider.addEventListener("input", (e) => {
@@ -934,6 +963,97 @@ if (overlayLabelToggle) {
     updateBoardScene();
     render();
   });
+}
+
+// Tokens window (movable/resizable, persisted)
+if (tokensOpenBtn && tokensWindow && tokensBody) {
+  const header = tokensWindow.querySelector(".tokens-window-header");
+  let dragging = false;
+  let dragOffset = { x: 0, y: 0 };
+  const MIN_W = 320;
+  const MIN_H = 240;
+
+  const applyTokenWinState = (saved = {}) => {
+    if (!tokensWindow) return;
+    if (saved.left !== undefined && saved.top !== undefined) {
+      tokensWindow.style.left = `${saved.left}px`;
+      tokensWindow.style.top = `${saved.top}px`;
+      tokensWindow.style.right = "auto";
+      tokensWindow.style.bottom = "auto";
+    }
+    tokensWindow.style.width = saved.width ? coercePx(saved.width, `${MIN_W}px`, MIN_W) : `${MIN_W}px`;
+    tokensWindow.style.height = saved.height ? coercePx(saved.height, `${MIN_H}px`, MIN_H) : `${MIN_H}px`;
+  };
+
+  const persistTokenWinState = (winState) => {
+    const saved = safeJsonParse(localStorage.getItem("token-window-state") || "{}", {});
+    localStorage.setItem("token-window-state", JSON.stringify({ ...saved, ...winState }));
+  };
+
+  const onMove = (e) => {
+    if (!dragging) return;
+    const x = e.clientX - dragOffset.x;
+    const y = e.clientY - dragOffset.y;
+    tokensWindow.style.left = `${x}px`;
+    tokensWindow.style.top = `${y}px`;
+    tokensWindow.style.right = "auto";
+    tokensWindow.style.bottom = "auto";
+  };
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", endDrag);
+    const rect = tokensWindow.getBoundingClientRect();
+    persistTokenWinState({
+      left: rect.left,
+      top: rect.top,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`
+    });
+  };
+  if (header) {
+    header.addEventListener("mousedown", (e) => {
+      if (e.target.tagName === "BUTTON") return;
+      dragging = true;
+      const rect = tokensWindow.getBoundingClientRect();
+      dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", endDrag);
+    });
+  }
+
+  const resizeObserver = new ResizeObserver(() => {
+    const rect = tokensWindow.getBoundingClientRect();
+    persistTokenWinState({
+      width: `${rect.width}px`,
+      height: `${rect.height}px`
+    });
+  });
+  resizeObserver.observe(tokensWindow);
+
+  tokensOpenBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    const saved = safeJsonParse(localStorage.getItem("token-window-state") || "{}", {});
+    applyTokenWinState(saved);
+    renderTokensWindow();
+    tokensWindow.classList.add("open");
+    persistTokenWinState({ open: true });
+  });
+  if (tokensCloseBtn) {
+    tokensCloseBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const rect = tokensWindow.getBoundingClientRect();
+      persistTokenWinState({
+        left: rect.left,
+        top: rect.top,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`,
+        open: false
+      });
+      tokensWindow.classList.remove("open");
+    });
+  }
 }
 
 // Sidebar drag-to-resize

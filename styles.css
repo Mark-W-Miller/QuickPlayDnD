@@ -370,6 +370,49 @@ button:active {
   flex-direction: column;
 }
 
+.tokens-window {
+  position: fixed;
+  bottom: 48px;
+  right: 48px;
+  width: 420px;
+  height: 320px;
+  background: rgba(11, 18, 32, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  display: none;
+  resize: both;
+  overflow: hidden;
+  z-index: 12;
+}
+
+.tokens-window.open {
+  display: flex;
+  flex-direction: column;
+}
+
+.tokens-window-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+  cursor: move;
+}
+
+.tokens-body {
+  flex: 1;
+  padding: 10px;
+  overflow: auto;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .db-window-header {
   display: flex;
   justify-content: space-between;
