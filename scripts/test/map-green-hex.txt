@@ -1,6 +1,4 @@
 # Flat green hex board
 RESET
-BACKGROUND images/green-flat.png
-GRID hex SIZE 64
-BOARD 20x20
+MAP background=images/green-flat.png grid=hex size=64 board=20x20
 REMOVE HEIGHTMAP

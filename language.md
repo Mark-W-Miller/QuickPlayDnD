@@ -8,7 +8,7 @@ Plain text commands, one per line. Lines starting with `#` are comments.
 - `BOARD <cols>x<rows>` — set board dimensions.
 - `SPRITE DEF <CODE> name="Name" url="https://..." size=<n> tint=#RRGGBB category=<PC|NPC|Monster|Object> speed=<ft>` — define or update a sprite type; `speed` defaults to 12 if omitted.
 - `PLACE <CODE> @ A1,B2,...` — place sprite instances of the given code at coordinates. Instances auto-name `<CODE>-N`.
-- `CREATE <TemplateId> id=<TokenId> initials=<XX> bg=#RRGGBB fg=#RRGGBB speed=<ft> @ A1,B2,...` — spawn tokens from built-in templates. `id` is required and expands with an increment per placement; `initials` is optional (defaults to first letters of the id); `bg`/`fg` override template colors; `speed` sets the per-token move speed (defaults to 12).
+- `CREATE template=<TemplateId[,SvgTemplateId]> id=<TokenId> initials=<XX> bg=#RRGGBB fg=#RRGGBB speed=<ft> type=<structure|creature|object> size=<cells> @ A1,B2,...` — spawn tokens from templates (first template id drives the 3D model; optional second drives the SVG cap). `id` expands per placement; `initials` defaults to the first letters of the id; `bg`/`fg` override template colors; `speed` sets move speed (defaults to 12); `type` is a free-form category (e.g., `structure`); `size` is the footprint width on the smallest dimension in cells.
 - `MOVE <tokenId> TO C3` — animate the first token whose id starts with `tokenId` toward the destination using its speed.
 - `ATTACK <attackerId> -> <targetId> TYPE physical|magic [SPEED <n>] [DUR <ms>]` — play a transient effect from attacker to target.
 - `EFFECT <magic|physical> AT A1 [SPEED <n>] [DUR <ms>]` — spawn a transient ground effect at a coordinate.

@@ -146,6 +146,7 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
         return;
       }
       localStorage.setItem("camera-state", JSON.stringify(payload));
+      logClass?.("CAMERA", "Saved camera-state", payload);
       lastSavedCamera = payload;
       if (logClass) {
         const fmt = (arr) => arr.map((n) => Number(n).toFixed(2)).join(", ");
@@ -163,7 +164,9 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
   };
 
   const applySavedCamera = () => {
-    applyCameraPayload(getLatestCameraPayload());
+    const payload = getLatestCameraPayload();
+    logClass?.("INFO", "Applying saved camera-state", payload);
+    applyCameraPayload(payload);
   };
 
   const setCameraPreset = (preset, render3d) => {

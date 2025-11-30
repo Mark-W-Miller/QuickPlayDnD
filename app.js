@@ -6,6 +6,16 @@ import { initLogger } from "./logger.js";
 import { createCameraManager } from "./camera.js";
 import { createSceneBuilder } from "./buildScene.js";
 import { parseScript, coordToIndex } from "./parser.js";
+import {
+  getSavedMapScript,
+  getSavedPopScript,
+  getSavedScriptPath,
+  getSavedInlineMap,
+  saveLastMapScript,
+  saveLastPopScript,
+  saveLastScriptPath,
+  saveInlineMap
+} from "./saveState.js";
 
 const canvas = document.getElementById("map-canvas");
 const inputEl = document.getElementById("script-input");
@@ -42,27 +52,10 @@ const savedOverlayGrid = (() => {
 const savedOverlayLabels = (() => {
   return safeJsonParse(localStorage.getItem("show-overlay-labels") || "true", true);
 })();
-const savedScriptPath = (() => {
-  try {
-    return localStorage.getItem("last-script-path");
-  } catch {
-    return null;
-  }
-})();
-const savedMapScript = (() => {
-  try {
-    return localStorage.getItem("last-map-script");
-  } catch {
-    return null;
-  }
-})();
-const savedPopScript = (() => {
-  try {
-    return localStorage.getItem("last-pop-script");
-  } catch {
-    return null;
-  }
-})();
+const savedScriptPath = getSavedScriptPath();
+const savedMapScript = getSavedMapScript();
+const savedPopScript = getSavedPopScript();
+const savedInlineMap = getSavedInlineMap();
 const fallbackScript = `
 # Provide your own script here
 `;
@@ -209,6 +202,7 @@ const overlayGridOnTexture = (map) => {
 
 const applyInstructions = (instructions) => {
   let working = JSON.parse(JSON.stringify(state));
+  let mapChanged = false;
 
   const ensureMap = () => {
     if (working.map) return working.map;
@@ -278,17 +272,37 @@ const applyInstructions = (instructions) => {
       case "background": {
         const map = ensureMap();
         working.map = { ...map, backgroundUrl: instr.url };
+        mapChanged = true;
+        break;
+      }
+      case "map": {
+        const map = ensureMap();
+        const kv = instr.kv || {};
+        if (kv.background || kv.bg) map.backgroundUrl = kv.background || kv.bg;
+        if (kv.grid) map.gridType = kv.grid.toLowerCase();
+        if (kv.size) map.gridSizePx = Number(kv.size);
+        if (kv.board) {
+          const boardMatch = /^(\d+)[xX](\d+)$/.exec(kv.board);
+          if (boardMatch) {
+            map.cols = Number(boardMatch[1]);
+            map.rows = Number(boardMatch[2]);
+          }
+        }
+        ensureRandomHeights(map);
+        mapChanged = true;
         break;
       }
       case "grid": {
         const map = ensureMap();
         working.map = { ...map, gridType: instr.grid, gridSizePx: instr.size };
+        mapChanged = true;
         break;
       }
       case "board": {
         const map = ensureMap();
         working.map = { ...map, cols: instr.cols, rows: instr.rows };
         ensureRandomHeights(working.map);
+        mapChanged = true;
         break;
       }
       case "sprite-def": {
@@ -370,6 +384,7 @@ const applyInstructions = (instructions) => {
           working.tokens = [];
         } else {
           working = { map: null, tokenDefs: [], tokens: [], viewMode: "3d" };
+          mapChanged = true;
         }
         break;
       }
@@ -381,10 +396,12 @@ const applyInstructions = (instructions) => {
         }
         clearGroup(three.meshGroup);
         clearGroup(three.tokenGroup);
+        mapChanged = true;
         break;
       }
       case "height": {
         instr.entries.forEach(({ col, row, h }) => setHeight(col, row, h));
+        mapChanged = true;
         break;
       }
       case "remove-heightmap": {
@@ -392,6 +409,7 @@ const applyInstructions = (instructions) => {
         map.heights = {};
         map.disableRandomHeights = true;
         state.heightMap.grid = [];
+        mapChanged = true;
         break;
       }
       case "create": {
@@ -423,6 +441,8 @@ const applyInstructions = (instructions) => {
         const fg = instr.kv.fg || tokenTemplates[svgKey]?.fg || tokenTemplates[tplKey]?.fg;
         const svgSource = tokenTemplates[svgKey] ? svgKey : tplKey || templateKey;
         const svgUrl = buildTemplateSvg(svgSource, { bg, fg, initials });
+        const type = instr.kv.type || def.category || "Object";
+        const size = Number(instr.kv.size) || def.baseSize || 1;
         const existingCount = working.tokens.filter((t) => t.id.startsWith(baseId)).length;
         instr.coords.forEach((coord, idx) => {
           upsertToken({
@@ -433,7 +453,9 @@ const applyInstructions = (instructions) => {
             row: coord.row,
             initials,
             svgUrl,
-            speed: Number(instr.kv.speed) || def.speed || 12
+            speed: Number(instr.kv.speed) || def.speed || 12,
+            type,
+            size
           });
         });
         break;
@@ -448,7 +470,19 @@ const applyInstructions = (instructions) => {
   state.tokenDefs = working.tokenDefs;
   state.tokens = working.tokens;
   renderTokensWindow();
-  renderTokensWindow();
+  if (mapChanged) {
+    const selected = scriptPicker?.selectedOptions?.[0];
+    const isMapSel = selected?.dataset?.type === "map";
+    const mapPath = isMapSel ? selected.value : savedMapScript || null;
+    if (mapPath) {
+      saveLastMapScript(mapPath);
+      logClass?.("INFO", `Persisted last-map-script=${mapPath}`);
+    } else {
+      // Persist inline map content
+      saveInlineMap(inputEl?.value || "");
+      logClass?.("INFO", "Persisted inline map content");
+    }
+  }
   if (state.map?.backgroundUrl) {
     setBackground(state.map.backgroundUrl, { silent: true });
     log(`Applied ${instructions.length} instruction(s)`);
@@ -683,13 +717,20 @@ const loadExampleScript = async (path, fallback, autoRun = false, meta = {}) => 
     const text = await res.text();
     inputEl.value = text.trim();
     log(`Loaded script: ${path}`);
-    if (meta.type === "map" && currentMapLabel) currentMapLabel.textContent = path;
+    if (meta.type === "map") {
+      saveLastMapScript(path);
+      logClass?.("INFO", `Saved last-map-script=${path}`);
+      if (currentMapLabel) currentMapLabel.textContent = path;
+    }
     if (autoRun) runCurrentScript();
   } catch (err) {
     if (fallback) {
       inputEl.value = fallback.trim();
       log(`Loaded fallback script (failed to load ${path})`);
-      if (meta.type === "map" && currentMapLabel) currentMapLabel.textContent = "Fallback map";
+      if (meta.type === "map") {
+        if (currentMapLabel) currentMapLabel.textContent = "Fallback map";
+        logClass?.("INFO", "Applied fallback map as last-map-script");
+      }
       if (autoRun) runCurrentScript();
     } else {
       log(`Failed to load example ${path}: ${err.message}`);
@@ -794,17 +835,20 @@ if (scriptPicker) {
       availableValues.find((v) => entries.find((e) => `scripts/${e.file}` === v && e.type === "pop")) ||
       null;
 
-    // Select stored choices; on first load, also auto-run them to restore state.
+    // Select stored choices; on first load, only auto-run the map to restore state.
     if (mapChoice) {
       scriptPicker.value = mapChoice;
       const type = scriptPicker.selectedOptions[0]?.dataset?.type || "map";
       if (type === "map" && currentMapLabel) currentMapLabel.textContent = mapChoice;
       if (initialLoad) loadExampleScript(mapChoice, fallbackScript, true, { type });
+    } else if (initialLoad && savedInlineMap) {
+      // Fallback to inline saved map content if no map choice
+      inputEl.value = savedInlineMap;
+      log("Loaded inline saved map");
+      runCurrentScript();
     }
     if (popChoice) {
       scriptPicker.value = popChoice;
-      const type = scriptPicker.selectedOptions[0]?.dataset?.type || "pop";
-      if (initialLoad) loadExampleScript(popChoice, fallbackScript, true, { type });
     }
     initialLoad = false;
   };
@@ -831,12 +875,12 @@ if (scriptPicker) {
     if (val) {
       const type = e.target.selectedOptions[0]?.dataset?.type || "script";
       if (type === "map") {
-        localStorage.setItem("last-map-script", val);
+        saveLastMapScript(val);
         if (currentMapLabel) currentMapLabel.textContent = val;
       } else if (type === "pop") {
-        localStorage.setItem("last-pop-script", val);
+        saveLastPopScript(val);
       } else {
-        localStorage.setItem("last-script-path", val);
+        saveLastScriptPath(val);
       }
       loadExampleScript(val, fallbackScript, true, { type });
     }

@@ -37,6 +37,14 @@ export const parseScript = (script, { logClass } = {}) => {
       instructions.push({ type: "background", url: match[1].trim() });
       continue;
     }
+    if ((match = /^MAP\s+(.+)$/i.exec(line))) {
+      const kv = parseKeyValues(match[1]);
+      instructions.push({
+        type: "map",
+        kv
+      });
+      continue;
+    }
     if ((match = /^GRID\s+(square|hex)\s+SIZE\s+(\d+)$/i.exec(line))) {
       instructions.push({ type: "grid", grid: match[1].toLowerCase(), size: Number(match[2]) });
       continue;

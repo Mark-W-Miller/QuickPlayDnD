@@ -159,10 +159,12 @@ export const createSceneBuilder = ({
     const dx = (hR - hL) / (2 * deltaU * Math.max(1, boardWidth));
     const dz = (hU - hD) / (2 * deltaV * Math.max(1, boardDepth));
     const normal = new THREE.Vector3(-dx, 1, -dz).normalize();
+    const tokenSize = token.size || def.baseSize || 1;
+    const isStructure = (token.type || def.category || "").toString().toLowerCase() === "structure";
 
-    // Build base disk
+    // Build base disk (skip for structures).
     const faceTexture = getTokenTexture(token.svgUrl || def.svgUrl);
-    const radius = Math.max(0.2, def.baseSize * cellUnit * 0.35);
+    const radius = Math.max(0.2, tokenSize * cellUnit * 0.35);
     const height = Math.max(0.2, cellUnit * 0.2);
     const geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
     const color = new THREE.Color(def.colorTint || "#ffffff");
@@ -185,7 +187,7 @@ export const createSceneBuilder = ({
     baseMesh.castShadow = true;
 
     const baseGroup = new THREE.Group();
-    baseGroup.add(baseMesh);
+    if (!isStructure) baseGroup.add(baseMesh);
 
     // If a model URL is provided, add it on top of the disk (never replace the disk).
     if (def.modelUrl) {
@@ -200,7 +202,7 @@ export const createSceneBuilder = ({
         // Show base disk immediately even while model loads.
         baseGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
         const yOffsetPending = cellUnit * 0.01;
-        baseGroup.position.set(placement.x, hCenter + yOffsetPending + height / 2, placement.z);
+        baseGroup.position.set(placement.x, hCenter + yOffsetPending + (isStructure ? 0 : height / 2), placement.z);
         return baseGroup;
       }
       logClass("3DLOAD", `Using cached model ${def.modelUrl}`);
@@ -209,6 +211,13 @@ export const createSceneBuilder = ({
         if (n.isMesh) {
           n.castShadow = true;
           n.receiveShadow = true;
+          if (n.material) {
+            const mats = Array.isArray(n.material) ? n.material : [n.material];
+            mats.forEach((m) => {
+              if (m.emissive?.setScalar) m.emissive.setScalar(0.1);
+              if (m.emissiveIntensity !== undefined) m.emissiveIntensity = 0.4;
+            });
+          }
           if (n.material?.clone) n.material = n.material.clone();
         }
       });
@@ -220,8 +229,8 @@ export const createSceneBuilder = ({
       const scale = desired / maxXZ;
       clone.scale.setScalar(scale);
       const minY = bbox.min.y * scale;
-      const topY = height / 2;
-      const yOffsetModel = topY - minY + cellUnit * 0.002; // sit on top of disk
+      const topY = isStructure ? 0 : height / 2;
+      const yOffsetModel = isStructure ? -minY + cellUnit * 0.002 : topY - minY + cellUnit * 0.002;
       logClass(
         "3DLOAD",
         `Model place scale=${scale.toFixed(3)} minY=${minY.toFixed(3)} topY=${topY.toFixed(3)}`
@@ -230,10 +239,15 @@ export const createSceneBuilder = ({
       baseGroup.add(clone);
     }
 
-    baseGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
-
-    const yOffset = cellUnit * 0.01; // tiny lift to avoid z-fight
-    baseGroup.position.set(placement.x, hCenter + yOffset + height / 2, placement.z);
+    if (isStructure) {
+      // Structures sit flat at center height.
+      baseGroup.quaternion.identity();
+      baseGroup.position.set(placement.x, hCenter, placement.z);
+    } else {
+      baseGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+      const yOffset = cellUnit * 0.01; // tiny lift to avoid z-fight
+      baseGroup.position.set(placement.x, hCenter + yOffset + height / 2, placement.z);
+    }
     return baseGroup;
   };
 
@@ -349,8 +363,8 @@ export const createSceneBuilder = ({
     three.controls = new OrbitControls(three.camera, three.renderer.domElement);
     three.controls.enablePan = true;
     three.controls.enableDamping = false;
-    three.controls.minDistance = 4;
-    three.controls.maxDistance = 200;
+    three.controls.minDistance = 0.5;
+    three.controls.maxDistance = 400;
     three.controls.minPolarAngle = 0.05;
     three.controls.maxPolarAngle = Math.PI / 2 - 0.05;
     three.controls.mouseButtons = {
@@ -360,10 +374,10 @@ export const createSceneBuilder = ({
     };
     three.controls.addEventListener("change", render3d);
 
-    three.ambient = new THREE.AmbientLight(0xffffff, 1.2);
+    three.ambient = new THREE.AmbientLight(0xffffff, 1.7);
     three.scene.add(three.ambient);
 
-    three.directional = new THREE.DirectionalLight(0xffffff, 1.2);
+    three.directional = new THREE.DirectionalLight(0xffffff, 1.35);
     three.directional.position.set(4, 8, 6);
     three.directional.castShadow = true;
     three.directional.shadow.mapSize.set(1024, 1024);

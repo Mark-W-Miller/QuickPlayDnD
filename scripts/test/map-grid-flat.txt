@@ -1,6 +1,4 @@
 # Grid board (flat)
 RESET
-BACKGROUND images/grid-default-map.png
-GRID square SIZE 50
-BOARD 20x16
+MAP background=images/grid-default-map.png grid=square size=50 board=20x16
 REMOVE HEIGHTMAP

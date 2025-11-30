@@ -1,0 +1,5 @@
+# Demo: Textured Castle GLB (structure, no base/svg)
+SPRITE DEF CASTLE name="Castle" model=models/Castle.glb size=6 category=Structure
+
+# Place one castle in the center-ish; type=structure hides base/svg and sits flat at center height
+CREATE template=CASTLE id=CASTLE initials=CA type=structure size=6 @ H8

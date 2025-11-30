@@ -1,8 +1,6 @@
 # Hex board setup only
 RESET
-BACKGROUND images/hex-default-map.png
-GRID hex SIZE 50
-BOARD 20x14
+MAP background=images/hex-default-map.png grid=hex size=50 board=20x14
 
 HEIGHT B4=2,C4=3,C5=4,D5=5,E6=7,F6=8,G6=6
 HEIGHT H7=9,I7=7,J6=5
