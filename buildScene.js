@@ -121,7 +121,10 @@ export const createSceneBuilder = ({
   const buildTokenMesh = (token, boardWidth, boardDepth, surfaceY, cellUnit) => {
     logClass("3DLOAD", `Build Token: ${formatTokenLabel(token)}`);
     const def = state.tokenDefs.find((d) => d.id === token.defId);
-    if (!def) return null;
+    if (!def) {
+      logClass("3DLOAD", "No def found for token");
+      return null;
+    }
     const placement = state.map.gridType === "hex"
       ? computeHexPlacement(token, boardWidth, boardDepth)
       : computeGridPlacement(token, boardWidth, boardDepth);
@@ -147,39 +150,7 @@ export const createSceneBuilder = ({
     const dz = (hU - hD) / (2 * deltaV * Math.max(1, boardDepth));
     const normal = new THREE.Vector3(-dx, 1, -dz).normalize();
 
-    // If a model URL is provided, use the GLB instead of the cylinder token.
-    if (def.modelUrl) {
-     logClass("3DLOAD", `Build Token: ${def.modelUrl}`);
-     const entry = getModelEntry(def.modelUrl);
-      if (!entry) return null;
-      if (!entry.scene) {
-        logClass("3DLOAD", `Model pending for ${def.modelUrl} — will retry on load`);
-        entry.promise?.then(() => requestTokenRefresh()).catch(() => {});
-        return null;
-      }
-      logClass("3DLOAD", `Using cached model ${def.modelUrl}`);
-      const clone = entry.scene.clone(true);
-      clone.traverse((n) => {
-        if (n.isMesh) {
-          n.castShadow = true;
-          n.receiveShadow = true;
-          if (n.material?.clone) n.material = n.material.clone();
-        }
-      });
-      const bbox = entry.bbox || new THREE.Box3().setFromObject(clone);
-      const size = new THREE.Vector3();
-      bbox.getSize(size);
-      const maxXZ = Math.max(size.x, size.z, 1e-3);
-      const desired = (def.baseSize || 1) * cellUnit * 0.9;
-      const scale = desired / maxXZ;
-      clone.scale.setScalar(scale);
-      const minY = bbox.min.y * scale;
-      const yOffsetModel = cellUnit * 0.02 - minY; // lift to sit on surface
-      clone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
-      clone.position.set(placement.x, hCenter + yOffsetModel, placement.z);
-      return clone;
-    }
-
+    // Build base disk
     const faceTexture = getTokenTexture(def);
     const radius = Math.max(0.2, def.baseSize * cellUnit * 0.35);
     const height = Math.max(0.2, cellUnit * 0.2);
@@ -200,13 +171,60 @@ export const createSceneBuilder = ({
       metalness: 0.05,
       roughness: 0.8
     });
-    const mesh = new THREE.Mesh(geometry, [sideMat, topBottomMat, topBottomMat]);
-    mesh.castShadow = true;
-    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+    const baseMesh = new THREE.Mesh(geometry, [sideMat, topBottomMat, topBottomMat]);
+    baseMesh.castShadow = true;
+
+    const baseGroup = new THREE.Group();
+    baseGroup.add(baseMesh);
+
+    // If a model URL is provided, add it on top of the disk (never replace the disk).
+    if (def.modelUrl) {
+      logClass("3DLOAD", `Attempt model ${def.modelUrl}`);
+      const entry = getModelEntry(def.modelUrl);
+      if (!entry) return baseGroup;
+      if (!entry.scene) {
+        logClass("3DLOAD", `Model pending for ${def.modelUrl} — will retry on load`);
+        entry.promise
+          ?.then(() => requestTokenRefresh())
+          .catch(() => {});
+        // Show base disk immediately even while model loads.
+        baseGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+        const yOffsetPending = cellUnit * 0.01;
+        baseGroup.position.set(placement.x, hCenter + yOffsetPending + height / 2, placement.z);
+        return baseGroup;
+      }
+      logClass("3DLOAD", `Using cached model ${def.modelUrl}`);
+      const clone = entry.scene.clone(true);
+      clone.traverse((n) => {
+        if (n.isMesh) {
+          n.castShadow = true;
+          n.receiveShadow = true;
+          if (n.material?.clone) n.material = n.material.clone();
+        }
+      });
+      const bbox = entry.bbox || new THREE.Box3().setFromObject(clone);
+      const size = new THREE.Vector3();
+      bbox.getSize(size);
+      const maxXZ = Math.max(size.x, size.z, 1e-3);
+      const desired = radius * 2 * 0.9;
+      const scale = desired / maxXZ;
+      clone.scale.setScalar(scale);
+      const minY = bbox.min.y * scale;
+      const topY = height / 2;
+      const yOffsetModel = topY - minY + cellUnit * 0.002; // sit on top of disk
+      logClass(
+        "3DLOAD",
+        `Model place scale=${scale.toFixed(3)} minY=${minY.toFixed(3)} topY=${topY.toFixed(3)}`
+      );
+      clone.position.set(0, yOffsetModel, 0);
+      baseGroup.add(clone);
+    }
+
+    baseGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
 
     const yOffset = cellUnit * 0.01; // tiny lift to avoid z-fight
-    mesh.position.set(placement.x, hCenter + yOffset + height / 2, placement.z);
-    return mesh;
+    baseGroup.position.set(placement.x, hCenter + yOffset + height / 2, placement.z);
+    return baseGroup;
   };
 
   const updateTokens3d = (boardWidth, boardDepth, surfaceY, cellUnit) => {
