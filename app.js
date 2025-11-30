@@ -149,9 +149,8 @@ const overlayGridOnTexture = (map) => {
   textureCtx.lineWidth = 1;
   if (map.gridType === "hex") {
     const sqrt3 = Math.sqrt(3);
-    const sFromWidth = textureCanvas.width / (sqrt3 * (cols + 0.5));
-    const sFromHeight = textureCanvas.height / (1.5 * (rows - 1) + 2);
-    const s = Math.max(1, Math.max(sFromWidth, sFromHeight)); // ensure coverage, allow partial clipping
+    // Fit width exactly; rows may extend or clip vertically as needed.
+    const s = Math.max(1, textureCanvas.width / (sqrt3 * (cols + 0.5)));
     const hexW = sqrt3 * s;
     const hexH = 2 * s;
     const rowStep = hexH * 0.75;
@@ -547,15 +546,27 @@ const setBackground = (url, opts = {}) => {
     // If cols/rows are known, update grid size so cell spacing matches the new texture width.
     if (state.map.cols > 0) {
       state.map.gridSizePx = textureCanvas.width / state.map.cols;
-      const colsFromTex = Math.ceil(textureCanvas.width / state.map.gridSizePx);
-      const rowsFromTex = Math.ceil(textureCanvas.height / state.map.gridSizePx);
-      if (colsFromTex !== state.map.cols || rowsFromTex !== state.map.rows) {
-        state.map.cols = colsFromTex;
-        state.map.rows = rowsFromTex;
-        logClass(
-          "DIM",
-          `app.js:549 Adjusted board to cols=${colsFromTex} rows=${rowsFromTex} from texture ${img.width}x${img.height}`
-        );
+      if (state.map.gridType === "hex") {
+        const sqrt3 = Math.sqrt(3);
+        const s = textureCanvas.width / (sqrt3 * (state.map.cols + 0.5));
+        const hexH = 2 * s;
+        const rowStep = hexH * 0.75;
+        const rowsFromTex = Math.ceil((textureCanvas.height - hexH) / rowStep) + 1;
+        if (rowsFromTex !== state.map.rows) {
+          state.map.rows = rowsFromTex;
+          logClass("DIM", `app.js:554 Adjusted hex rows=${rowsFromTex} from texture ${img.width}x${img.height}`);
+        }
+      } else {
+        const colsFromTex = Math.ceil(textureCanvas.width / state.map.gridSizePx);
+        const rowsFromTex = Math.ceil(textureCanvas.height / state.map.gridSizePx);
+        if (colsFromTex !== state.map.cols || rowsFromTex !== state.map.rows) {
+          state.map.cols = colsFromTex;
+          state.map.rows = rowsFromTex;
+          logClass(
+            "DIM",
+            `app.js:561 Adjusted board to cols=${colsFromTex} rows=${rowsFromTex} from texture ${img.width}x${img.height}`
+          );
+        }
       }
     }
     overlayGridOnTexture(state.map);

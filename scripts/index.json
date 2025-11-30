@@ -12,6 +12,7 @@
   { "file": "wight-map-setup.txt", "type": "map", "name": "Wight Battle" },
   { "file": "wight-square-setup.txt", "type": "map", "name": "Wight Battle (Square)" },
   { "file": "pop-wight-battle.txt", "type": "pop", "name": "Wight Battle Pop" },
+  { "file": "pop-wight-edge.txt", "type": "pop", "name": "Wight Edge Tokens", "debug": true },
   { "file": "pop-templates.txt", "type": "pop", "name": "Template Samples", "debug": true },
   { "file": "pop-every-other.txt", "type": "pop", "name": "Every Other Cell", "debug": true },
   { "file": "move-templates.txt", "type": "move", "name": "Template Moves", "debug": true }

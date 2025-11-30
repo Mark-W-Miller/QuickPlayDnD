@@ -1,0 +1,10 @@
+# Edge tokens for Wight map
+CREATE scout-small id=ED initials=ED @ A0,B0,C0,D0,E0,F0,G0,H0,I0,J0,K0,L0
+CREATE scout-small id=ED initials=ED @ M0,N0,O0,P0,Q0,R0,S0,T0,A31,B31,C31,D31
+CREATE scout-small id=ED initials=ED @ E31,F31,G31,H31,I31,J31,K31,L31,M31,N31,O31,P31
+CREATE scout-small id=ED initials=ED @ Q31,R31,S31,T31,A1,T1,A2,T2,A3,T3,A4,T4
+CREATE scout-small id=ED initials=ED @ A5,T5,A6,T6,A7,T7,A8,T8,A9,T9,A10,T10
+CREATE scout-small id=ED initials=ED @ A11,T11,A12,T12,A13,T13,A14,T14,A15,T15,A16,T16
+CREATE scout-small id=ED initials=ED @ A17,T17,A18,T18,A19,T19,A20,T20,A21,T21,A22,T22
+CREATE scout-small id=ED initials=ED @ A23,T23,A24,T24,A25,T25,A26,T26,A27,T27,A28,T28
+CREATE scout-small id=ED initials=ED @ A29,T29,A30,T30,K16
