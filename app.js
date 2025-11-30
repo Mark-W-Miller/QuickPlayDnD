@@ -686,6 +686,16 @@ document.getElementById("run-btn").addEventListener("click", () => {
   runCurrentScript();
 });
 
+// Run script on Ctrl+Enter when the textarea is focused.
+if (inputEl) {
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      runCurrentScript();
+    }
+  });
+}
+
 if (scriptPicker) {
   const defaultScripts = [
     { file: "map-hex.txt", type: "map", name: "Hex Board" },

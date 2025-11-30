@@ -56,7 +56,7 @@ export const createSceneBuilder = ({
     return { x, z, cellW, cellH };
   };
 
-  const buildTokenMesh = (token, cellHeight, boardWidth, boardDepth, cellUnit) => {
+  const buildTokenMesh = (token, boardWidth, boardDepth, surfaceY, cellUnit) => {
     const def = state.tokenDefs.find((d) => d.id === token.defId);
     if (!def) return null;
     const radius = Math.max(0.2, def.baseSize * cellUnit * 0.35);
@@ -84,28 +84,38 @@ export const createSceneBuilder = ({
       ? computeHexPlacement(token, boardWidth, boardDepth)
       : computeGridPlacement(token, boardWidth, boardDepth);
     if (logClass) logClass("DIM", `cellW=${placement.cellW.toFixed(3)} cellH=${placement.cellH.toFixed(3)}`);
-    const yOffset = cellUnit * 0.15; // lift tokens to sit on top of displaced surface
-    // Cylinder is centered at origin; add half its height so the base rests on the surface.
-    mesh.position.set(placement.x, cellHeight + yOffset + height / 2, placement.z);
-    return mesh;
-  };
 
-  const getSurfaceHeightAt = (col, row, boardWidth, boardDepth, surfaceY, cellUnit) => {
-    const effRow = clamp(row, 0, state.map.rows - 1);
-    const u = (col + 0.5) / Math.max(1, state.map.cols);
-    const v = (effRow + 0.5) / Math.max(1, state.map.rows);
-    const h = sampleHeightMap(state, u, v);
-    const baseLift = cellUnit * 0.05;
-    const scale = cellUnit * 0.6;
-    return surfaceY + baseLift + h * state.heightMap.heightScale * scale;
+    // Sample surface height and normal at token center.
+    const u = THREE.MathUtils.clamp(placement.x / Math.max(1, boardWidth), 0, 1);
+    const v = THREE.MathUtils.clamp(placement.z / Math.max(1, boardDepth), 0, 1);
+    const surfaceHeightAt = (ux, vz) => {
+      const hNorm = sampleHeightMap(state, ux, vz);
+      const baseLift = cellUnit * 0.05;
+      const scale = cellUnit * 0.6;
+      return surfaceY + baseLift + hNorm * state.heightMap.heightScale * scale;
+    };
+    const hCenter = surfaceHeightAt(u, v);
+    const deltaU = 1 / Math.max(8 * state.map.cols, boardWidth || 1);
+    const deltaV = 1 / Math.max(8 * state.map.rows, boardDepth || 1);
+    const hL = surfaceHeightAt(Math.max(0, u - deltaU), v);
+    const hR = surfaceHeightAt(Math.min(1, u + deltaU), v);
+    const hD = surfaceHeightAt(u, Math.max(0, v - deltaV));
+    const hU = surfaceHeightAt(u, Math.min(1, v + deltaV));
+    const dx = (hR - hL) / (2 * deltaU * Math.max(1, boardWidth));
+    const dz = (hU - hD) / (2 * deltaV * Math.max(1, boardDepth));
+    const normal = new THREE.Vector3(-dx, 1, -dz).normalize();
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+
+    const yOffset = cellUnit * 0.01; // tiny lift to avoid z-fight
+    mesh.position.set(placement.x, hCenter + yOffset + height / 2, placement.z);
+    return mesh;
   };
 
   const updateTokens3d = (boardWidth, boardDepth, surfaceY, cellUnit) => {
     if (!three.tokenGroup) return;
     clearGroup(three.tokenGroup);
     state.tokens.forEach((token) => {
-      const cellHeight = getSurfaceHeightAt(token.col, token.row, boardWidth, boardDepth, surfaceY, cellUnit);
-      const mesh = buildTokenMesh(token, cellHeight, boardWidth, boardDepth, cellUnit);
+      const mesh = buildTokenMesh(token, boardWidth, boardDepth, surfaceY, cellUnit);
       if (mesh) three.tokenGroup.add(mesh);
     });
   };
@@ -298,7 +308,6 @@ export const createSceneBuilder = ({
   return {
     clearGroup,
     buildTokenMesh,
-    getSurfaceHeightAt,
     updateTokens3d,
     render3d,
     resizeRenderer,
