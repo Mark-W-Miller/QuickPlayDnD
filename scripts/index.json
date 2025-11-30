@@ -12,8 +12,13 @@
   { "file": "wight-battle/wight-map-setup.txt", "type": "map", "name": "Wight Battle" },
   { "file": "wight-battle/wight-square-setup.txt", "type": "map", "name": "Wight Battle (Square)" },
   { "file": "wight-battle/pop-wight-battle.txt", "type": "pop", "name": "Wight Battle Pop" },
-  { "file": "wight-battle/pop-wight-edge.txt", "type": "pop", "name": "Wight Edge Tokens" },
+  { "file": "test/pop-wight-edge.txt", "type": "pop", "name": "Wight Edge Tokens" },
   { "file": "test/pop-templates.txt", "type": "pop", "name": "Template Samples" },
   { "file": "test/pop-every-other.txt", "type": "pop", "name": "Every Other Cell" },
+  { "file": "wight-battle/moves/move-line.txt", "type": "move", "name": "Move Line" },
+  { "file": "wight-battle/moves/move-square.txt", "type": "move", "name": "Move Square" },
+  { "file": "wight-battle/moves/move-diagonal.txt", "type": "move", "name": "Move Diagonal" },
+  { "file": "wight-battle/moves/move-center.txt", "type": "move", "name": "Move Center" },
+  { "file": "wight-battle/moves/move-random.txt", "type": "move", "name": "Move Random" },
   { "file": "test/move-templates.txt", "type": "move", "name": "Template Moves" }
 ]
