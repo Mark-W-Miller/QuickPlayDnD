@@ -220,6 +220,28 @@ button:active {
   vertical-align: middle;
 }
 
+.log-actions {
+  display: flex;
+  gap: 6px;
+  margin-right: 8px;
+}
+
+.log-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+.log-filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: rgba(233, 238, 247, 0.8);
+}
+
 .cam-buttons button[data-cam-slot] {
   min-width: 76px;
 }

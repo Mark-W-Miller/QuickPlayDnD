@@ -6,10 +6,18 @@ const safeJsonParse = (val, fallback) => {
   }
 };
 
-export const initLogger = ({ maxEntries = 50, maxStored = 300, storageKey = "log-window-state", historyKey = "log-history" } = {}) => {
+export const initLogger = ({
+  maxEntries = 50,
+  maxStored = 300,
+  storageKey = "log-window-state",
+  historyKey = "log-history",
+  classKey = "log-enabled-classes"
+} = {}) => {
   const logEl = document.getElementById("log");
   const logOpenBtn = document.getElementById("log-open");
   const logCloseBtn = document.getElementById("log-close");
+  const logClearBtn = document.getElementById("log-clear");
+  const logCopyBtn = document.getElementById("log-copy");
   const logWindow = document.getElementById("log-window");
   const dbOpenBtn = document.getElementById("db-open");
   const dbCloseBtn = document.getElementById("db-close");
@@ -20,7 +28,9 @@ export const initLogger = ({ maxEntries = 50, maxStored = 300, storageKey = "log
   const DB_MIN_W = 360;
   const DB_MIN_H = 240;
   const state = {
-    entries: []
+    entries: [],
+    classes: new Set(),
+    enabledClasses: new Set()
   };
 
   const coercePx = (val, fallback, min) => {
@@ -44,6 +54,19 @@ export const initLogger = ({ maxEntries = 50, maxStored = 300, storageKey = "log
     } catch {
       /* ignore */
     }
+  };
+
+  const persistEnabled = () => {
+    try {
+      localStorage.setItem(classKey, JSON.stringify(Array.from(state.enabledClasses)));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const loadEnabled = () => {
+    const saved = safeJsonParse(localStorage.getItem(classKey) || "[]", []);
+    if (Array.isArray(saved) && saved.length) saved.forEach((c) => state.enabledClasses.add(c));
   };
 
   const loadHistory = () => {
@@ -91,38 +114,82 @@ export const initLogger = ({ maxEntries = 50, maxStored = 300, storageKey = "log
     });
   };
 
-  const log = (msg) => {
-    logWithClass("INFO", msg);
-  };
-
-  const renderEntry = (entry, { prepend = true } = {}) => {
+  const renderEntries = () => {
     if (!logEl) return;
-    const div = document.createElement("div");
-    div.className = "log-entry";
-    const tag = document.createElement("span");
-    tag.className = "log-tag";
-    tag.textContent = entry.class || "INFO";
-    const text = document.createElement("span");
-    text.className = "log-text";
-    text.textContent = `${new Date(entry.time).toLocaleTimeString()} — ${entry.msg}`;
-    div.appendChild(tag);
-    div.appendChild(text);
-    if (prepend && logEl.firstChild) logEl.insertBefore(div, logEl.firstChild);
-    else logEl.appendChild(div);
-    while (logEl.children.length > maxEntries) logEl.removeChild(logEl.lastChild);
+    logEl.innerHTML = "";
+    const enabled = state.enabledClasses.size ? state.enabledClasses : null;
+    const visible = state.entries
+      .slice(0, maxEntries)
+      .filter((e) => !enabled || enabled.has(e.class))
+      .sort((a, b) => b.time - a.time);
+    visible.forEach((entry) => {
+      const div = document.createElement("div");
+      div.className = "log-entry";
+      const tag = document.createElement("span");
+      tag.className = "log-tag";
+      tag.textContent = entry.class || "INFO";
+      const text = document.createElement("span");
+      text.className = "log-text";
+      text.textContent = `${new Date(entry.time).toLocaleTimeString()} — ${entry.msg}`;
+      div.appendChild(tag);
+      div.appendChild(text);
+      logEl.appendChild(div);
+    });
+    return visible;
   };
 
-  const logWithClass = (cls, msg, data = null) => {
+  const ensureClass = (cls) => {
+    if (!cls) return;
+    if (!state.classes.has(cls)) {
+      state.classes.add(cls);
+      if (!state.enabledClasses.size) state.enabledClasses.add(cls);
+      buildClassFilters();
+    }
+  };
+
+  const logClass = (cls, msg, data = null) => {
     const entry = {
       class: cls || "INFO",
       msg,
       time: Date.now(),
       data
     };
+    ensureClass(entry.class);
     state.entries.unshift(entry);
     if (state.entries.length > maxStored) state.entries.length = maxStored;
     persistHistory();
-    renderEntry(entry, { prepend: true });
+    renderEntries();
+  };
+
+  const log = (msg) => logClass("INFO", msg);
+
+  const classFilterContainer = document.createElement("div");
+  classFilterContainer.className = "log-filters";
+
+  const buildClassFilters = () => {
+    if (!classFilterContainer) return;
+    classFilterContainer.innerHTML = "";
+    const classes = Array.from(state.classes).sort();
+    classes.forEach((cls) => {
+      const id = `log-filter-${cls}`;
+      const label = document.createElement("label");
+      label.className = "log-filter";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.id = id;
+      cb.checked = state.enabledClasses.size === 0 || state.enabledClasses.has(cls);
+      cb.addEventListener("change", () => {
+        if (cb.checked) state.enabledClasses.add(cls);
+        else state.enabledClasses.delete(cls);
+        persistEnabled();
+        renderEntries();
+      });
+      label.appendChild(cb);
+      const span = document.createElement("span");
+      span.textContent = cls;
+      label.appendChild(span);
+      classFilterContainer.appendChild(label);
+    });
   };
 
   // Wire buttons
@@ -136,6 +203,26 @@ export const initLogger = ({ maxEntries = 50, maxStored = 300, storageKey = "log
     logCloseBtn.addEventListener("click", (e) => {
       e.preventDefault();
       closeLogWindow();
+    });
+  }
+  if (logClearBtn) {
+    logClearBtn.addEventListener("click", () => {
+      state.entries = [];
+      persistHistory();
+      renderEntries();
+    });
+  }
+  if (logCopyBtn) {
+    logCopyBtn.addEventListener("click", async () => {
+      const visible = renderEntries() || [];
+      const text = visible
+        .map((e) => `[${new Date(e.time).toLocaleTimeString()}][${e.class}] ${e.msg}`)
+        .join("\n");
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        /* ignore */
+      }
     });
   }
   if (dbOpenBtn && dbWindow && dbBody) {
@@ -223,6 +310,10 @@ export const initLogger = ({ maxEntries = 50, maxStored = 300, storageKey = "log
         window.addEventListener("mouseup", endDrag);
       });
     }
+    // Insert filters panel below header
+    if (classFilterContainer && !classFilterContainer.parentElement) {
+      logWindow.insertBefore(classFilterContainer, logWindow.querySelector(".log-body"));
+    }
 
     // Restore saved state on init
     const saved = safeJsonParse(localStorage.getItem(storageKey) || "{}", {});
@@ -286,11 +377,15 @@ export const initLogger = ({ maxEntries = 50, maxStored = 300, storageKey = "log
 
   // Restore history into DOM from oldest to newest so ordering matches live logging.
   loadHistory();
+  loadEnabled();
+  state.entries.forEach((e) => ensureClass(e.class));
+  buildClassFilters();
   for (let i = state.entries.length - 1; i >= 0; i--) {
-    renderEntry(state.entries[i], { prepend: false });
+    /* noop; rendering done after class restoration */
   }
+  renderEntries();
 
-  return { log, logClass: logWithClass, openLogWindow, closeLogWindow };
+  return { log, logClass, openLogWindow, closeLogWindow };
 };
 
 export const readLogHistory = (historyKey = "log-history") =>
