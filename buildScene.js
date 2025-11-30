@@ -29,6 +29,27 @@ export const createSceneBuilder = ({
     group.clear();
   };
 
+  const computeGridPlacement = (token, boardWidth, boardDepth) => {
+    const cellW = boardWidth / state.map.cols;
+    const cellH = boardDepth / state.map.rows;
+    const x = 1 + (token.col + 0.5) * cellW;
+    const effRow = clamp(token.row + 1, 0, state.map.rows - 1);
+    const z = 2 + (effRow + 0.5) * cellH;
+    return { x, z, cellW, cellH };
+  };
+
+  const computeHexPlacement = (token, boardWidth, boardDepth) => {
+    const cellW = 0.977 * boardWidth / state.map.cols;
+    const cellH = 0.977 * boardDepth / state.map.rows;
+    let hexOffset = 0;
+    // Stagger hex rows: even rows shift right by half, odd rows stay centered.
+    if (token.row % 2 === 0) hexOffset = 0.5;
+    const x = (token.col + hexOffset + 0.5) * cellW;
+    const effRow = clamp(token.row + 1, 0, state.map.rows - 1);
+    const z = 5.5 + (effRow + 0.5) * cellH;
+    return { x, z, cellW, cellH };
+  };
+
   const buildTokenMesh = (token, cellHeight, boardWidth, boardDepth, cellUnit) => {
     const def = state.tokenDefs.find((d) => d.id === token.defId);
     if (!def) return null;
@@ -36,28 +57,29 @@ export const createSceneBuilder = ({
     const height = Math.max(0.2, cellUnit * 0.2);
     const geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
     const color = new THREE.Color(def.colorTint || "#ffffff");
-    const material = new THREE.MeshStandardMaterial({
+    const topBottomMat = new THREE.MeshStandardMaterial({
       color,
       emissive: color.clone(),
       emissiveIntensity: 1.5,
       metalness: 0.1,
       roughness: 0.35
     });
-    const mesh = new THREE.Mesh(geometry, material);
+    const sideMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color("#b59b2a"), // dull yellow sides
+      emissive: new THREE.Color("#b59b2a"),
+      emissiveIntensity: 0.15,
+      metalness: 0.05,
+      roughness: 0.8
+    });
+    const mesh = new THREE.Mesh(geometry, [sideMat, topBottomMat, topBottomMat]);
     mesh.castShadow = true;
-    const isHex = state.map.gridType === "hex";
-    const cellW = boardWidth / state.map.cols;
-    const cellH = boardDepth / state.map.rows;
-    if (logClass) logClass("DIM", `cellW=${cellW.toFixed(3)} cellH=${cellH.toFixed(3)}`);
-    // Stagger hex rows: odd rows shift right by half a cell, even rows stay centered.
-    let hexOffset = 0;
-    if (token.row % 2 === 0) hexOffset = 0.5; // odd rows shift left
-    else hexOffset = 0; // even rows shift right
-    const x = (token.col + hexOffset + 0.5) * cellW;
-    const effRow = clamp(token.row + 1, 0, state.map.rows - 1);
-    const z = (effRow + 0.5) * cellH;
+
+    const placement = state.map.gridType === "hex"
+      ? computeHexPlacement(token, boardWidth, boardDepth)
+      : computeGridPlacement(token, boardWidth, boardDepth);
+    if (logClass) logClass("DIM", `cellW=${placement.cellW.toFixed(3)} cellH=${placement.cellH.toFixed(3)}`);
     const yOffset = cellUnit * 0.02;
-    mesh.position.set(x, cellHeight + yOffset, z);
+    mesh.position.set(placement.x, cellHeight + yOffset, placement.z);
     return mesh;
   };
 

@@ -8,4 +8,4 @@ CREATE scout-small id=SC initials=SC @ B6,D6,F6,H6,J6
 CREATE scout-small id=SC initials=SC @ A7,C7,E7,G7,I7
 CREATE scout-small id=SC initials=SC @ B8,D8,F8,H8,J8
 CREATE scout-small id=SC initials=SC @ A9,C9,E9,G9,I9
-CREATE scout-small id=SC initials=SC @ B10,D10,F10,H10,J10
+CREATE scout-small id=SC initials=SC @ B10,D10,F10,H10,J10,A13
