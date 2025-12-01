@@ -497,7 +497,7 @@ const applyInstructions = (instructions) => {
   renderTokensWindow();
   if (mapChanged) logClass?.("INFO", "Map updated");
   if (state.map?.backgroundUrl) {
-    setBackground(state.map.backgroundUrl, { silent: true });
+    setBackground(state.map.backgroundUrl);
     log(`Applied ${instructions.length} instruction(s)`);
     return;
   }
@@ -510,10 +510,9 @@ const applyInstructions = (instructions) => {
   log(`Applied ${instructions.length} instruction(s)`);
 };
 
-const setBackground = (url, opts = {}) => {
-  const { silent } = opts;
+const setBackground = (url) => {
   if (!url) {
-    if (!silent) log("No background URL provided");
+    log("No background URL provided");
     return;
   }
   state.map = state.map || {
@@ -584,11 +583,12 @@ const setBackground = (url, opts = {}) => {
     render();
   };
   img.onerror = () => {
-    if (!silent) log("Failed to load background");
+    logClass?.("ERROR", `Failed to load background ${url}`);
+    log(`Failed to load background ${url}`);
     render();
   };
   img.src = url;
-  if (!silent) log(`Background set: ${url}`);
+  log(`Background set: ${url}`);
 };
 
 
@@ -1088,7 +1088,7 @@ if (overlayGridToggle) {
   overlayGridToggle.checked = savedOverlayGrid;
   overlayGridToggle.addEventListener("change", () => {
     localStorage.setItem("show-overlay-grid", overlayGridToggle.checked);
-    if (state.map?.backgroundUrl) setBackground(state.map.backgroundUrl, { silent: true });
+    if (state.map?.backgroundUrl) setBackground(state.map.backgroundUrl);
     updateBoardScene();
     render();
   });
@@ -1097,7 +1097,7 @@ if (overlayLabelToggle) {
   overlayLabelToggle.checked = savedOverlayLabels;
   overlayLabelToggle.addEventListener("change", () => {
     localStorage.setItem("show-overlay-labels", overlayLabelToggle.checked);
-    if (state.map?.backgroundUrl) setBackground(state.map.backgroundUrl, { silent: true });
+    if (state.map?.backgroundUrl) setBackground(state.map.backgroundUrl);
     updateBoardScene();
     render();
   });
@@ -1313,7 +1313,7 @@ if (hResizer && topPanel && appEl) {
 }
 
 buildDefaultMap();
-setBackground(state.map.backgroundUrl, { silent: true });
+setBackground(state.map.backgroundUrl);
 syncHeatControls();
 syncMoveSpeedControls();
 initThree();

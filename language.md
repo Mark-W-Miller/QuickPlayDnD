@@ -4,9 +4,6 @@ Plain text commands, one per line. Lines starting with `#` are comments.
 
 ## Commands
 - `MAP background=<url> grid=<square|hex> size=<px> board=<cols>x<rows>` — set the background image and grid in one line. Example: `MAP background=images/wight-battle.png grid=hex size=64 board=20x38`.
-- (Legacy) `BACKGROUND <url>` — set a background image. Accepts absolute URLs or local paths.
-- (Legacy) `GRID square SIZE <px>` or `GRID hex SIZE <px>` — set grid type and cell size in pixels.
-- (Legacy) `BOARD <cols>x<rows>` — set board dimensions.
 - `SPRITE DEF <CODE> name="Name" url="https://..." size=<n> tint=#RRGGBB category=<PC|NPC|Monster|Object> speed=<ft>` — define or update a sprite type; `speed` defaults to 12 if omitted.
 - `PLACE <CODE> @ A1,B2,...` — place sprite instances of the given code at coordinates. Instances auto-name `<CODE>-N`.
 - `CREATE template=<TemplateId[,SvgTemplateId]> id=<TokenId> initials=<XX> bg=#RRGGBB fg=#RRGGBB speed=<ft> type=<structure|creature|object> size=<cells> @ A1,B2,...` — spawn tokens from templates (first template id drives the 3D model; optional second drives the SVG cap). `id` expands per placement; `initials` defaults to the first letters of the id; `bg`/`fg` override template colors; `speed` sets move speed (defaults to 12); `type` is a free-form category (e.g., `structure`); `size` is the footprint width on the smallest dimension in cells.
@@ -18,7 +15,15 @@ Plain text commands, one per line. Lines starting with `#` are comments.
 - `CLEAR TOKENS` — remove all tokens.
 - `CLEAR ALL` — clear map, sprites, and tokens.
 - `RESET` — clear everything (map, sprites, tokens, backgrounds).
-- `HEIGHT A1=2,B3=0,...` — set height values (numbers) per grid cell; used in 3D mode to raise/lower tiles. Multiple `HEIGHT` lines are merged.
+- `HEIGHT_START ... HEIGHT_END` — block format for heights. Put one comma-separated row of numbers per line between `HEIGHT_START` and `HEIGHT_END`. Example:
+  ```
+  HEIGHT_START
+  0,0,0,0
+  0,1,1,0
+  0,2,3,0
+  0,0,0,0
+  END_HEIGHT
+  ```
 
 ## Coordinates
 `<ColumnLetter><RowNumber>` (A1, H7). Columns A-Z, rows start at 1.

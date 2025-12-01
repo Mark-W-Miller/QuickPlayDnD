@@ -78,7 +78,7 @@ export const initLogger = ({
   // Load persisted history and class filters, then bootstrap defaults.
   loadHistory();
   loadEnabled();
-  const bootstrapClasses = ["INFO", "DIM", "BUILD", "PARSE", "CAMERA", "3DLOAD"];
+  const bootstrapClasses = ["INFO", "DIM", "BUILD", "PARSE", "CAMERA", "3DLOAD", "ERROR"];
   bootstrapClasses.forEach((c) => state.classes.add(c));
   if (!state.enabledClasses.size) bootstrapClasses.forEach((c) => state.enabledClasses.add(c));
 
@@ -124,7 +124,10 @@ export const initLogger = ({
     const enabled = state.enabledClasses.size ? state.enabledClasses : null;
     const visible = state.entries
       .slice(0, maxEntries)
-      .filter((e) => !enabled || enabled.has(e.class))
+      .filter((e) => {
+        if (e.class === "ERROR") return true; // always show errors
+        return !enabled || enabled.has(e.class);
+      })
       .sort((a, b) => b.time - a.time);
     visible.forEach((entry) => {
       const div = document.createElement("div");
@@ -147,8 +150,11 @@ export const initLogger = ({
     if (!state.classes.has(cls)) {
       state.classes.add(cls);
       if (!state.enabledClasses.size) state.enabledClasses.add(cls);
+      // Always surface errors
+      if (cls === "ERROR") state.enabledClasses.add(cls);
       buildClassFilters();
     }
+    if (cls === "ERROR") state.enabledClasses.add(cls);
   };
 
   const logClass = (cls, msg, data = null) => {
@@ -273,6 +279,30 @@ export const initLogger = ({
       });
     });
   }
+
+  // Pipe console.error into the log as ERROR
+  const origConsoleError = console.error.bind(console);
+  console.error = (...args) => {
+    origConsoleError(...args);
+    const msg = args
+      .map((a) => {
+        if (a instanceof Error) return a.message;
+        if (typeof a === "object") return JSON.stringify(a);
+        return String(a);
+      })
+      .join(" ");
+    logClass("ERROR", msg);
+  };
+
+  // Global error handlers -> ERROR class
+  window.addEventListener("error", (e) => {
+    const msg = e.message || "Unknown error";
+    logClass("ERROR", msg);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const msg = e.reason?.message || String(e.reason || "Unhandled rejection");
+    logClass("ERROR", msg);
+  });
 
   // Dragging
   if (logWindow) {
