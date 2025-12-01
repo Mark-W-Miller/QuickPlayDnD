@@ -1009,8 +1009,7 @@ const applyCamSlot = (slot) => {
   if (!raw) return;
   const parsed = safeJsonParse(raw, null);
   if (!parsed) return;
-  cameraManager.applyCameraPayload(parsed);
-  render3d();
+  cameraManager.transitionToCamera(parsed, render3d);
 };
 
 const saveCamSlot = (slot) => {
@@ -1024,14 +1023,19 @@ const saveCamSlot = (slot) => {
   }
 };
 
-camSlotButtons.forEach((btn) =>
+camSlotButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
     const slot = btn.getAttribute("data-cam-slot");
     const has = localStorage.getItem(`camera-slot-${slot}`);
     if (has) applyCamSlot(slot);
     else saveCamSlot(slot);
-  })
-);
+  });
+  btn.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    const slot = btn.getAttribute("data-cam-slot");
+    saveCamSlot(slot);
+  });
+});
 
 if (clearCamViewsBtn) {
   clearCamViewsBtn.addEventListener("click", () => {

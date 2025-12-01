@@ -169,6 +169,36 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
     applyCameraPayload(payload);
   };
 
+  const transitionToCamera = (payload, render3d) => {
+    if (!payload || !three.camera || !three.controls) return;
+    const targetPos = new THREE.Vector3(...payload.position);
+    const targetLook = new THREE.Vector3(...payload.target);
+    const startPos = three.camera.position.clone();
+    const startLook = three.controls.target.clone();
+    const startAz = three.controls.getAzimuthalAngle ? three.controls.getAzimuthalAngle() : 0;
+    const startPolar = three.controls.getPolarAngle ? three.controls.getPolarAngle() : 0;
+    const endAz = payload.azimuth ?? startAz;
+    const endPolar = payload.polar ?? startPolar;
+    const duration = 400;
+    let startTime = null;
+    const step = (ts) => {
+      if (startTime === null) startTime = ts;
+      const t = Math.min(1, (ts - startTime) / duration);
+      three.camera.position.lerpVectors(startPos, targetPos, t);
+      three.controls.target.lerpVectors(startLook, targetLook, t);
+      if (three.controls.setAzimuthalAngle) {
+        three.controls.setAzimuthalAngle(THREE.MathUtils.lerp(startAz, endAz, t));
+      }
+      if (three.controls.setPolarAngle) {
+        three.controls.setPolarAngle(THREE.MathUtils.lerp(startPolar, endPolar, t));
+      }
+      three.controls.update();
+      if (render3d) render3d();
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+
   const setCameraPreset = (preset, render3d) => {
     if (!three.controls || !state.map) return;
     const map = state.map || { cols: 20, rows: 20 };
@@ -217,6 +247,7 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
     setCameraPreset,
     attachControlListeners,
     getLastSavedCamera,
-    getCurrentCamera
+    getCurrentCamera,
+    transitionToCamera
   };
 };
