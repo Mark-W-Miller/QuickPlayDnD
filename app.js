@@ -687,6 +687,21 @@ const buildScriptTree = (entries) => {
     details.dataset.path = path;
     const summary = document.createElement("summary");
     summary.textContent = name;
+    summary.addEventListener("click", async () => {
+      // On opening, populate textarea with the first file under this folder
+      if (details.open) return; // already open; this click will close
+      const first = nodeObj.entries?.[0];
+      if (!first) return;
+      try {
+        const res = await fetch(`scripts/${first.file}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        if (inputEl) inputEl.value = text.trim();
+        logClass?.("INFO", `Loaded script ${first.file} into editor`);
+      } catch (err) {
+        log(`Failed to load script ${first.file}: ${err.message}`);
+      }
+    });
     details.appendChild(summary);
     details.addEventListener("toggle", () => {
       persistTreeState();
@@ -901,7 +916,7 @@ const loadExampleScript = async (path, fallback, autoRun = false, meta = {}) => 
 };
 
 document.getElementById("run-btn").addEventListener("click", () => {
-  runSelectedScripts();
+  runCurrentScript();
 });
 
 const runSelectedBtn = document.getElementById("run-selected-btn");
