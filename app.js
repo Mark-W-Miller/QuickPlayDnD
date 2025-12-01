@@ -56,6 +56,7 @@ const resizer = document.getElementById("sidebar-resizer");
 const hResizer = document.getElementById("sidebar-h-resizer");
 const topPanel = document.getElementById("top-panel");
 const scriptTreeEl = document.getElementById("script-tree");
+const showTestToggle = document.getElementById("show-test-dirs");
 let selectedLeaf = null;
 const scriptManifest = new Map();
 let isBuildingTree = false;
@@ -669,9 +670,19 @@ const buildScriptTree = async (entries) => {
   const openSet = new Set(savedTreeState.open || []);
   const checkedSet = new Set(savedTreeState.checked || []);
   scriptManifest.clear();
+  const includeTests = showTestToggle ? showTestToggle.checked : false;
+  const dirMeta = new Map();
+  entries.forEach((entry) => {
+    if (entry?.dir) {
+      dirMeta.set(entry.dir.split("/")[0], { testOnly: !!entry.testOnly });
+    }
+  });
   const root = {};
   entries.forEach((entry) => {
     if (!entry?.file) return;
+    const topDir = entry.file.split("/")[0];
+    const topDirMeta = dirMeta.get(topDir);
+    if ((entry.testOnly || topDirMeta?.testOnly) && !includeTests) return;
     scriptManifest.set(entry.file, entry.type || "script");
     const parts = entry.file.split("/");
     let node = root;
@@ -1322,6 +1333,16 @@ if (savedTopHeight) {
 const savedSidebarWidth = safeStorageGet("ui-sidebar-width", null);
 if (savedSidebarWidth) {
   document.documentElement.style.setProperty("--sidebar-width", savedSidebarWidth);
+}
+
+// Restore test toggle
+if (showTestToggle) {
+  const saved = safeStorageGet("ui-show-test-dirs", "false") === "true";
+  showTestToggle.checked = saved;
+  showTestToggle.addEventListener("change", () => {
+    safeStorageSet("ui-show-test-dirs", showTestToggle.checked ? "true" : "false");
+    loadScriptManifest();
+  });
 }
 
 if (arenaGridToggle) {

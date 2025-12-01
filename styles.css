@@ -139,6 +139,17 @@ body {
   overflow: hidden;
 }
 
+.test-toggle {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #9fc6ff;
+  margin-left: 12px;
+}
+
+.test-toggle input {
+  margin-right: 4px;
+}
+
 .h-divider {
   grid-column: 1 / 2;
   grid-row: 3 / 4;
