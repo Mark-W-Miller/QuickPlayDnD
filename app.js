@@ -57,6 +57,9 @@ const hResizer = document.getElementById("sidebar-h-resizer");
 const topPanel = document.getElementById("top-panel");
 const scriptTreeEl = document.getElementById("script-tree");
 let selectedLeaf = null;
+const scriptManifest = new Map();
+let isBuildingTree = false;
+let treeAutoRunDone = false;
 const safeStorageGet = (key, fallback = null) => {
   try {
     const v = localStorage.getItem(key);
@@ -659,13 +662,16 @@ const render = () => {
 
 const buildScriptTree = (entries) => {
   if (!scriptTreeEl) return;
+  isBuildingTree = true;
   scriptTreeEl.innerHTML = "";
   const savedTreeState = safeJsonParse(localStorage.getItem("script-tree-state") || "{}", {});
   const openSet = new Set(savedTreeState.open || []);
   const checkedSet = new Set(savedTreeState.checked || []);
+  scriptManifest.clear();
   const root = {};
   entries.forEach((entry) => {
     if (!entry?.file) return;
+    scriptManifest.set(entry.file, entry.type || "script");
     const parts = entry.file.split("/");
     let node = root;
     parts.forEach((part, idx) => {
@@ -691,6 +697,7 @@ const buildScriptTree = (entries) => {
       const leaf = document.createElement("div");
       leaf.className = "script-leaf";
       leaf.dataset.file = entry.file;
+      leaf.dataset.type = entry.type || "script";
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.className = "script-check";
@@ -736,6 +743,12 @@ const buildScriptTree = (entries) => {
     .forEach((key) => {
       scriptTreeEl.appendChild(renderNode(key, root[key], key));
     });
+  isBuildingTree = false;
+  // Auto-run once on initial load
+  if (!treeAutoRunDone) {
+    treeAutoRunDone = true;
+    runSelectedScripts({ runIfNoneFallback: false });
+  }
 };
 
 const persistTreeState = () => {
@@ -759,6 +772,46 @@ const loadScriptManifest = async () => {
     if (Array.isArray(data)) buildScriptTree(data);
   } catch (err) {
     console.warn("Failed to load scripts/index.json", err);
+  }
+};
+
+const getCheckedScripts = () => {
+  const nodes = scriptTreeEl ? Array.from(scriptTreeEl.querySelectorAll(".script-check:checked")) : [];
+  return nodes
+    .map((cb) => {
+      const leaf = cb.closest(".script-leaf");
+      if (!leaf) return null;
+      return {
+        file: leaf.dataset.file,
+        type: leaf.dataset.type || scriptManifest.get(leaf.dataset.file) || "script"
+      };
+    })
+    .filter((v) => v && v.file);
+};
+
+const runSelectedScripts = async ({ runIfNoneFallback = true } = {}) => {
+  const checked = getCheckedScripts();
+  if (!checked.length) {
+    if (runIfNoneFallback) runCurrentScript();
+    return;
+  }
+  const priority = { map: 0, pop: 1, move: 2, script: 3 };
+  const ordered = [...checked].sort((a, b) => (priority[a.type] ?? 3) - (priority[b.type] ?? 3));
+  for (const item of ordered) {
+    try {
+      const res = await fetch(`scripts/${item.file}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      const instructions = parseScript(text, { logClass });
+      if (!instructions.length) {
+        log(`No instructions in ${item.file}`);
+        continue;
+      }
+      applyInstructions(instructions);
+      logClass?.("INFO", `Ran ${item.type} script ${item.file}`);
+    } catch (err) {
+      log(`Failed to run ${item.file}: ${err.message}`);
+    }
   }
 };
 
@@ -848,8 +901,15 @@ const loadExampleScript = async (path, fallback, autoRun = false, meta = {}) => 
 };
 
 document.getElementById("run-btn").addEventListener("click", () => {
-  runCurrentScript();
+  runSelectedScripts();
 });
+
+const runSelectedBtn = document.getElementById("run-selected-btn");
+if (runSelectedBtn) {
+  runSelectedBtn.addEventListener("click", () => {
+    runSelectedScripts({ runIfNoneFallback: false });
+  });
+}
 
 // Run script on Ctrl+Enter when the textarea is focused.
 if (inputEl) {

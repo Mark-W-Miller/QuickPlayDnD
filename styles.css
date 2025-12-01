@@ -256,6 +256,7 @@ body {
 .actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .bg-controls {
