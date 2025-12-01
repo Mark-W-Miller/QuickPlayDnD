@@ -22,10 +22,40 @@ Plain text commands, one per line. Lines starting with `#` are comments.
 ## Coordinates
 `<ColumnLetter><RowNumber>` (A1, H7). Columns A-Z, rows start at 1.
 
+## Making a terrain PNG that fits the grid/hex exactly
+Use these rules when generating a map image so the texture, grid, and scripts align perfectly.
+
+- Pick your board dimensions first: `BOARD <cols>x<rows>` and a grid size: `GRID square SIZE <px>` or `GRID hex SIZE <px>`. That `<px>` is the cell edge-to-edge size (`s`).
+- For square grids, render the PNG at `width = cols * s` and `height = rows * s`.
+- For hex grids (pointy-top, odd-row offset):
+  - Let `s = grid size in px` (the same number you put in the `GRID hex SIZE` command).
+  - Set the PNG width to `sqrt(3) * (cols + 0.5) * s`.
+  - Set the PNG height to `(1.5 * rows + 0.5) * s` (because vertical spacing is 0.75 * hex height).
+- Place any artwork centered in those extents. If you draw grid lines onto the texture, match the same math: each hex center is at:
+  - `x = hexW * (col + 0.5 * (row mod 2)) + hexW/2`, where `hexW = sqrt(3) * s`
+  - `y = row * (1.5 * s) + s` (hex height is `2*s`)
+- Keep some alpha around the edges if you want soft borders, but do not change the stated pixel dimensions.
+- Save as PNG (no compression artifacts); include a simple north arrow if you like, but avoid extra padding.
+
+### Matching map script to the PNG
+```
+# Square example (20x12, 56px cells) => PNG 1120 x 672
+BACKGROUND images/my-square.png
+GRID square SIZE 56
+BOARD 20x12
+
+# Hex example (16x12, 56px cells)
+# PNG width  = sqrt(3)*(16+0.5)*56 ≈ 1602 px
+# PNG height = (1.5*12+0.5)*56    ≈ 1022 px
+BACKGROUND images/my-hex.png
+GRID hex SIZE 56
+BOARD 16x12
+```
+
 ## Token Templates (in /scripts via picker)
-- `scout-small` — small token (1 square), blue scout marker.
-- `warrior-medium` — medium token (1 square), orange warrior marker.
-- `guardian-large` — large token (2x2 squares), green guardian marker.
+- `token-small` — small token (1 square), blue accent.
+- `token-medium` — medium token (1 square), orange accent.
+- `token-large` — large token (2x2 squares), green accent.
 
 ## Examples
 ```

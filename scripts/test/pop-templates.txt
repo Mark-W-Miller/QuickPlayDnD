@@ -1,6 +1,6 @@
 # Template samples across corners and center
-CREATE template=scout-small id=SC initials=SC bg=#e0f2fe fg=#1d4ed8 @ A1
-CREATE template=warrior-medium id=WR initials=WR bg=#e0f2fe fg=#1d4ed8 @ N1
-CREATE template=guardian-large id=GD initials=GD bg=#e0f2fe fg=#1d4ed8 @ N10
-CREATE template=scout-small id=SC initials=SC bg=#e0f2fe fg=#1d4ed8 @ A10
-CREATE template=warrior-medium id=WR initials=WR bg=#e0f2fe fg=#1d4ed8 @ H5
+CREATE template=token-small id=SC initials=SC bg=#e0f2fe fg=#1d4ed8 @ A1
+CREATE template=token-medium id=WR initials=WR bg=#e0f2fe fg=#1d4ed8 @ N1
+CREATE template=token-large id=GD initials=GD bg=#e0f2fe fg=#1d4ed8 @ N10
+CREATE template=token-small id=SC initials=SC bg=#e0f2fe fg=#1d4ed8 @ A10
+CREATE template=token-medium id=WR initials=WR bg=#e0f2fe fg=#1d4ed8 @ H5

@@ -3,4 +3,4 @@
 SPRITE DEF RG name="Ranger 3D" model=models/Ranger.glb size=1 category=PC
 
 # Place one instance in the middle
-CREATE template=RG,scout-small id=RANGER initials=RG @ F6
+CREATE template=RG,token-small id=RANGER initials=RG @ F6

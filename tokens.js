@@ -1,8 +1,8 @@
 // Token template definitions and helpers
 export const tokenTemplates = {
-  "scout-small": {
-    id: "scout-small",
-    name: "Scout (Small)",
+  "token-small": {
+    id: "token-small",
+    name: "Basic (Small)",
     baseSize: 1,
     colorTint: "#3b82f6",
     bg: "#0b1220",
@@ -15,9 +15,9 @@ export const tokenTemplates = {
       <text x="60" y="64" text-anchor="middle" font-size="38" font-family="monospace" font-weight="bold" fill="#ffffff" stroke="#000000" stroke-width="3" paint-order="stroke">$INIT</text>
     </svg>`
   },
-  "warrior-medium": {
-    id: "warrior-medium",
-    name: "Warrior (Medium)",
+  "token-medium": {
+    id: "token-medium",
+    name: "Basic (Medium)",
     baseSize: 1,
     colorTint: "#f97316",
     bg: "#0b1220",
@@ -30,9 +30,9 @@ export const tokenTemplates = {
       <text x="60" y="72" text-anchor="middle" font-size="36" font-family="monospace" font-weight="bold" fill="#ffffff" stroke="#000000" stroke-width="3" paint-order="stroke">$INIT</text>
     </svg>`
   },
-  "guardian-large": {
-    id: "guardian-large",
-    name: "Guardian (Large)",
+  "token-large": {
+    id: "token-large",
+    name: "Basic (Large)",
     baseSize: 2,
     colorTint: "#22c55e",
     bg: "#0b1220",

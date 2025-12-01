@@ -7,9 +7,9 @@ SPRITE DEF WR name="Warrior 3D" model=models/Warrior.glb size=1 category=PC
 SPRITE DEF WZ name="Wizard 3D" model=models/Wizard.glb size=1 category=PC
 
 # Spread them out on the board; SVG caps remain so initials are visible
-CREATE template=CL,guardian-large id=CLER initials=CL @ B3
-CREATE template=MK,scout-small id=MONK initials=MK @ D5
-CREATE template=RN,scout-small id=RANG initials=RN @ F7
-CREATE template=RG,scout-small id=ROGU initials=RG @ H9
-CREATE template=WR,warrior-medium id=WARR initials=WR @ J11
-CREATE template=WZ,warrior-medium id=WIZ initials=WZ @ L13
+CREATE template=CL,token-large id=CLER initials=CL @ B3
+CREATE template=MK,token-small id=MONK initials=MK @ D5
+CREATE template=RN,token-small id=RANG initials=RN @ F7
+CREATE template=RG,token-small id=ROGU initials=RG @ H9
+CREATE template=WR,token-medium id=WARR initials=WR @ J11
+CREATE template=WZ,token-medium id=WIZ initials=WZ @ L13

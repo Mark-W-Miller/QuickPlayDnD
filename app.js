@@ -60,6 +60,7 @@ let selectedLeaf = null;
 const scriptManifest = new Map();
 let isBuildingTree = false;
 let treeAutoRunDone = false;
+const SELECTED_ROW_KEY = "script-tree-selected-row";
 const safeStorageGet = (key, fallback = null) => {
   try {
     const v = localStorage.getItem(key);
@@ -660,7 +661,7 @@ const render = () => {
   render3d();
 };
 
-const buildScriptTree = (entries) => {
+const buildScriptTree = async (entries) => {
   if (!scriptTreeEl) return;
   isBuildingTree = true;
   scriptTreeEl.innerHTML = "";
@@ -730,15 +731,8 @@ const buildScriptTree = (entries) => {
         if (selectedLeaf) selectedLeaf.classList.remove("selected");
         selectedLeaf = leaf;
         leaf.classList.add("selected");
-        try {
-          const res = await fetch(`scripts/${entry.file}`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const text = await res.text();
-          if (inputEl) inputEl.value = text.trim();
-          logClass?.("INFO", `Loaded script ${entry.file} into editor`);
-        } catch (err) {
-          log(`Failed to load script ${entry.file}: ${err.message}`);
-        }
+        safeStorageSet(SELECTED_ROW_KEY, entry.file);
+        await loadScriptIntoEditor(entry.file);
       });
       details.appendChild(leaf);
     });
@@ -764,6 +758,18 @@ const buildScriptTree = (entries) => {
     treeAutoRunDone = true;
     runSelectedScripts({ runIfNoneFallback: false });
   }
+
+  // Restore last selected row into editor
+  const lastSelected = safeStorageGet(SELECTED_ROW_KEY, null);
+  if (lastSelected) {
+    const targetLeaf = scriptTreeEl.querySelector(`.script-leaf[data-file="${lastSelected}"]`);
+    if (targetLeaf) {
+      if (selectedLeaf) selectedLeaf.classList.remove("selected");
+      selectedLeaf = targetLeaf;
+      selectedLeaf.classList.add("selected");
+      await loadScriptIntoEditor(lastSelected);
+    }
+  }
 };
 
 const persistTreeState = () => {
@@ -784,7 +790,7 @@ const loadScriptManifest = async () => {
     const res = await fetch("scripts/index.json");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    if (Array.isArray(data)) buildScriptTree(data);
+    if (Array.isArray(data)) await buildScriptTree(data);
   } catch (err) {
     console.warn("Failed to load scripts/index.json", err);
   }
@@ -802,6 +808,19 @@ const getCheckedScripts = () => {
       };
     })
     .filter((v) => v && v.file);
+};
+
+const loadScriptIntoEditor = async (file) => {
+  if (!file) return;
+  try {
+    const res = await fetch(`scripts/${file}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    if (inputEl) inputEl.value = text.trim();
+    logClass?.("INFO", `Loaded script ${file} into editor`);
+  } catch (err) {
+    log(`Failed to load script ${file}: ${err.message}`);
+  }
 };
 
 const runSelectedScripts = async ({ runIfNoneFallback = true } = {}) => {
