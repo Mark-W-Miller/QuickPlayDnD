@@ -6,26 +6,14 @@ import { initLogger } from "./logger.js";
 import { createCameraManager } from "./camera.js";
 import { createSceneBuilder } from "./buildScene.js";
 import { parseScript, coordToIndex } from "./parser.js";
-import {
-  getSavedMapScript,
-  getSavedPopScript,
-  getSavedScriptPath,
-  getSavedInlineMap,
-  saveLastMapScript,
-  saveLastPopScript,
-  saveLastScriptPath,
-  saveInlineMap
-} from "./saveState.js";
 
 const canvas = document.getElementById("map-canvas");
 const inputEl = document.getElementById("script-input");
-const scriptPicker = document.getElementById("script-picker");
 const arenaGridToggle = document.getElementById("arena-grid");
 const textureToggle = document.getElementById("show-texture");
 const heightToggle = document.getElementById("show-height");
 const overlayGridToggle = document.getElementById("show-overlay-grid");
 const overlayLabelToggle = document.getElementById("show-overlay-labels");
-const scriptFilterInput = document.getElementById("script-filter");
 const tokensOpenBtn = document.getElementById("tokens-open");
 const tokensCloseBtn = document.getElementById("tokens-close");
 const tokensWindow = document.getElementById("tokens-window");
@@ -55,10 +43,6 @@ const savedOverlayGrid = (() => {
 const savedOverlayLabels = (() => {
   return safeJsonParse(localStorage.getItem("show-overlay-labels") || "true", true);
 })();
-const savedScriptPath = getSavedScriptPath();
-const savedMapScript = getSavedMapScript();
-const savedPopScript = getSavedPopScript();
-const savedInlineMap = getSavedInlineMap();
 const fallbackScript = `
 # Provide your own script here
 `;
@@ -69,11 +53,13 @@ const moveSpeedValue = document.getElementById("move-speed-scale-value");
 const mapPanel = document.querySelector(".map-panel");
 const appEl = document.querySelector(".app");
 const resizer = document.getElementById("sidebar-resizer");
+const hResizer = document.getElementById("sidebar-h-resizer");
+const topPanel = document.getElementById("top-panel");
+const scriptTreeEl = document.getElementById("script-tree");
+let selectedLeaf = null;
 const camSlotButtons = document.querySelectorAll("[data-cam-slot]");
 const clearCamViewsBtn = document.getElementById("clear-cam-views");
 const currentMapLabel = document.getElementById("current-map-label");
-const scriptMenuBtn = document.getElementById("script-menu-btn");
-const scriptMenuList = document.getElementById("script-menu-list");
 
 const textureCanvas = document.createElement("canvas");
 const textureCtx = textureCanvas.getContext("2d", { willReadFrequently: true });
@@ -489,19 +475,7 @@ const applyInstructions = (instructions) => {
   state.tokenDefs = working.tokenDefs;
   state.tokens = working.tokens;
   renderTokensWindow();
-  if (mapChanged) {
-    const selected = scriptPicker?.selectedOptions?.[0];
-    const isMapSel = selected?.dataset?.type === "map";
-    const mapPath = isMapSel ? selected.value : savedMapScript || null;
-    if (mapPath) {
-      saveLastMapScript(mapPath);
-      logClass?.("INFO", `Persisted last-map-script=${mapPath}`);
-    } else {
-      // Persist inline map content
-      saveInlineMap(inputEl?.value || "");
-      logClass?.("INFO", "Persisted inline map content");
-    }
-  }
+  if (mapChanged) logClass?.("INFO", "Map updated");
   if (state.map?.backgroundUrl) {
     setBackground(state.map.backgroundUrl, { silent: true });
     log(`Applied ${instructions.length} instruction(s)`);
@@ -668,6 +642,80 @@ const render = () => {
   render3d();
 };
 
+const buildScriptTree = (entries) => {
+  if (!scriptTreeEl) return;
+  scriptTreeEl.innerHTML = "";
+  const root = {};
+  entries.forEach((entry) => {
+    if (!entry?.file) return;
+    const parts = entry.file.split("/");
+    let node = root;
+    parts.forEach((part, idx) => {
+      if (!node[part]) node[part] = { children: {}, entries: [] };
+      if (idx === parts.length - 1) node[part].entries.push(entry);
+      node = node[part].children;
+    });
+  });
+
+  const renderNode = (name, nodeObj) => {
+    const details = document.createElement("details");
+    details.open = true;
+    const summary = document.createElement("summary");
+    summary.textContent = name;
+    details.appendChild(summary);
+
+    // Files directly under this folder
+    nodeObj.entries.forEach((entry) => {
+      const leaf = document.createElement("div");
+      leaf.className = "script-leaf";
+      const info = document.createElement("span");
+      info.className = "info";
+      info.textContent = `${entry.name || entry.file} (${(entry.type || "script").toUpperCase()})`;
+      leaf.appendChild(info);
+      leaf.addEventListener("click", async () => {
+        if (selectedLeaf) selectedLeaf.classList.remove("selected");
+        selectedLeaf = leaf;
+        leaf.classList.add("selected");
+        try {
+          const res = await fetch(`scripts/${entry.file}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const text = await res.text();
+          if (inputEl) inputEl.value = text.trim();
+          logClass?.("INFO", `Loaded script ${entry.file} into editor`);
+        } catch (err) {
+          log(`Failed to load script ${entry.file}: ${err.message}`);
+        }
+      });
+      details.appendChild(leaf);
+    });
+
+    // Child directories
+    Object.keys(nodeObj.children)
+      .sort()
+      .forEach((childName) => {
+        details.appendChild(renderNode(childName, nodeObj.children[childName]));
+      });
+    return details;
+  };
+
+  Object.keys(root)
+    .sort()
+    .forEach((key) => {
+      scriptTreeEl.appendChild(renderNode(key, root[key]));
+    });
+};
+
+const loadScriptManifest = async () => {
+  try {
+    const res = await fetch("scripts/index.json");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (Array.isArray(data)) buildScriptTree(data);
+  } catch (err) {
+    console.warn("Failed to load scripts/index.json", err);
+  }
+};
+
 let lastAnimTime = null;
 const stepActiveMoves = (dt) => {
   let changed = false;
@@ -736,11 +784,7 @@ const loadExampleScript = async (path, fallback, autoRun = false, meta = {}) => 
     const text = await res.text();
     inputEl.value = text.trim();
     log(`Loaded script: ${path}`);
-    if (meta.type === "map") {
-      saveLastMapScript(path);
-      logClass?.("INFO", `Saved last-map-script=${path}`);
-      if (currentMapLabel) currentMapLabel.textContent = path;
-    }
+    if (meta.type === "map" && currentMapLabel) currentMapLabel.textContent = path;
     if (autoRun) runCurrentScript();
   } catch (err) {
     if (fallback) {
@@ -767,141 +811,6 @@ if (inputEl) {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       runCurrentScript();
-    }
-  });
-}
-
-if (scriptPicker) {
-  const defaultScripts = [];
-  let cachedEntries = [];
-  let initialLoad = true;
-  const populateScripts = async () => {
-    let entries = cachedEntries.length ? cachedEntries : defaultScripts;
-    try {
-      const res = await fetch("scripts/index.json");
-      if (res.ok) {
-        const parsed = await res.json();
-        if (Array.isArray(parsed) && parsed.length) {
-          entries = parsed;
-          cachedEntries = entries;
-        }
-      }
-    } catch (err) {
-      console.warn("Failed to load script manifest, using defaults", err);
-    }
-    scriptPicker.innerHTML = "";
-    const filterText = (scriptFilterInput?.value || "").toLowerCase().trim();
-    const filtered = entries.filter((f) => f && f.file && f.file.endsWith(".txt")).filter((e) => {
-      if (!filterText) return true;
-      return (
-        e.file.toLowerCase().includes(filterText) ||
-        (e.name || "").toLowerCase().includes(filterText) ||
-        (e.type || "").toLowerCase().includes(filterText)
-      );
-    });
-    const groups = new Map();
-    filtered.forEach((entry) => {
-      const dir = entry.file.includes("/") ? entry.file.split("/").slice(0, -1).join("/") : "root";
-      if (!groups.has(dir)) groups.set(dir, []);
-      groups.get(dir).push(entry);
-    });
-    // Build hidden select and visible menu
-    scriptPicker.innerHTML = "";
-    if (scriptMenuList) scriptMenuList.innerHTML = "";
-    groups.forEach((list, dir) => {
-      const optgroup = document.createElement("optgroup");
-      optgroup.label = dir === "root" ? "root" : dir;
-      const li = document.createElement("li");
-      li.textContent = dir === "root" ? "root" : dir;
-      const submenu = document.createElement("ul");
-      submenu.className = "submenu";
-      list.forEach((entry) => {
-        let labelPrefix = "Script:";
-        if (entry.type === "map") labelPrefix = "Map:";
-        else if (entry.type === "pop") labelPrefix = "Pop:";
-        else if (entry.type === "move") labelPrefix = "Move:";
-        const value = `scripts/${entry.file}`;
-        const label = `${labelPrefix} ${entry.name || entry.file}`;
-        const option = document.createElement("option");
-        option.value = value;
-        option.dataset.type = entry.type || "script";
-        option.textContent = label;
-        optgroup.appendChild(option);
-
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "script-option";
-        btn.dataset.value = value;
-        btn.dataset.type = entry.type || "script";
-        btn.textContent = label;
-        btn.addEventListener("click", () => {
-          scriptPicker.value = value;
-          scriptPicker.dispatchEvent(new Event("change"));
-          if (scriptMenuBtn?.parentElement) scriptMenuBtn.parentElement.classList.remove("open");
-        });
-        submenu.appendChild(document.createElement("li")).appendChild(btn);
-      });
-      scriptPicker.appendChild(optgroup);
-      li.appendChild(submenu);
-      if (scriptMenuList) scriptMenuList.appendChild(li);
-    });
-
-    const availableValues = entries.map((e) => `scripts/${e.file}`);
-    const pickExisting = (val) => (val && availableValues.includes(val) ? val : null);
-    const mapChoice = pickExisting(savedMapScript) || pickExisting("scripts/map-hex.txt") || scriptPicker.options[0]?.value;
-    const popChoice =
-      pickExisting(savedPopScript) ||
-      availableValues.find((v) => entries.find((e) => `scripts/${e.file}` === v && e.type === "pop")) ||
-      null;
-
-    // Select stored choices; on first load, only auto-run the map to restore state.
-    if (mapChoice) {
-      scriptPicker.value = mapChoice;
-      const type = scriptPicker.selectedOptions[0]?.dataset?.type || "map";
-      if (type === "map" && currentMapLabel) currentMapLabel.textContent = mapChoice;
-      if (initialLoad) loadExampleScript(mapChoice, fallbackScript, true, { type });
-    } else if (initialLoad && savedInlineMap) {
-      // Fallback to inline saved map content if no map choice
-      inputEl.value = savedInlineMap;
-      log("Loaded inline saved map");
-      runCurrentScript();
-    }
-    if (popChoice) {
-      scriptPicker.value = popChoice;
-    }
-    initialLoad = false;
-  };
-
-  populateScripts();
-  scriptPicker.addEventListener("reload-scripts", populateScripts);
-  if (scriptFilterInput) {
-    scriptFilterInput.addEventListener("input", () => {
-      populateScripts();
-    });
-  }
-  if (scriptMenuBtn && scriptMenuList) {
-    scriptMenuBtn.addEventListener("click", () => {
-      scriptMenuBtn.parentElement.classList.toggle("open");
-    });
-    document.addEventListener("click", (e) => {
-      if (!scriptMenuBtn.parentElement.contains(e.target)) {
-        scriptMenuBtn.parentElement.classList.remove("open");
-      }
-    });
-  }
-  scriptPicker.addEventListener("change", (e) => {
-    const val = e.target.value;
-    if (val) {
-      const type = e.target.selectedOptions[0]?.dataset?.type || "script";
-      if (type === "map") {
-        saveLastMapScript(val);
-        if (currentMapLabel) currentMapLabel.textContent = val;
-      } else if (type === "pop") {
-        saveLastPopScript(val);
-      } else {
-        saveLastScriptPath(val);
-      }
-      loadExampleScript(val, fallbackScript, true, { type });
     }
   });
 }
@@ -1213,6 +1122,35 @@ if (resizer && appEl) {
   });
 }
 
+// Horizontal drag-to-resize for top panel vs console panel
+if (hResizer && topPanel && appEl) {
+  let isHResizing = false;
+  const minH = 100;
+  const onMove = (e) => {
+    if (!isHResizing) return;
+    const appRect = appEl.getBoundingClientRect();
+    const headerEl = document.querySelector(".header");
+    const headerRect = headerEl?.getBoundingClientRect();
+    const gap = parseFloat(getComputedStyle(appEl).gap || "0") || 0;
+    const startY = (headerRect?.bottom ?? appRect.top) + gap;
+    const rawHeight = e.clientY - startY;
+    const maxH = Math.max(minH, window.innerHeight * 0.6);
+    const newHeight = clamp(rawHeight, minH, maxH);
+    document.documentElement.style.setProperty("--top-panel-height", `${newHeight}px`);
+  };
+  const end = () => {
+    isHResizing = false;
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", end);
+  };
+  hResizer.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    isHResizing = true;
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", end);
+  });
+}
+
 buildDefaultMap();
 setBackground(state.map.backgroundUrl, { silent: true });
 syncHeatControls();
@@ -1222,6 +1160,7 @@ updateBoardScene();
 cameraManager.applySavedCamera();
 cameraManager.attachControlListeners(render3d);
 render();
+loadScriptManifest();
 
 if (arenaGridToggle) {
   arenaGridToggle.checked = !!savedArenaGrid;

@@ -38,25 +38,24 @@
         </div>
       </header>
 
+      <section id="top-panel" class="panel top-panel">
+        <h3 class="section-title">Top Panel</h3>
+        <div class="top-panel-body">
+          <div id="script-tree-scroll" class="tree-scroll">
+            <div id="script-tree" class="script-tree" aria-label="Script list"></div>
+          </div>
+        </div>
+      </section>
+
+      <div id="sidebar-h-resizer" class="h-divider" aria-label="Resize panel vertically"></div>
+
       <section class="panel console-panel">
         <h3 class="section-title">Battle Language</h3>
-        <div class="field">
-          <label for="script-picker">Scripts</label>
-          <input id="script-filter" type="search" placeholder="Filter scripts" />
-          <div class="script-menu">
-            <button id="script-menu-btn" type="button">Choose Script ▸</button>
-            <ul id="script-menu-list" class="script-menu-root"></ul>
-          </div>
-          <select id="script-picker" style="display:none">
-            <option value="scripts/hex-demo.txt">Hex Demo</option>
-            <option value="scripts/grid-demo.txt">Grid Demo</option>
-          </select>
-        </div>
-        <textarea id="script-input" class="console" spellcheck="false"></textarea>
         <div class="actions">
           <button id="run-btn">Run Script</button>
           <button id="clear-btn">Clear Tokens</button>
         </div>
+        <textarea id="script-input" class="console" spellcheck="false"></textarea>
       </section>
 
       <div id="sidebar-resizer" class="divider" aria-label="Resize sidebar"></div>
