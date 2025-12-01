@@ -1,6 +1,6 @@
 :root {
   --sidebar-width: 360px;
-  --top-panel-height: 180px;
+  --top-panel-height: 40%;
 }
 
 *,
@@ -169,10 +169,26 @@ body {
   list-style: none;
   padding: 3px 4px;
   border-radius: 4px;
+  position: relative;
+  padding-left: 18px;
 }
 
 .script-tree summary:hover {
   background: rgba(255, 255, 255, 0.06);
+}
+
+.script-tree summary::before {
+  content: "▸";
+  position: absolute;
+  left: 2px;
+  top: 1px;
+  font-size: 1rem;
+  transition: transform 0.15s ease;
+  color: #9fc6ff;
+}
+
+.script-tree details[open] > summary::before {
+  transform: rotate(90deg);
 }
 
 .script-leaf {
@@ -185,11 +201,26 @@ body {
   align-items: center;
   cursor: pointer;
   border-radius: 6px;
+  position: relative;
+  padding-left: 18px;
 }
 
 .script-leaf .info {
   color: #9fc6ff;
   font-size: 0.88rem;
+}
+
+.script-leaf .script-check {
+  accent-color: #7fb9ff;
+}
+
+.script-leaf::before {
+  content: "▸";
+  position: absolute;
+  left: 2px;
+  top: 4px;
+  font-size: 0.95rem;
+  color: #7fb9ff;
 }
 
 .script-leaf:hover {

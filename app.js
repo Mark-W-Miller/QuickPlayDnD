@@ -57,6 +57,21 @@ const hResizer = document.getElementById("sidebar-h-resizer");
 const topPanel = document.getElementById("top-panel");
 const scriptTreeEl = document.getElementById("script-tree");
 let selectedLeaf = null;
+const safeStorageGet = (key, fallback = null) => {
+  try {
+    const v = localStorage.getItem(key);
+    return v !== null ? v : fallback;
+  } catch {
+    return fallback;
+  }
+};
+const safeStorageSet = (key, val) => {
+  try {
+    localStorage.setItem(key, val);
+  } catch {
+    /* ignore */
+  }
+};
 const camSlotButtons = document.querySelectorAll("[data-cam-slot]");
 const clearCamViewsBtn = document.getElementById("clear-cam-views");
 const currentMapLabel = document.getElementById("current-map-label");
@@ -645,6 +660,9 @@ const render = () => {
 const buildScriptTree = (entries) => {
   if (!scriptTreeEl) return;
   scriptTreeEl.innerHTML = "";
+  const savedTreeState = safeJsonParse(localStorage.getItem("script-tree-state") || "{}", {});
+  const openSet = new Set(savedTreeState.open || []);
+  const checkedSet = new Set(savedTreeState.checked || []);
   const root = {};
   entries.forEach((entry) => {
     if (!entry?.file) return;
@@ -657,20 +675,34 @@ const buildScriptTree = (entries) => {
     });
   });
 
-  const renderNode = (name, nodeObj) => {
+  const renderNode = (name, nodeObj, path) => {
     const details = document.createElement("details");
-    details.open = true;
+    details.open = openSet.has(path) || openSet.size === 0; // default open unless stored closed
+    details.dataset.path = path;
     const summary = document.createElement("summary");
     summary.textContent = name;
     details.appendChild(summary);
+    details.addEventListener("toggle", () => {
+      persistTreeState();
+    });
 
     // Files directly under this folder
     nodeObj.entries.forEach((entry) => {
       const leaf = document.createElement("div");
       leaf.className = "script-leaf";
+      leaf.dataset.file = entry.file;
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "script-check";
+      checkbox.checked = checkedSet.has(entry.file);
+      checkbox.addEventListener("click", (e) => {
+        e.stopPropagation();
+        persistTreeState();
+      });
       const info = document.createElement("span");
       info.className = "info";
       info.textContent = `${entry.name || entry.file} (${(entry.type || "script").toUpperCase()})`;
+      leaf.appendChild(checkbox);
       leaf.appendChild(info);
       leaf.addEventListener("click", async () => {
         if (selectedLeaf) selectedLeaf.classList.remove("selected");
@@ -693,7 +725,8 @@ const buildScriptTree = (entries) => {
     Object.keys(nodeObj.children)
       .sort()
       .forEach((childName) => {
-        details.appendChild(renderNode(childName, nodeObj.children[childName]));
+        const childPath = `${path}/${childName}`;
+        details.appendChild(renderNode(childName, nodeObj.children[childName], childPath));
       });
     return details;
   };
@@ -701,8 +734,21 @@ const buildScriptTree = (entries) => {
   Object.keys(root)
     .sort()
     .forEach((key) => {
-      scriptTreeEl.appendChild(renderNode(key, root[key]));
+      scriptTreeEl.appendChild(renderNode(key, root[key], key));
     });
+};
+
+const persistTreeState = () => {
+  if (!scriptTreeEl) return;
+  const open = Array.from(scriptTreeEl.querySelectorAll("details[data-path]"))
+    .filter((d) => d.open)
+    .map((d) => d.dataset.path);
+  const checked = Array.from(scriptTreeEl.querySelectorAll(".script-check"))
+    .filter((c) => c.checked)
+    .map((c) => c.closest(".script-leaf")?.dataset?.file || c.dataset.file || "")
+    .filter(Boolean);
+  const payload = { open, checked };
+  safeStorageSet("script-tree-state", JSON.stringify(payload));
 };
 
 const loadScriptManifest = async () => {
@@ -1120,6 +1166,10 @@ if (resizer && appEl) {
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", end);
   });
+  window.addEventListener("mouseup", () => {
+    const current = getComputedStyle(document.documentElement).getPropertyValue("--sidebar-width");
+    if (current) safeStorageSet("ui-sidebar-width", current.trim());
+  });
 }
 
 // Horizontal drag-to-resize for top panel vs console panel
@@ -1142,6 +1192,8 @@ if (hResizer && topPanel && appEl) {
     isHResizing = false;
     window.removeEventListener("mousemove", onMove);
     window.removeEventListener("mouseup", end);
+    const current = getComputedStyle(document.documentElement).getPropertyValue("--top-panel-height");
+    if (current) safeStorageSet("ui-top-height", current.trim());
   };
   hResizer.addEventListener("mousedown", (e) => {
     e.preventDefault();
@@ -1161,6 +1213,18 @@ cameraManager.applySavedCamera();
 cameraManager.attachControlListeners(render3d);
 render();
 loadScriptManifest();
+
+// Apply saved UI sizing defaults
+const savedTopHeight = safeStorageGet("ui-top-height", null);
+if (savedTopHeight) {
+  document.documentElement.style.setProperty("--top-panel-height", savedTopHeight);
+} else {
+  document.documentElement.style.setProperty("--top-panel-height", "40%");
+}
+const savedSidebarWidth = safeStorageGet("ui-sidebar-width", null);
+if (savedSidebarWidth) {
+  document.documentElement.style.setProperty("--sidebar-width", savedSidebarWidth);
+}
 
 if (arenaGridToggle) {
   arenaGridToggle.checked = !!savedArenaGrid;
