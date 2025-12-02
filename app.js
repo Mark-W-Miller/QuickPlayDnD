@@ -12,6 +12,7 @@ import { cropTextureToOverlay as cropTextureToOverlayFn } from "./overlay/cropTe
 import { setBackground as setBackgroundFn } from "./overlay/background.js";
 import { createScriptTreeManager } from "./ui/scriptTree.js";
 import { createAnimationLoop } from "./animation/animation.js";
+import { initParamsWindow } from "./ui/paramsWindow.js";
 
 const canvas = document.getElementById("map-canvas");
 const inputEl = document.getElementById("script-input");
@@ -459,49 +460,7 @@ if (modelsToggle) {
 }
 
 // Parameters window (fixed size, draggable)
-if (paramsOpenBtn && paramsWindow) {
-  const header = paramsWindow.querySelector(".params-window-header");
-  let dragging = false;
-  let dragOffset = { x: 0, y: 0 };
-
-  const onMove = (e) => {
-    if (!dragging) return;
-    const x = e.clientX - dragOffset.x;
-    const y = e.clientY - dragOffset.y;
-    paramsWindow.style.left = `${x}px`;
-    paramsWindow.style.top = `${y}px`;
-    paramsWindow.style.right = "auto";
-    paramsWindow.style.bottom = "auto";
-  };
-  const endDrag = () => {
-    if (!dragging) return;
-    dragging = false;
-    window.removeEventListener("mousemove", onMove);
-    window.removeEventListener("mouseup", endDrag);
-  };
-  if (header) {
-    header.addEventListener("mousedown", (e) => {
-      if (e.target.tagName === "BUTTON") return;
-      dragging = true;
-      const rect = paramsWindow.getBoundingClientRect();
-      dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", endDrag);
-    });
-  }
-
-  paramsOpenBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (paramsWindow.classList.contains("open")) paramsWindow.classList.remove("open");
-    else paramsWindow.classList.add("open");
-  });
-  if (paramsCloseBtn) {
-    paramsCloseBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      paramsWindow.classList.remove("open");
-    });
-  }
-}
+initParamsWindow({ paramsOpenBtn, paramsCloseBtn, paramsWindow });
 
 // Tokens window (movable/resizable, persisted)
 if (tokensOpenBtn && tokensWindow && tokensBody) {
