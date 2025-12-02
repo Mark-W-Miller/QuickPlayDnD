@@ -216,6 +216,57 @@ body {
   transform: rotate(90deg);
 }
 
+.scripts-window {
+  position: fixed;
+  bottom: 120px;
+  left: 64px;
+  width: 440px;
+  height: 420px;
+  background: rgba(11, 18, 32, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  display: none;
+  overflow: hidden;
+  z-index: 12;
+}
+
+.scripts-window.open {
+  display: flex;
+  flex-direction: column;
+}
+
+.scripts-window-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+  cursor: move;
+}
+
+.scripts-window .tree-scroll {
+  flex: 1;
+  height: auto;
+  margin: 6px;
+}
+
+.scripts-window-resize {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  right: 6px;
+  bottom: 6px;
+  cursor: se-resize;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+
 .script-leaf {
   padding: 2px 6px;
   margin-left: 14px;

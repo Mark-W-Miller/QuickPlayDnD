@@ -33,6 +33,7 @@
             <button id="log-open">Open Log</button>
             <button id="db-open">Open DB</button>
             <button id="tokens-open">Open Tokens</button>
+            <button id="scripts-open">Scripts</button>
             <button id="params-open">View Parameters</button>
           </div>
         </div>
@@ -40,11 +41,7 @@
 
       <section id="top-panel" class="panel top-panel">
         <h3 class="section-title">Top Panel <label class="test-toggle"><input type="checkbox" id="show-test-dirs" /> Test Dirs</label></h3>
-        <div class="top-panel-body">
-          <div id="script-tree-scroll" class="tree-scroll">
-            <div id="script-tree" class="script-tree" aria-label="Script list"></div>
-          </div>
-        </div>
+        <div class="top-panel-body"></div>
       </section>
 
       <div id="sidebar-h-resizer" class="h-divider" aria-label="Resize panel vertically"></div>
@@ -94,6 +91,17 @@
       </div>
       <div id="tokens-body" class="tokens-body"></div>
       <div class="tokens-window-resize" aria-label="Resize tokens window"></div>
+    </div>
+
+    <div id="scripts-window" class="scripts-window">
+      <div class="scripts-window-header">
+        <span>Scripts</span>
+        <button id="scripts-close">Close</button>
+      </div>
+      <div id="script-tree-scroll" class="tree-scroll">
+        <div id="script-tree" class="script-tree" aria-label="Script list"></div>
+      </div>
+      <div class="scripts-window-resize" aria-label="Resize scripts window"></div>
     </div>
 
     <div id="params-window" class="params-window">

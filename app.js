@@ -14,6 +14,7 @@ import { createScriptTreeManager } from "./ui/scriptTree.js";
 import { createAnimationLoop } from "./animation/animation.js";
 import { initParamsWindow } from "./ui/paramsWindow.js";
 import { initTokensWindow } from "./ui/tokensWindow.js";
+import { initScriptsWindow } from "./ui/scriptsWindow.js";
 
 const canvas = document.getElementById("map-canvas");
 const inputEl = document.getElementById("script-input");
@@ -62,6 +63,9 @@ const hResizer = document.getElementById("sidebar-h-resizer");
 const topPanel = document.getElementById("top-panel");
 const scriptTreeEl = document.getElementById("script-tree");
 const showTestToggle = document.getElementById("show-test-dirs");
+const scriptsOpenBtn = document.getElementById("scripts-open");
+const scriptsCloseBtn = document.getElementById("scripts-close");
+const scriptsWindow = document.getElementById("scripts-window");
 let memHud = null;
 
 const initMemHud = () => {
@@ -470,6 +474,7 @@ initTokensWindow({
   renderTokensWindow,
   refreshTokenHighlights
 });
+initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWindow });
 
 // Tokens window (movable/resizable, persisted)
 // tokens window handled in ui/tokensWindow.js
