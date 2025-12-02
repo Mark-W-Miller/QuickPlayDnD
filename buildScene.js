@@ -365,8 +365,8 @@ export const createSceneBuilder = ({
     three.controls.enableDamping = false;
     three.controls.minDistance = 0.5;
     three.controls.maxDistance = 400;
-    three.controls.minPolarAngle = 0.05;
-    three.controls.maxPolarAngle = Math.PI / 2 - 0.05;
+    three.controls.minPolarAngle = -Math.PI; // allow full under-orbit
+    three.controls.maxPolarAngle = Math.PI;  // allow full over-orbit
     three.controls.mouseButtons = {
       LEFT: THREE.MOUSE.ROTATE,
       MIDDLE: THREE.MOUSE.DOLLY,
@@ -428,7 +428,12 @@ export const createSceneBuilder = ({
     const texH = textureCanvas.height || 0;
     const boardWidth = Math.max(1, texW || map.cols * map.gridSizePx);
     const boardDepth = Math.max(1, texH || map.rows * map.gridSizePx);
-    logClass("DIM", `board ${boardWidth.toFixed(1)}x${boardDepth.toFixed(1)} tex ${texW}x${texH}`);
+    logClass(
+      "BUILD",
+      `buildScene: board=${boardWidth.toFixed(1)}x${boardDepth.toFixed(1)} tex=${texW}x${texH} cols=${map.cols} rows=${map.rows} size=${map.gridSizePx?.toFixed?.(
+        2
+      )}`
+    );
     const maxCellHeight = Math.max(0, ...Object.values(map.heights || {}));
     const surfaceY = maxCellHeight > 0 ? Math.min(map.gridSizePx * 0.5, maxCellHeight * map.gridSizePx * 0.05) : 0;
     state.lastBoard = { boardWidth, boardDepth, surfaceY, cellUnit: boardWidth / state.map.cols };
@@ -444,12 +449,43 @@ export const createSceneBuilder = ({
     const shouldTexture = textureToggle ? textureToggle.checked : true;
     const texReady = map.backgroundUrl && textureCanvas.width > 0 && textureCanvas.height > 0;
     const useFlatTexture = shouldTexture && texReady && !state.heightMap.showMesh;
+    logClass(
+      "BUILD",
+      `buildScene: shouldTex=${shouldTexture} texReady=${texReady} useFlat=${useFlatTexture} heightMesh=${state.heightMap.showMesh}`
+    );
+    if (shouldTexture && !texReady) {
+      logClass("ERROR", `Texture not ready: canvas ${texW}x${texH}, url=${map.backgroundUrl || "none"}`);
+    }
+    const wrapGlUpload = (fn, label = "texture upload") => {
+      try {
+        fn();
+        const gl = three.renderer?.getContext?.();
+        if (gl) {
+          const err = gl.getError();
+          if (err && err !== gl.NO_ERROR) {
+            const texImgW = three.boardTexture?.image?.width || 0;
+            const texImgH = three.boardTexture?.image?.height || 0;
+            const msg = `WebGL error after ${label}: 0x${err.toString(
+              16
+            )} canvas=${textureCanvas.width}x${textureCanvas.height} texImg=${texImgW}x${texImgH} board=${boardWidth.toFixed(
+              1
+            )}x${boardDepth.toFixed(1)} cols=${map.cols} rows=${map.rows} size=${map.gridSizePx?.toFixed?.(
+              2
+            )} url=${map.backgroundUrl || "none"}`;
+            logClass("ERROR", msg);
+            console.error(msg);
+          }
+        }
+      } catch (e) {
+        const msg = `Texture upload failed during ${label}: ${e.message || e}`;
+        logClass("ERROR", msg);
+        console.error(msg);
+      }
+    };
+
     if (texReady) {
-      const needsRecreate =
-        !three.boardTexture ||
-        three.boardTexture.image?.width !== textureCanvas.width ||
-        three.boardTexture.image?.height !== textureCanvas.height;
-      if (needsRecreate) {
+      // Always recreate to avoid stale dimensions causing GL errors.
+      wrapGlUpload(() => {
         if (three.boardTexture) three.boardTexture.dispose();
         three.boardTexture = new THREE.CanvasTexture(textureCanvas);
         three.boardTexture.colorSpace = THREE.SRGBColorSpace;
@@ -458,9 +494,7 @@ export const createSceneBuilder = ({
         three.boardTexture.generateMipmaps = false;
         three.boardTexture.minFilter = THREE.LinearFilter;
         three.boardTexture.magFilter = THREE.LinearFilter;
-      } else {
-        three.boardTexture.needsUpdate = true;
-      }
+      }, "texture recreate");
     } else if (three.boardTexture) {
       three.boardTexture.dispose();
       three.boardTexture = null;

@@ -1,6 +1,6 @@
 [
-  { "dir": "wight-battle" },
-  { "dir": "moves" },
+  { "dir": "wight-battle", "testOnly": true },
+  { "dir": "moves", "testOnly": true },
   { "dir": "razorback-pass" },
   { "dir": "3dTest", "testOnly": true },
   { "dir": "test", "testOnly": true },

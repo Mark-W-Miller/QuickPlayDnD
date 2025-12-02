@@ -148,8 +148,12 @@ const overlayGridOnTexture = (map) => {
   textureCtx.lineWidth = 1;
   if (map.gridType === "hex") {
     const sqrt3 = Math.sqrt(3);
-    // Fit width exactly; rows may extend or clip vertically as needed.
-    const s = Math.max(1, textureCanvas.width / (sqrt3 * (cols + 0.5)));
+    // Fit both width and height: choose the smaller side-derived size.
+    const cellW = textureCanvas.width / (cols + 0.5);
+    const cellH = textureCanvas.height / (rows + 0.5);
+    const sFromW = cellW / sqrt3;
+    const sFromH = cellH / 1.5;
+    const s = Math.max(1, Math.min(sFromW, sFromH));
     const hexW = sqrt3 * s;
     const hexH = 2 * s;
     const rowStep = hexH * 0.75;
@@ -515,6 +519,10 @@ const setBackground = (url) => {
     log("No background URL provided");
     return;
   }
+  if (textureToggle) {
+    textureToggle.checked = true;
+    localStorage.setItem("show-texture", "true");
+  }
   state.map = state.map || {
     id: "default",
     name: "Default",
@@ -552,30 +560,28 @@ const setBackground = (url) => {
     textureCanvas.height = drawH;
     textureCtx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
     textureCtx.drawImage(img, 0, 0, drawW, drawH);
-    // If cols/rows are known, update grid size so cell spacing matches the new texture width.
+    logClass?.("INFO", `Background loaded ${img.width}x${img.height}, drawn ${drawW}x${drawH}`);
+    logClass?.(
+      "BUILD",
+      `app.js:540 maxTex=${maxTexSize || "?"} scale=${scale.toFixed(4)} final=${drawW}x${drawH}`
+    );
+    // If cols/rows are known, infer gridSize from texture width; keep declared rows/cols to avoid distortion.
     if (state.map.cols > 0) {
-      state.map.gridSizePx = textureCanvas.width / state.map.cols;
       if (state.map.gridType === "hex") {
         const sqrt3 = Math.sqrt(3);
         const s = textureCanvas.width / (sqrt3 * (state.map.cols + 0.5));
-        const hexH = 2 * s;
-        const rowStep = hexH * 0.75;
-        const rowsFromTex = Math.ceil((textureCanvas.height - hexH) / rowStep) + 1;
-        if (rowsFromTex !== state.map.rows) {
-          state.map.rows = rowsFromTex;
-          logClass("DIM", `app.js:554 Adjusted hex rows=${rowsFromTex} from texture ${img.width}x${img.height}`);
-        }
+        state.map.gridSizePx = s;
+        logClass?.(
+          "BUILD",
+          `app.js:548 Inferred hex size=${s.toFixed(2)} from tex ${img.width}x${img.height} cols=${state.map.cols}`
+        );
       } else {
-        const colsFromTex = Math.ceil(textureCanvas.width / state.map.gridSizePx);
-        const rowsFromTex = Math.ceil(textureCanvas.height / state.map.gridSizePx);
-        if (colsFromTex !== state.map.cols || rowsFromTex !== state.map.rows) {
-          state.map.cols = colsFromTex;
-          state.map.rows = rowsFromTex;
-          logClass(
-            "DIM",
-            `app.js:561 Adjusted board to cols=${colsFromTex} rows=${rowsFromTex} from texture ${img.width}x${img.height}`
-          );
-        }
+        const cell = textureCanvas.width / state.map.cols;
+        state.map.gridSizePx = cell;
+        logClass?.(
+          "BUILD",
+          `app.js:552 Inferred square size=${cell.toFixed(2)} from tex ${img.width}x${img.height} cols=${state.map.cols}`
+        );
       }
     }
     overlayGridOnTexture(state.map);
