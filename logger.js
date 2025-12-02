@@ -7,8 +7,8 @@ const safeJsonParse = (val, fallback) => {
 };
 
 export const initLogger = ({
-  maxEntries = 50,
-  maxStored = 300,
+  maxEntries = 200,
+  maxStored = 2000,
   storageKey = "log-window-state",
   historyKey = "log-history",
   classKey = "log-enabled-classes"
@@ -123,12 +123,12 @@ export const initLogger = ({
     logEl.innerHTML = "";
     const enabled = state.enabledClasses.size ? state.enabledClasses : null;
     const visible = state.entries
-      .slice(0, maxEntries)
       .filter((e) => {
         if (e.class === "ERROR") return true; // always show errors
         return !enabled || enabled.has(e.class);
       })
-      .sort((a, b) => b.time - a.time);
+      .sort((a, b) => b.time - a.time)
+      .slice(0, maxEntries);
     visible.forEach((entry) => {
       const div = document.createElement("div");
       div.className = "log-entry";

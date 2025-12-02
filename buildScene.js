@@ -113,23 +113,30 @@ export const createSceneBuilder = ({
   };
 
   const computeHexPlacement = (token, boardWidth, boardDepth) => {
-    const cols = Math.max(1, state.map.cols || 1);
-    const rows = Math.max(1, state.map.rows || 1);
-    // Horizontal span accounts for staggered half column.
-    const cellW = boardWidth / (cols + 0.5);
-    // Vertical spacing adds a half-row span to keep top/bottom aligned.
-    const cellH = boardDepth / (rows + 0.5);
-    // Stagger: odd rows shift right by half; even rows stay flush left.
-    const isOdd = token.row % 2 !== 0;
-    const rowOffset = isOdd ? 0 : cellW * 0.5;
-    const effRow = clamp(token.row + 1, 0, rows - 1); // leave this +1 to align hex rows with map
-    const x =  (token.col + 0.5) * cellW + rowOffset;
-    const z = (effRow + 0.5) * cellH/0.97;
-    return { x, z, cellW, cellH };
+    const oc = state.overlayCenters;
+    const key = `${token.col},${token.row}`;
+    const center = oc ? oc.get(key) : null;
+    if (!center) {
+      logClass?.("ERROR", `Missing overlay center for ${key}`);
+      return { x: 0, z: 0, cellW: 0, cellH: 0 };
+    }
+    const ob = state.overlayBounds;
+    const u = (center.x - ob.minX) / ob.width;
+    const v = (center.y - ob.minY) / ob.height;
+    const x = u * boardWidth;
+    const z = v * boardDepth;
+    return { x, z, cellW: 0, cellH: 0 };
   };
 
   const buildTokenMesh = (token, boardWidth, boardDepth, surfaceY, cellUnit) => {
-    logClass("3DLOAD", `Build Token: ${formatTokenLabel(token)}`);
+    logClass(
+      "3DLOAD",
+      `Build Token: ${formatTokenLabel(token)} board=${boardWidth.toFixed(2)}x${boardDepth.toFixed(
+        2
+      )} grid=${state.map.gridType} cols=${state.map.cols} rows=${state.map.rows} size=${state.map.gridSizePx?.toFixed?.(
+        2
+      )}`
+    );
     const def = state.tokenDefs.find((d) => d.id === token.defId);
     if (!def) {
       logClass("3DLOAD", "No def found for token");
@@ -138,7 +145,13 @@ export const createSceneBuilder = ({
     const placement = state.map.gridType === "hex"
       ? computeHexPlacement(token, boardWidth, boardDepth)
       : computeGridPlacement(token, boardWidth, boardDepth);
-    if (logClass) logClass("DIM", `cellW=${placement.cellW.toFixed(3)} cellH=${placement.cellH.toFixed(3)}`);
+    if (logClass)
+      logClass(
+        "BUILD",
+        `placement: x=${placement.x.toFixed(3)} z=${placement.z.toFixed(3)} cellW=${placement.cellW?.toFixed?.(
+          3
+        )} cellH=${placement.cellH?.toFixed?.(3)}`
+      );
 
     // Sample surface height and normal at token center.
     const u = THREE.MathUtils.clamp(placement.x / Math.max(1, boardWidth), 0, 1);
@@ -426,13 +439,40 @@ export const createSceneBuilder = ({
     const map = state.map;
     const texW = textureCanvas.width || 0;
     const texH = textureCanvas.height || 0;
-    const boardWidth = Math.max(1, texW || map.cols * map.gridSizePx);
-    const boardDepth = Math.max(1, texH || map.rows * map.gridSizePx);
+    const cellSize = map.gridSizePx || 1;
+    let boardWidth = 1;
+    let boardDepth = 1;
+    if (map.gridType === "hex") {
+      const bounds = state.overlayBounds;
+      if (bounds && bounds.width && bounds.height) {
+        boardWidth = bounds.width;
+        boardDepth = bounds.height;
+        logClass(
+          "BUILD",
+          `buildScene: using overlay bounds for board size ${boardWidth.toFixed(1)}x${boardDepth.toFixed(1)}`
+        );
+      } else {
+        const sqrt3 = Math.sqrt(3);
+        boardWidth = Math.max(1, sqrt3 * (map.cols + 0.5) * cellSize);
+        boardDepth = Math.max(1, (1.5 * map.rows + 0.5) * cellSize);
+      }
+    } else {
+      boardWidth = Math.max(1, map.cols * cellSize);
+      boardDepth = Math.max(1, map.rows * cellSize);
+    }
     logClass(
       "BUILD",
       `buildScene: board=${boardWidth.toFixed(1)}x${boardDepth.toFixed(1)} tex=${texW}x${texH} cols=${map.cols} rows=${map.rows} size=${map.gridSizePx?.toFixed?.(
         2
-      )}`
+      )} gridType=${map.gridType} overlay=${
+        state.overlayBounds
+          ? `min(${state.overlayBounds.minX.toFixed(1)},${state.overlayBounds.minY.toFixed(
+              1
+            )}) max(${state.overlayBounds.maxX.toFixed(1)},${state.overlayBounds.maxY.toFixed(1)}) size(${state.overlayBounds.width.toFixed(
+              1
+            )}x${state.overlayBounds.height.toFixed(1)})`
+          : "none"
+      }`
     );
     const maxCellHeight = Math.max(0, ...Object.values(map.heights || {}));
     const surfaceY = maxCellHeight > 0 ? Math.min(map.gridSizePx * 0.5, maxCellHeight * map.gridSizePx * 0.05) : 0;

@@ -116,17 +116,34 @@ export const parseScript = (script, { logClass } = {}) => {
         "PARSE",
         `Create template=${templateId}${svgTemplateId ? ` svg=${svgTemplateId}` : ""}: ${JSON.stringify(kv)}`
       );
-      const coords = match[2]
-        .split(",")
-        .map((c) => coordToIndex(c))
-        .filter(Boolean);
+      const coordSpec = match[2].trim().toUpperCase();
+      let coords = [];
+      let allCoords = false;
+      if (coordSpec === "ALL") {
+        allCoords = true;
+      } else {
+        coords = coordSpec
+          .split(",")
+          .map((c) => coordToIndex(c))
+          .filter(Boolean);
+      }
       if (coords.length) {
         instructions.push({
           type: "create",
           templateId,
           svgTemplateId,
           kv,
-          coords
+          coords,
+          allCoords
+        });
+      } else if (allCoords) {
+        instructions.push({
+          type: "create",
+          templateId,
+          svgTemplateId,
+          kv,
+          coords: [],
+          allCoords: true
         });
       }
       continue;

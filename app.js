@@ -87,6 +87,8 @@ const textureCtx = textureCanvas.getContext("2d", { willReadFrequently: true });
 const webglCanvas = document.createElement("canvas");
 webglCanvas.id = "map-webgl";
 mapPanel.appendChild(webglCanvas);
+const overlayCenters = new Map(); // key `${c},${r}` -> {x,y}
+
 const state = {
   map: {
     id: "default",
@@ -109,6 +111,7 @@ const state = {
     maxThreat: 1,
     maxSupport: 1
   },
+  overlayCenters,
   activeMoves: [],
   activeEffects: [],
   moveSpeedScale: 1
@@ -147,6 +150,7 @@ const overlayGridOnTexture = (map) => {
   textureCtx.strokeStyle = "rgba(255,255,255,0.35)";
   textureCtx.lineWidth = 1;
   if (map.gridType === "hex") {
+    state.overlayCenters?.clear();
     const sqrt3 = Math.sqrt(3);
     // Fit both width and height: choose the smaller side-derived size.
     const cellW = textureCanvas.width / (cols + 0.5);
@@ -157,15 +161,24 @@ const overlayGridOnTexture = (map) => {
     const hexW = sqrt3 * s;
     const hexH = 2 * s;
     const rowStep = hexH * 0.75;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const cx = hexW * (c + 0.5 * (r & 1)) + hexW / 2;
-        const cy = rowStep * r + hexH / 2;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const cx = hexW * (c + 0.5 * (r & 1)) + hexW / 2;
+          const cy = rowStep * r + hexH / 2;
+          state.overlayCenters?.set(`${c},${r}`, { x: cx, y: cy });
         textureCtx.beginPath();
         for (let i = 0; i < 6; i++) {
           const ang = (Math.PI / 3) * i + Math.PI / 6;
           const px = cx + s * Math.cos(ang);
           const py = cy + s * Math.sin(ang);
+          if (px < minX) minX = px;
+          if (py < minY) minY = py;
+          if (px > maxX) maxX = px;
+          if (py > maxY) maxY = py;
           if (i === 0) textureCtx.moveTo(px, py);
           else textureCtx.lineTo(px, py);
         }
@@ -180,6 +193,22 @@ const overlayGridOnTexture = (map) => {
           textureCtx.fillText(label, cx, cy);
         }
       }
+    }
+    if (Number.isFinite(minX)) {
+      state.overlayBounds = {
+        minX,
+        maxX,
+        minY,
+        maxY,
+        width: maxX - minX,
+        height: maxY - minY
+      };
+      logClass?.(
+        "BUILD",
+        `overlay hex bounds x=[${minX.toFixed(1)},${maxX.toFixed(1)}] w=${(maxX - minX).toFixed(
+          1
+        )} y=[${minY.toFixed(1)},${maxY.toFixed(1)}] h=${(maxY - minY).toFixed(1)}`
+      );
     }
   } else {
     const cell = Math.min(textureCanvas.width / cols, textureCanvas.height / rows);
@@ -211,6 +240,43 @@ const overlayGridOnTexture = (map) => {
     }
   }
   textureCtx.restore();
+};
+
+const cropTextureToOverlay = () => {
+  const ob = state.overlayBounds;
+  if (!ob) return;
+  // Nothing to crop if the overlay already spans the canvas
+  if (
+    Math.round(ob.width) === Math.round(textureCanvas.width) &&
+    Math.round(ob.height) === Math.round(textureCanvas.height) &&
+    Math.round(ob.minX) === 0 &&
+    Math.round(ob.minY) === 0
+  ) {
+    return;
+  }
+  const crop = document.createElement("canvas");
+  crop.width = Math.max(1, Math.round(ob.width));
+  crop.height = Math.max(1, Math.round(ob.height));
+  const ctx = crop.getContext("2d");
+  ctx.drawImage(textureCanvas, -ob.minX, -ob.minY);
+  textureCanvas.width = crop.width;
+  textureCanvas.height = crop.height;
+  textureCtx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
+  textureCtx.drawImage(crop, 0, 0);
+
+  // Shift overlay centers to the new origin.
+  if (state.overlayCenters) {
+    const entries = Array.from(state.overlayCenters.entries());
+    state.overlayCenters.clear();
+    entries.forEach(([key, val]) => {
+      state.overlayCenters.set(key, { x: val.x - ob.minX, y: val.y - ob.minY });
+    });
+  }
+  state.overlayBounds = { minX: 0, minY: 0, maxX: ob.width, maxY: ob.height, width: ob.width, height: ob.height };
+  logClass?.(
+    "BUILD",
+    `cropTextureToOverlay: trimmed canvas to ${crop.width}x${crop.height} from overlay bounds`
+  );
 };
 
 const applyInstructions = (instructions) => {
@@ -472,8 +538,14 @@ const applyInstructions = (instructions) => {
         const svgUrl = buildTemplateSvg(svgSource, { bg, fg, initials });
         const type = instr.kv.type || def.category || "Object";
         const size = Number(instr.kv.size) || def.baseSize || 1;
+        const coords =
+          instr.allCoords && map
+            ? Array.from({ length: map.rows }, (_, r) =>
+                Array.from({ length: map.cols }, (_, c) => ({ col: c, row: r }))
+              ).flat()
+            : instr.coords;
         const existingCount = working.tokens.filter((t) => t.id.startsWith(baseId)).length;
-        instr.coords.forEach((coord, idx) => {
+        coords.forEach((coord, idx) => {
           upsertToken({
             id: `${baseId}-${existingCount + idx + 1}`,
             defId: def.id,
@@ -550,17 +622,35 @@ const setBackground = (url) => {
       return 2048;
     };
     const maxTexSize = detectMaxTex();
+    // If map dims and grid size are known, target the canvas to the map geometry; otherwise base on image.
+    let targetW = img.width;
+    let targetH = img.height;
+    if (state.map.cols && state.map.rows && state.map.gridSizePx) {
+      if (state.map.gridType === "hex") {
+        const sqrt3 = Math.sqrt(3);
+        targetW = sqrt3 * (state.map.cols + 0.5) * state.map.gridSizePx;
+        targetH = (1.5 * state.map.rows + 0.5) * state.map.gridSizePx;
+      } else {
+        targetW = state.map.cols * state.map.gridSizePx;
+        targetH = state.map.rows * state.map.gridSizePx;
+      }
+    }
     const scale =
-      maxTexSize && Math.max(img.width, img.height) > maxTexSize
-        ? maxTexSize / Math.max(img.width, img.height)
+      maxTexSize && Math.max(targetW, targetH) > maxTexSize
+        ? maxTexSize / Math.max(targetW, targetH)
         : 1;
-    const drawW = Math.max(1, Math.round(img.width * scale));
-    const drawH = Math.max(1, Math.round(img.height * scale));
+    const drawW = Math.max(1, Math.round(targetW * scale));
+    const drawH = Math.max(1, Math.round(targetH * scale));
     textureCanvas.width = drawW;
     textureCanvas.height = drawH;
     textureCtx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
     textureCtx.drawImage(img, 0, 0, drawW, drawH);
-    logClass?.("INFO", `Background loaded ${img.width}x${img.height}, drawn ${drawW}x${drawH}`);
+    logClass?.(
+      "INFO",
+      `Background loaded ${img.width}x${img.height}, target=${targetW.toFixed(1)}x${targetH.toFixed(
+        1
+      )} drawn ${drawW}x${drawH}`
+    );
     logClass?.(
       "BUILD",
       `app.js:540 maxTex=${maxTexSize || "?"} scale=${scale.toFixed(4)} final=${drawW}x${drawH}`
@@ -585,6 +675,7 @@ const setBackground = (url) => {
       }
     }
     overlayGridOnTexture(state.map);
+    cropTextureToOverlay();
     updateBoardScene();
     render();
   };

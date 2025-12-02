@@ -4,7 +4,7 @@ MAP background=scripts/razorback-pass/images/razorback_pass_map.png grid=hex siz
 
 # Heightmap — 0 = low grass, 4 = high ridge.
 # Two ridges (north & south), sloping down toward the road in the center.
-HEIGHT_START
+XHEIGHT_START
 4,4,4,4,4,4,3,3,3,3,4,4,4,4,4,3,3,3,4,4,4,4,4,4,0,0
 4,4,3,3,3,2,1,1,1,2,3,3,3,3,2,1,1,2,3,3,4,4,4,4,0,0
 3,3,2,1,1,1,0,0,0,1,1,2,2,1,1,0,0,1,2,2,3,3,3,3,0,0
@@ -25,4 +25,4 @@ HEIGHT_START
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-HEIGHT_END
+XHEIGHT_END
