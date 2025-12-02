@@ -4,9 +4,14 @@ import { updateHeightMapFromHeights, sampleHeightMap, rebuildHeightMesh } from "
 import { initLogger } from "./logger.js";
 import { createCameraManager } from "./camera.js";
 import { createSceneBuilder } from "./buildScene.js";
-import { parseScript, coordToIndex } from "./parser.js";
+import { parseScript } from "./parser.js";
 import { state, safeJsonParse, safeStorageGet, safeStorageSet } from "./state.js";
 import { createScriptRunner } from "./scriptRunner.js";
+import { overlayGridOnTexture as overlayGridOnTextureFn } from "./overlay/overlayGridOnTexture.js";
+import { cropTextureToOverlay as cropTextureToOverlayFn } from "./overlay/cropTextureToOverlay.js";
+import { setBackground as setBackgroundFn } from "./overlay/background.js";
+import { createScriptTreeManager } from "./ui/scriptTree.js";
+import { createAnimationLoop } from "./animation/animation.js";
 
 const canvas = document.getElementById("map-canvas");
 const inputEl = document.getElementById("script-input");
@@ -55,11 +60,6 @@ const hResizer = document.getElementById("sidebar-h-resizer");
 const topPanel = document.getElementById("top-panel");
 const scriptTreeEl = document.getElementById("script-tree");
 const showTestToggle = document.getElementById("show-test-dirs");
-let selectedLeaf = null;
-const scriptManifest = new Map();
-let isBuildingTree = false;
-let treeAutoRunDone = false;
-const SELECTED_ROW_KEY = "script-tree-selected-row";
 let memHud = null;
 
 const initMemHud = () => {
@@ -107,257 +107,40 @@ const three = {
 const { log, logClass } = initLogger();
 let scriptRunner = null;
 
-const overlayGridOnTexture = (map) => {
-  if (!textureCtx || !textureCanvas || !map || !textureCanvas.width || !textureCanvas.height) return;
-  if (overlayGridToggle && !overlayGridToggle.checked) return;
-  const cols = Math.max(1, map.cols || 1);
-  const rows = Math.max(1, map.rows || 1);
-  // Reset overlay bounds/centers each draw
-  state.overlayBounds = null;
-  state.overlayCenters?.clear();
-  textureCtx.save();
-  textureCtx.strokeStyle = "rgba(255,255,255,0.35)";
-  textureCtx.lineWidth = 1;
-  if (map.gridType === "hex") {
-    const sqrt3 = Math.sqrt(3);
-    // Fit both width and height: choose the smaller side-derived size.
-    const cellW = textureCanvas.width / (cols + 0.5);
-    const cellH = textureCanvas.height / (rows + 0.5);
-    const sFromW = cellW / sqrt3;
-    const sFromH = cellH / 1.5;
-    const s = Math.max(1, Math.min(sFromW, sFromH));
-    const hexW = sqrt3 * s;
-    const hexH = 2 * s;
-    const rowStep = hexH * 0.75;
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const cx = hexW * (c + 0.5 * (r & 1)) + hexW / 2;
-          const cy = rowStep * r + hexH / 2;
-          state.overlayCenters?.set(`${c},${r}`, { x: cx, y: cy });
-        textureCtx.beginPath();
-        for (let i = 0; i < 6; i++) {
-          const ang = (Math.PI / 3) * i + Math.PI / 6;
-          const px = cx + s * Math.cos(ang);
-          const py = cy + s * Math.sin(ang);
-          if (px < minX) minX = px;
-          if (py < minY) minY = py;
-          if (px > maxX) maxX = px;
-          if (py > maxY) maxY = py;
-          if (i === 0) textureCtx.moveTo(px, py);
-          else textureCtx.lineTo(px, py);
-        }
-        textureCtx.closePath();
-        textureCtx.stroke();
-        if (!overlayLabelToggle || overlayLabelToggle.checked) {
-          textureCtx.fillStyle = "rgba(240,240,240,0.7)";
-          textureCtx.font = "12px monospace";
-          textureCtx.textAlign = "center";
-          textureCtx.textBaseline = "middle";
-          const label = `${String.fromCharCode(65 + c)}${r}`;
-          textureCtx.fillText(label, cx, cy);
-        }
-      }
-    }
-    if (Number.isFinite(minX)) {
-      state.overlayBounds = {
-        minX,
-        maxX,
-        minY,
-        maxY,
-        width: maxX - minX,
-        height: maxY - minY
-      };
-      logClass?.(
-        "BUILD",
-        `overlay hex bounds x=[${minX.toFixed(1)},${maxX.toFixed(1)}] w=${(maxX - minX).toFixed(
-          1
-        )} y=[${minY.toFixed(1)},${maxY.toFixed(1)}] h=${(maxY - minY).toFixed(1)}`
-      );
-    }
-  } else {
-    const cell = Math.min(textureCanvas.width / cols, textureCanvas.height / rows);
-    for (let x = 0; x <= textureCanvas.width + cell; x += cell) {
-      textureCtx.beginPath();
-      textureCtx.moveTo(x, 0);
-      textureCtx.lineTo(x, textureCanvas.height);
-      textureCtx.stroke();
-    }
-    for (let y = 0; y <= textureCanvas.height + cell; y += cell) {
-      textureCtx.beginPath();
-      textureCtx.moveTo(0, y);
-      textureCtx.lineTo(textureCanvas.width, y);
-      textureCtx.stroke();
-    }
-    if (!overlayLabelToggle || overlayLabelToggle.checked) {
-      textureCtx.fillStyle = "rgba(240,240,240,0.7)";
-      textureCtx.font = "12px monospace";
-      textureCtx.textAlign = "center";
-      textureCtx.textBaseline = "middle";
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const x = c * cell + cell / 2;
-          const y = r * cell + cell / 2;
-          const label = `${String.fromCharCode(65 + c)}${r}`;
-          textureCtx.fillText(label, x, y);
-        }
-      }
-    }
-    // For square, overlay spans the full canvas
-    state.overlayBounds = {
-      minX: 0,
-      minY: 0,
-      maxX: textureCanvas.width,
-      maxY: textureCanvas.height,
-      width: textureCanvas.width,
-      height: textureCanvas.height
-    };
-  }
-  textureCtx.restore();
-};
+const overlayGridOnTexture = (map) =>
+  overlayGridOnTextureFn(map, {
+    textureCanvas,
+    textureCtx,
+    overlayGridToggle,
+    overlayLabelToggle,
+    state,
+    logClass
+  });
 
-const cropTextureToOverlay = () => {
-  const ob = state.overlayBounds;
-  if (!ob) return;
-  // Nothing to crop if the overlay already spans the canvas
-  if (
-    Math.round(ob.width) === Math.round(textureCanvas.width) &&
-    Math.round(ob.height) === Math.round(textureCanvas.height) &&
-    Math.round(ob.minX) === 0 &&
-    Math.round(ob.minY) === 0
-  ) {
-    return;
-  }
-  const crop = document.createElement("canvas");
-  crop.width = Math.max(1, Math.round(ob.width));
-  crop.height = Math.max(1, Math.round(ob.height));
-  const ctx = crop.getContext("2d");
-  ctx.drawImage(textureCanvas, -ob.minX, -ob.minY);
-  textureCanvas.width = crop.width;
-  textureCanvas.height = crop.height;
-  textureCtx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
-  textureCtx.drawImage(crop, 0, 0);
-
-  // Shift overlay centers to the new origin.
-  if (state.overlayCenters) {
-    const entries = Array.from(state.overlayCenters.entries());
-    state.overlayCenters.clear();
-    entries.forEach(([key, val]) => {
-      state.overlayCenters.set(key, { x: val.x - ob.minX, y: val.y - ob.minY });
-    });
-  }
-  state.overlayBounds = { minX: 0, minY: 0, maxX: ob.width, maxY: ob.height, width: ob.width, height: ob.height };
-  logClass?.(
-    "BUILD",
-    `cropTextureToOverlay: trimmed canvas to ${crop.width}x${crop.height} from overlay bounds`
-  );
-};
+const cropTextureToOverlay = () =>
+  cropTextureToOverlayFn({
+    textureCanvas,
+    textureCtx,
+    state,
+    logClass
+  });
 
 
-const setBackground = (url) => {
-  if (!url) {
-    log("No background URL provided");
-    return;
-  }
-  if (textureToggle) {
-    textureToggle.checked = true;
-    localStorage.setItem("show-texture", "true");
-  }
-  state.map = state.map || {
-    id: "default",
-    name: "Default",
-    gridSizePx: 48,
-    gridType: "square",
-    cols: 20,
-    rows: 12,
-    backgroundUrl: ""
-  };
-  state.map.backgroundUrl = url;
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.onload = () => {
-    // Match the canvas to the image, but clamp to GPU texture limits to avoid GL_INVALID_VALUE uploads.
-    const detectMaxTex = () => {
-      if (three.renderer?.capabilities?.maxTextureSize) return three.renderer.capabilities.maxTextureSize;
-      // Fallback query if renderer not ready yet.
-      try {
-        const gl =
-          webglCanvas.getContext("webgl2", { failIfMajorPerformanceCaveat: false }) ||
-          webglCanvas.getContext("webgl", { failIfMajorPerformanceCaveat: false }) ||
-          webglCanvas.getContext("experimental-webgl");
-        if (gl) return gl.getParameter(gl.MAX_TEXTURE_SIZE) || 2048;
-      } catch {}
-      return 2048;
-    };
-    const maxTexSize = detectMaxTex();
-    // If map dims and grid size are known, target the canvas to the map geometry; otherwise base on image.
-    let targetW = img.width;
-    let targetH = img.height;
-    if (state.map.cols && state.map.rows && state.map.gridSizePx) {
-      if (state.map.gridType === "hex") {
-        const sqrt3 = Math.sqrt(3);
-        targetW = sqrt3 * (state.map.cols + 0.5) * state.map.gridSizePx;
-        targetH = (1.5 * state.map.rows + 0.5) * state.map.gridSizePx;
-      } else {
-        targetW = state.map.cols * state.map.gridSizePx;
-        targetH = state.map.rows * state.map.gridSizePx;
-      }
-    }
-    const scale =
-      maxTexSize && Math.max(targetW, targetH) > maxTexSize
-        ? maxTexSize / Math.max(targetW, targetH)
-        : 1;
-    const drawW = Math.max(1, Math.round(targetW * scale));
-    const drawH = Math.max(1, Math.round(targetH * scale));
-    textureCanvas.width = drawW;
-    textureCanvas.height = drawH;
-    textureCtx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
-    textureCtx.drawImage(img, 0, 0, drawW, drawH);
-    logClass?.(
-      "INFO",
-      `Background loaded ${img.width}x${img.height}, target=${targetW.toFixed(1)}x${targetH.toFixed(
-        1
-      )} drawn ${drawW}x${drawH}`
-    );
-    logClass?.(
-      "BUILD",
-      `app.js:540 maxTex=${maxTexSize || "?"} scale=${scale.toFixed(4)} final=${drawW}x${drawH}`
-    );
-    // If cols/rows are known, infer gridSize from texture width; keep declared rows/cols to avoid distortion.
-    if (state.map.cols > 0) {
-      if (state.map.gridType === "hex") {
-        const sqrt3 = Math.sqrt(3);
-        const s = textureCanvas.width / (sqrt3 * (state.map.cols + 0.5));
-        state.map.gridSizePx = s;
-        logClass?.(
-          "BUILD",
-          `app.js:548 Inferred hex size=${s.toFixed(2)} from tex ${img.width}x${img.height} cols=${state.map.cols}`
-        );
-      } else {
-        const cell = textureCanvas.width / state.map.cols;
-        state.map.gridSizePx = cell;
-        logClass?.(
-          "BUILD",
-          `app.js:552 Inferred square size=${cell.toFixed(2)} from tex ${img.width}x${img.height} cols=${state.map.cols}`
-        );
-      }
-    }
-    overlayGridOnTexture(state.map);
-    cropTextureToOverlay();
-    updateBoardScene();
-    render();
-  };
-  img.onerror = () => {
-    logClass?.("ERROR", `Failed to load background ${url}`);
-    log(`Failed to load background ${url}`);
-    render();
-  };
-  img.src = url;
-  log(`Background set: ${url}`);
-};
+const setBackground = (url) =>
+  setBackgroundFn(url, {
+    state,
+    textureCanvas,
+    textureCtx,
+    textureToggle,
+    updateBoardScene,
+    render,
+    log,
+    logClass,
+    three,
+    webglCanvas,
+    overlayGridToggle,
+    overlayLabelToggle
+  });
 
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
@@ -418,269 +201,24 @@ const render = () => {
   render3d();
 };
 
-const buildScriptTree = async (entries) => {
-  if (!scriptTreeEl) return;
-  isBuildingTree = true;
-  scriptTreeEl.innerHTML = "";
-  const savedTreeState = safeJsonParse(localStorage.getItem("script-tree-state") || "{}", {});
-  const openSet = new Set(savedTreeState.open || []);
-  const checkedSet = new Set(savedTreeState.checked || []);
-  scriptManifest.clear();
-  const includeTests = showTestToggle ? showTestToggle.checked : false;
-  const dirMeta = new Map();
-  entries.forEach((entry) => {
-    if (entry?.dir) {
-      dirMeta.set(entry.dir.split("/")[0], { testOnly: !!entry.testOnly });
-    }
-  });
-  const root = {};
-  entries.forEach((entry) => {
-    if (!entry?.file) return;
-    const topDir = entry.file.split("/")[0];
-    const topDirMeta = dirMeta.get(topDir);
-    if ((entry.testOnly || topDirMeta?.testOnly) && !includeTests) return;
-    scriptManifest.set(entry.file, entry.type || "script");
-    const parts = entry.file.split("/");
-    let node = root;
-    parts.forEach((part, idx) => {
-      if (!node[part]) node[part] = { children: {}, entries: [] };
-      if (idx === parts.length - 1) node[part].entries.push(entry);
-      node = node[part].children;
-    });
-  });
-
-  const renderNode = (name, nodeObj, path) => {
-    const details = document.createElement("details");
-    details.open = openSet.has(path) || openSet.size === 0; // default open unless stored closed
-    details.dataset.path = path;
-    const summary = document.createElement("summary");
-    summary.textContent = name;
-    summary.addEventListener("click", async () => {
-      // On opening, populate textarea with the first file under this folder
-      if (details.open) return; // already open; this click will close
-      const first = nodeObj.entries?.[0];
-      if (!first) return;
-      try {
-        const res = await fetch(`scripts/${first.file}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = await res.text();
-        if (inputEl) inputEl.value = text.trim();
-        logClass?.("INFO", `Loaded script ${first.file} into editor`);
-      } catch (err) {
-        log(`Failed to load script ${first.file}: ${err.message}`);
-      }
-    });
-    details.appendChild(summary);
-    details.addEventListener("toggle", () => {
-      persistTreeState();
-    });
-
-    // Files directly under this folder
-    nodeObj.entries.forEach((entry) => {
-      const leaf = document.createElement("div");
-      leaf.className = "script-leaf";
-      leaf.dataset.file = entry.file;
-      leaf.dataset.type = entry.type || "script";
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.className = "script-check";
-      checkbox.checked = checkedSet.has(entry.file);
-      checkbox.addEventListener("click", (e) => {
-        e.stopPropagation();
-        persistTreeState();
-      });
-      const info = document.createElement("span");
-      info.className = "info";
-      info.textContent = `${entry.name || entry.file} (${(entry.type || "script").toUpperCase()})`;
-      leaf.appendChild(checkbox);
-      leaf.appendChild(info);
-      leaf.addEventListener("click", async () => {
-        if (selectedLeaf) selectedLeaf.classList.remove("selected");
-        selectedLeaf = leaf;
-        leaf.classList.add("selected");
-        safeStorageSet(SELECTED_ROW_KEY, entry.file);
-        await loadScriptIntoEditor(entry.file);
-      });
-      details.appendChild(leaf);
-    });
-
-    // Child directories
-    Object.keys(nodeObj.children)
-      .sort()
-      .forEach((childName) => {
-        const childPath = `${path}/${childName}`;
-        details.appendChild(renderNode(childName, nodeObj.children[childName], childPath));
-      });
-    return details;
-  };
-
-  Object.keys(root)
-    .sort()
-    .forEach((key) => {
-      scriptTreeEl.appendChild(renderNode(key, root[key], key));
-    });
-  isBuildingTree = false;
-  // Auto-run once on initial load
-  if (!treeAutoRunDone) {
-    treeAutoRunDone = true;
-    runSelectedScripts({ runIfNoneFallback: false });
-  }
-
-  // Restore last selected row into editor
-  const lastSelected = safeStorageGet(SELECTED_ROW_KEY, null);
-  if (lastSelected) {
-    const targetLeaf = scriptTreeEl.querySelector(`.script-leaf[data-file="${lastSelected}"]`);
-    if (targetLeaf) {
-      if (selectedLeaf) selectedLeaf.classList.remove("selected");
-      selectedLeaf = targetLeaf;
-      selectedLeaf.classList.add("selected");
-      await loadScriptIntoEditor(lastSelected);
-    }
-  }
-};
-
-const persistTreeState = () => {
-  if (!scriptTreeEl) return;
-  const open = Array.from(scriptTreeEl.querySelectorAll("details[data-path]"))
-    .filter((d) => d.open)
-    .map((d) => d.dataset.path);
-  const checked = Array.from(scriptTreeEl.querySelectorAll(".script-check"))
-    .filter((c) => c.checked)
-    .map((c) => c.closest(".script-leaf")?.dataset?.file || c.dataset.file || "")
-    .filter(Boolean);
-  const payload = { open, checked };
-  safeStorageSet("script-tree-state", JSON.stringify(payload));
-};
-
-const loadScriptManifest = async () => {
-  try {
-    const res = await fetch("scripts/index.json");
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    if (Array.isArray(data)) await buildScriptTree(data);
-  } catch (err) {
-    console.warn("Failed to load scripts/index.json", err);
-  }
-};
-
-const getCheckedScripts = () => {
-  const nodes = scriptTreeEl ? Array.from(scriptTreeEl.querySelectorAll(".script-check:checked")) : [];
-  return nodes
-    .map((cb) => {
-      const leaf = cb.closest(".script-leaf");
-      if (!leaf) return null;
-      return {
-        file: leaf.dataset.file,
-        type: leaf.dataset.type || scriptManifest.get(leaf.dataset.file) || "script"
-      };
-    })
-    .filter((v) => v && v.file);
-};
-
-const loadScriptIntoEditor = async (file) => {
-  if (!file) return;
-  try {
-    const res = await fetch(`scripts/${file}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    if (inputEl) inputEl.value = text.trim();
-    logClass?.("INFO", `Loaded script ${file} into editor`);
-  } catch (err) {
-    log(`Failed to load script ${file}: ${err.message}`);
-  }
-};
+const scriptTreeManager = createScriptTreeManager({
+  scriptTreeEl,
+  showTestToggle,
+  inputEl,
+  log,
+  logClass,
+  safeJsonParse,
+  safeStorageGet,
+  safeStorageSet
+});
 
 const runSelectedScripts = async ({ runIfNoneFallback = true } = {}) => {
-  const checked = getCheckedScripts();
-  if (!checked.length) {
-    if (runIfNoneFallback) runCurrentScript();
-    return;
-  }
-  const priority = { map: 0, pop: 1, move: 2, script: 3 };
-  const ordered = [...checked].sort((a, b) => (priority[a.type] ?? 3) - (priority[b.type] ?? 3));
-  for (const item of ordered) {
-    try {
-      const res = await fetch(`scripts/${item.file}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      const instructions = parseScript(text, { logClass });
-      if (!instructions.length) {
-        log(`No instructions in ${item.file}`);
-        continue;
-      }
-      scriptRunner.applyInstructions(instructions);
-      logClass?.("INFO", `Ran ${item.type} script ${item.file}`);
-    } catch (err) {
-      log(`Failed to run ${item.file}: ${err.message}`);
-    }
-  }
+  if (!scriptRunner) return;
+  await scriptRunner.runSelectedScripts({ runIfNoneFallback });
 };
-
-let lastAnimTime = null;
-const stepActiveMoves = (dt) => {
-  let changed = false;
-  if (state.activeMoves.length) {
-    logClass?.("MOVE", `Stepping ${state.activeMoves.length} active moves dt=${dt.toFixed(4)}`);
-  }
-  state.activeMoves = state.activeMoves.filter((move) => {
-    const token = state.tokens.find((t) => t.id.startsWith(move.tokenId));
-    if (!token) return false;
-    const dx = move.to.col - token.col;
-    const dz = move.to.row - token.row;
-    const dist = Math.hypot(dx, dz);
-    const speed = Math.max(0.01, token.speed || move.speed || 12);
-    if (dist < 1e-4) {
-      token.col = move.to.col;
-      token.row = move.to.row;
-      changed = true;
-      return false;
-    }
-    const step = speed * dt * (state.moveSpeedScale || 1);
-    const ratio = Math.min(1, step / dist);
-    token.col += dx * ratio;
-    token.row += dz * ratio;
-    changed = true;
-    if (ratio >= 1) {
-      token.col = move.to.col;
-      token.row = move.to.row;
-      return false;
-    }
-    return true;
-  });
-  return changed;
-};
-
-const tick = (ts) => {
-  if (lastAnimTime == null) lastAnimTime = ts;
-  const dt = (ts - lastAnimTime) / 1000;
-  lastAnimTime = ts;
-  if (memHud && ts - (memHud._lastUpdate || 0) > 500) {
-    memHud._lastUpdate = ts;
-    const perfMem = performance.memory || {};
-    const used = perfMem.usedJSHeapSize ? (perfMem.usedJSHeapSize / 1048576).toFixed(1) : "n/a";
-    const total = perfMem.totalJSHeapSize ? (perfMem.totalJSHeapSize / 1048576).toFixed(1) : "n/a";
-    const tex = three.renderer?.info?.memory?.textures ?? "n/a";
-    const geom = three.renderer?.info?.memory?.geometries ?? "n/a";
-    memHud.textContent = `heap ${used}/${total} MB | tex ${tex} | geo ${geom}`;
-  }
-  const moved = stepActiveMoves(dt);
-  if (state.lastBoard) {
-    const { boardWidth, boardDepth, surfaceY, cellUnit } = state.lastBoard;
-    if (moved) {
-      sceneBuilder.updateTokens3d(boardWidth, boardDepth, surfaceY, cellUnit);
-      render3d();
-    }
-    state.activeEffects = state.activeEffects.filter((fx) => {
-      fx.age += dt * (state.moveSpeedScale || 1);
-      return fx.age <= (fx.duration || 600);
-    });
-    updateEffects3d(boardWidth, boardDepth, surfaceY, cellUnit);
-  }
-  requestAnimationFrame(tick);
-};
-requestAnimationFrame(tick);
 
 const runCurrentScript = () => {
+  if (!scriptRunner) return;
   scriptRunner.runScriptText(inputEl.value);
 };
 
@@ -777,7 +315,18 @@ scriptRunner = createScriptRunner({
   renderTokensWindow,
   clearGroup,
   log,
-  logClass
+  logClass,
+  scriptTreeManager
+});
+
+createAnimationLoop({
+  state,
+  logClass,
+  sceneBuilder,
+  render3d,
+  updateEffects3d,
+  three,
+  memHudGetter: () => memHud
 });
 
 const refreshTokenHighlights = () => {
@@ -1158,7 +707,7 @@ updateBoardScene();
 cameraManager.applySavedCamera();
 cameraManager.attachControlListeners(render3d);
 render();
-loadScriptManifest();
+scriptTreeManager.loadScriptManifest(() => runSelectedScripts({ runIfNoneFallback: false }));
 
 // Apply saved UI sizing defaults
 const savedTopHeight = safeStorageGet("ui-top-height", null);
@@ -1178,7 +727,7 @@ if (showTestToggle) {
   showTestToggle.checked = saved;
   showTestToggle.addEventListener("change", () => {
     safeStorageSet("ui-show-test-dirs", showTestToggle.checked ? "true" : "false");
-    loadScriptManifest();
+    scriptTreeManager.loadScriptManifest(() => runSelectedScripts({ runIfNoneFallback: false }));
   });
 }
 

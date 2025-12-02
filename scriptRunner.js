@@ -10,7 +10,8 @@ export const createScriptRunner = ({
   renderTokensWindow,
   clearGroup,
   log,
-  logClass
+  logClass,
+  scriptTreeManager
 }) => {
   const applyInstructions = (instructions) => {
     let working = JSON.parse(JSON.stringify(state));
@@ -351,8 +352,39 @@ export const createScriptRunner = ({
     applyInstructions(instructions);
   };
 
+  const runSelectedScripts = async ({ runIfNoneFallback = true } = {}) => {
+    if (!scriptTreeManager) {
+      if (runIfNoneFallback) runScriptText("");
+      return;
+    }
+    const checked = scriptTreeManager.getCheckedScripts();
+    if (!checked.length) {
+      if (runIfNoneFallback) runScriptText("");
+      return;
+    }
+    const priority = { map: 0, pop: 1, move: 2, script: 3 };
+    const ordered = [...checked].sort((a, b) => (priority[a.type] ?? 3) - (priority[b.type] ?? 3));
+    for (const item of ordered) {
+      try {
+        const res = await fetch(`scripts/${item.file}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        const instructions = parseScript(text, { logClass });
+        if (!instructions.length) {
+          log(`No instructions in ${item.file}`);
+          continue;
+        }
+        applyInstructions(instructions);
+        logClass?.("INFO", `Ran ${item.type} script ${item.file}`);
+      } catch (err) {
+        log(`Failed to run ${item.file}: ${err.message}`);
+      }
+    }
+  };
+
   return {
     runScriptText,
-    applyInstructions
+    applyInstructions,
+    runSelectedScripts
   };
 };
