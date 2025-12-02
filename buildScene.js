@@ -134,10 +134,10 @@ export const createSceneBuilder = ({
     const cellW = spanW / (cols + 0.5);
     const cellH = spanH / (rows + 0.5);
     const rowBase = Math.floor(token.row);
-    const isOdd = rowBase % 2 !== 0;
+    const isOdd = rowBase % 2 !== 1;
     const rowOffset = isOdd ? 0 : cellW * 0.5;
     const x = originX + (token.col + 0.5) * cellW + rowOffset;
-    const z = originY + (token.row + 0.5) * cellH;
+    const z = 5+ originY + (token.row + 0.5) * cellH;
     return { x, z, cellW, cellH };
   };
 
@@ -171,7 +171,7 @@ export const createSceneBuilder = ({
     const v = THREE.MathUtils.clamp(placement.z / Math.max(1, boardDepth), 0, 1);
     const surfaceHeightAt = (ux, vz) => {
       const hNorm = sampleHeightMap(state, ux, vz);
-      const baseLift = cellUnit * 0.05;
+      const baseLift = 0;
       const scale = cellUnit * 0.6;
       return surfaceY + baseLift + hNorm * state.heightMap.heightScale * scale;
     };
@@ -224,7 +224,7 @@ export const createSceneBuilder = ({
     if (!isStructure) baseGroup.add(baseMesh);
 
     // If a model URL is provided, add it on top of the disk (never replace the disk).
-    if (def.modelUrl) {
+    if (def.modelUrl && state.showModels !== false) {
       logClass("3DLOAD", `Attempt model ${def.modelUrl}`);
       const entry = getModelEntry(def.modelUrl);
       if (!entry) return baseGroup;
@@ -235,7 +235,7 @@ export const createSceneBuilder = ({
           .catch(() => {});
         // Show base disk immediately even while model loads.
         baseGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
-        const yOffsetPending = cellUnit * 0.01;
+        const yOffsetPending = 0;
         baseGroup.position.set(placement.x, hCenter + yOffsetPending + (isStructure ? 0 : height / 2), placement.z);
         return baseGroup;
       }
@@ -267,7 +267,7 @@ export const createSceneBuilder = ({
       clone.scale.setScalar(scale);
       const minY = bbox.min.y * scale;
       const topY = isStructure ? 0 : height / 2;
-      const yOffsetModel = isStructure ? -minY + cellUnit * 0.002 : topY - minY + cellUnit * 0.002;
+      const yOffsetModel = isStructure ? -minY : topY - minY;
       logClass(
         "3DLOAD",
         `Model place scale=${scale.toFixed(3)} minY=${minY.toFixed(3)} topY=${topY.toFixed(3)}`
@@ -282,7 +282,7 @@ export const createSceneBuilder = ({
       baseGroup.position.set(placement.x, hCenter, placement.z);
     } else {
       baseGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
-      const yOffset = cellUnit * 0.01; // tiny lift to avoid z-fight
+      const yOffset = 0;
       baseGroup.position.set(placement.x, hCenter + yOffset + height / 2, placement.z);
     }
     return baseGroup;
@@ -330,7 +330,7 @@ export const createSceneBuilder = ({
       const u = THREE.MathUtils.clamp(x / Math.max(1, boardWidth), 0, 1);
       const v = THREE.MathUtils.clamp(z / Math.max(1, boardDepth), 0, 1);
       const hNorm = sampleHeightMap(state, u, v);
-      const baseLift = cellUnit * 0.05;
+    const baseLift = 0;
       const scale = cellUnit * 0.6;
       return surfaceY + baseLift + hNorm * state.heightMap.heightScale * scale;
     };

@@ -523,6 +523,21 @@ button:active {
   outline: 1px solid rgba(89, 145, 255, 0.6);
 }
 
+#mem-hud {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #e9eef7;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  z-index: 50;
+  pointer-events: none;
+}
+
 .db-window-header {
   display: flex;
   justify-content: space-between;

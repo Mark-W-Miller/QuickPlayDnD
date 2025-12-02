@@ -148,6 +148,11 @@ export const parseScript = (script, { logClass } = {}) => {
       }
       continue;
     }
+    if ((match = /^HEIGHT_RANDOM\s*(.*)$/i.exec(line))) {
+      const kv = parseKeyValues(match[1]);
+      instructions.push({ type: "height-rando", kv });
+      continue;
+    }
     if ((match = /^HEIGHT\s*(.*)$/i.exec(line))) {
       // Finish any prior HEIGHT block before starting a new one.
       flushHeight();

@@ -14,6 +14,7 @@ const textureToggle = document.getElementById("show-texture");
 const heightToggle = document.getElementById("show-height");
 const overlayGridToggle = document.getElementById("show-overlay-grid");
 const overlayLabelToggle = document.getElementById("show-overlay-labels");
+const modelsToggle = document.getElementById("show-models");
 const tokensOpenBtn = document.getElementById("tokens-open");
 const tokensCloseBtn = document.getElementById("tokens-close");
 const tokensWindow = document.getElementById("tokens-window");
@@ -43,6 +44,9 @@ const savedOverlayGrid = (() => {
 const savedOverlayLabels = (() => {
   return safeJsonParse(localStorage.getItem("show-overlay-labels") || "true", true);
 })();
+const savedModels = (() => {
+  return safeJsonParse(localStorage.getItem("show-models") || "true", true);
+})();
 const fallbackScript = `
 # Provide your own script here
 `;
@@ -62,6 +66,7 @@ const scriptManifest = new Map();
 let isBuildingTree = false;
 let treeAutoRunDone = false;
 const SELECTED_ROW_KEY = "script-tree-selected-row";
+let memHud = null;
 const safeStorageGet = (key, fallback = null) => {
   try {
     const v = localStorage.getItem(key);
@@ -76,6 +81,13 @@ const safeStorageSet = (key, val) => {
   } catch {
     /* ignore */
   }
+};
+
+const initMemHud = () => {
+  memHud = document.createElement("div");
+  memHud.id = "mem-hud";
+  memHud.textContent = "mem: --";
+  document.body.appendChild(memHud);
 };
 const camSlotButtons = document.querySelectorAll("[data-cam-slot]");
 const clearCamViewsBtn = document.getElementById("clear-cam-views");
@@ -115,7 +127,8 @@ const state = {
   selectedTokenIds: new Set(),
   activeMoves: [],
   activeEffects: [],
-  moveSpeedScale: 1
+  moveSpeedScale: 1,
+  showModels: savedModels
 };
 
 const coercePx = (val, fallback, min) => {
@@ -307,7 +320,6 @@ const applyInstructions = (instructions) => {
       backgroundUrl: "",
       heights: {}
     };
-    ensureRandomHeights(working.map);
     return working.map;
   };
 
@@ -379,7 +391,6 @@ const applyInstructions = (instructions) => {
             map.rows = Number(boardMatch[2]);
           }
         }
-        ensureRandomHeights(map);
         mapChanged = true;
         break;
       }
@@ -392,7 +403,6 @@ const applyInstructions = (instructions) => {
       case "board": {
         const map = ensureMap();
         working.map = { ...map, cols: instr.cols, rows: instr.rows };
-        ensureRandomHeights(working.map);
         mapChanged = true;
         break;
       }
@@ -580,14 +590,42 @@ const applyInstructions = (instructions) => {
         break;
       }
       default:
+      case "height-rando": {
+        const map = ensureMap();
+        const amp = Number(instr.kv.amp || instr.kv.scale || 2);
+        map.heights = {};
+        for (let r = 0; r < map.rows; r++) {
+          for (let c = 0; c < map.cols; c++) {
+            const h =
+              Math.sin(c * 0.08) * (amp * 0.5) +
+              Math.cos(r * 0.06) * (amp * 0.4) +
+              Math.sin((c + r) * 0.04) * (amp * 0.3);
+            map.heights[`${c},${r}`] = h;
+          }
+        }
+        mapChanged = true;
+        break;
+      }
         break;
     }
   });
 
-  ensureRandomHeights(working.map);
+  // Ensure heights are present; if none were specified, clear and zero-fill.
+  if (!working.map.heights || !Object.keys(working.map.heights).length) {
+    working.map.heights = {};
+    for (let r = 0; r < working.map.rows; r++) {
+      for (let c = 0; c < working.map.cols; c++) {
+        working.map.heights[`${c},${r}`] = 0;
+      }
+    }
+  }
   state.map = working.map;
   state.tokenDefs = working.tokenDefs;
   state.tokens = working.tokens;
+  if (mapChanged) {
+    // Reset cached height grid so a fresh mesh is rebuilt for the new map.
+    state.heightMap.grid = [];
+  }
   renderTokensWindow();
   if (mapChanged) logClass?.("INFO", "Map updated");
   if (state.map?.backgroundUrl) {
@@ -730,19 +768,6 @@ const { initThree, updateBoardScene, clearGroup, render3d, resizeRenderer, updat
   sceneBuilder;
 const cameraManager = createCameraManager({ three, state, textureCanvas, clamp, logClass });
 
-const ensureRandomHeights = (map) => {
-  if (!map) return;
-  if (map.disableRandomHeights) return;
-  const hasHeights = map.heights && Object.keys(map.heights).length > 0;
-  if (hasHeights) return;
-  map.heights = {};
-  for (let r = 0; r < map.rows; r++) {
-    for (let c = 0; c < map.cols; c++) {
-      // Default to flat surface when no heights are provided to avoid unintended wobble.
-      map.heights[`${c},${r}`] = 0;
-    }
-  }
-};
 const buildDefaultMap = () => {
   const cols = 100;
   const rows = 80;
@@ -1014,6 +1039,15 @@ const tick = (ts) => {
   if (lastAnimTime == null) lastAnimTime = ts;
   const dt = (ts - lastAnimTime) / 1000;
   lastAnimTime = ts;
+  if (memHud && ts - (memHud._lastUpdate || 0) > 500) {
+    memHud._lastUpdate = ts;
+    const perfMem = performance.memory || {};
+    const used = perfMem.usedJSHeapSize ? (perfMem.usedJSHeapSize / 1048576).toFixed(1) : "n/a";
+    const total = perfMem.totalJSHeapSize ? (perfMem.totalJSHeapSize / 1048576).toFixed(1) : "n/a";
+    const tex = three.renderer?.info?.memory?.textures ?? "n/a";
+    const geom = three.renderer?.info?.memory?.geometries ?? "n/a";
+    memHud.textContent = `heap ${used}/${total} MB | tex ${tex} | geo ${geom}`;
+  }
   const moved = stepActiveMoves(dt);
   if (state.lastBoard) {
     const { boardWidth, boardDepth, surfaceY, cellUnit } = state.lastBoard;
@@ -1239,6 +1273,15 @@ if (overlayLabelToggle) {
   overlayLabelToggle.addEventListener("change", () => {
     localStorage.setItem("show-overlay-labels", overlayLabelToggle.checked);
     if (state.map?.backgroundUrl) setBackground(state.map.backgroundUrl);
+    updateBoardScene();
+    render();
+  });
+}
+if (modelsToggle) {
+  modelsToggle.checked = savedModels;
+  modelsToggle.addEventListener("change", () => {
+    state.showModels = modelsToggle.checked;
+    localStorage.setItem("show-models", modelsToggle.checked);
     updateBoardScene();
     render();
   });
@@ -1487,6 +1530,7 @@ buildDefaultMap();
 setBackground(state.map.backgroundUrl);
 syncHeatControls();
 syncMoveSpeedControls();
+initMemHud();
 initThree();
 updateBoardScene();
 cameraManager.applySavedCamera();
