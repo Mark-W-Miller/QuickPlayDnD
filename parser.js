@@ -2,7 +2,7 @@ export const coordToIndex = (coord) => {
   const match = /^([A-Z])(\d+)$/i.exec(coord.trim());
   if (!match) return null;
   const [, colChar, rowStr] = match;
-  return { col: colChar.toUpperCase().charCodeAt(0) - 65, row: Number(rowStr) - 1 };
+  return { col: colChar.toUpperCase().charCodeAt(0) - 65, row: Number(rowStr) };
 };
 
 export const parseKeyValues = (input) => {

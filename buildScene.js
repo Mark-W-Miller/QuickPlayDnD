@@ -107,7 +107,7 @@ export const createSceneBuilder = ({
     const cellW = boardWidth / state.map.cols;
     const cellH = boardDepth / state.map.rows;
     const x = (token.col + 0.5) * cellW;
-    const effRow = clamp(token.row + 1, 0, state.map.rows - 1);
+    const effRow = clamp(token.row, 0, state.map.rows - 1);
     const z = (effRow + 0.5) * cellH;
     return { x, z, cellW, cellH };
   };
@@ -376,7 +376,7 @@ export const createSceneBuilder = ({
     three.controls = new OrbitControls(three.camera, three.renderer.domElement);
     three.controls.enablePan = true;
     three.controls.enableDamping = false;
-    three.controls.minDistance = 0.5;
+    three.controls.minDistance = 0.01;
     three.controls.maxDistance = 400;
     three.controls.minPolarAngle = -Math.PI; // allow full under-orbit
     three.controls.maxPolarAngle = Math.PI;  // allow full over-orbit
@@ -577,7 +577,7 @@ export const createSceneBuilder = ({
 
     if (three.controls) {
       const sceneRadius = Math.max(boardWidth, boardDepth);
-      three.controls.minDistance = Math.max(4, sceneRadius * 0.2);
+      three.controls.minDistance = 0.01;
       three.controls.maxDistance = Math.max(sceneRadius, sceneRadius * 2.5);
     }
 

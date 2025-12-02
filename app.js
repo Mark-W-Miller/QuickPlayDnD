@@ -146,11 +146,13 @@ const overlayGridOnTexture = (map) => {
   if (overlayGridToggle && !overlayGridToggle.checked) return;
   const cols = Math.max(1, map.cols || 1);
   const rows = Math.max(1, map.rows || 1);
+  // Reset overlay bounds/centers each draw
+  state.overlayBounds = null;
+  state.overlayCenters?.clear();
   textureCtx.save();
   textureCtx.strokeStyle = "rgba(255,255,255,0.35)";
   textureCtx.lineWidth = 1;
   if (map.gridType === "hex") {
-    state.overlayCenters?.clear();
     const sqrt3 = Math.sqrt(3);
     // Fit both width and height: choose the smaller side-derived size.
     const cellW = textureCanvas.width / (cols + 0.5);
@@ -238,6 +240,15 @@ const overlayGridOnTexture = (map) => {
         }
       }
     }
+    // For square, overlay spans the full canvas
+    state.overlayBounds = {
+      minX: 0,
+      minY: 0,
+      maxX: textureCanvas.width,
+      maxY: textureCanvas.height,
+      width: textureCanvas.width,
+      height: textureCanvas.height
+    };
   }
   textureCtx.restore();
 };
