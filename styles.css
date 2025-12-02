@@ -516,6 +516,20 @@ button:active {
   overflow: auto;
 }
 
+.tokens-window-resize {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  right: 6px;
+  bottom: 6px;
+  cursor: se-resize;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+
 .token-table {
   width: 100%;
   border-collapse: collapse;
