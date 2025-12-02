@@ -6,6 +6,7 @@ import { initLogger } from "./logger.js";
 import { createCameraManager } from "./camera.js";
 import { createSceneBuilder } from "./buildScene.js";
 import { parseScript, coordToIndex } from "./parser.js";
+import { state, safeJsonParse, safeStorageGet, safeStorageSet } from "./state.js";
 
 const canvas = document.getElementById("map-canvas");
 const inputEl = document.getElementById("script-input");
@@ -22,13 +23,6 @@ const tokensBody = document.getElementById("tokens-body");
 const paramsOpenBtn = document.getElementById("params-open");
 const paramsCloseBtn = document.getElementById("params-close");
 const paramsWindow = document.getElementById("params-window");
-const safeJsonParse = (val, fallback) => {
-  try {
-    return JSON.parse(val);
-  } catch {
-    return fallback;
-  }
-};
 const savedArenaGrid = (() => {
   return safeJsonParse(localStorage.getItem("arena-grid") || "false", false);
 })();
@@ -67,21 +61,6 @@ let isBuildingTree = false;
 let treeAutoRunDone = false;
 const SELECTED_ROW_KEY = "script-tree-selected-row";
 let memHud = null;
-const safeStorageGet = (key, fallback = null) => {
-  try {
-    const v = localStorage.getItem(key);
-    return v !== null ? v : fallback;
-  } catch {
-    return fallback;
-  }
-};
-const safeStorageSet = (key, val) => {
-  try {
-    localStorage.setItem(key, val);
-  } catch {
-    /* ignore */
-  }
-};
 
 const initMemHud = () => {
   memHud = document.createElement("div");
@@ -99,37 +78,9 @@ const textureCtx = textureCanvas.getContext("2d", { willReadFrequently: true });
 const webglCanvas = document.createElement("canvas");
 webglCanvas.id = "map-webgl";
 mapPanel.appendChild(webglCanvas);
-const overlayCenters = new Map(); // key `${c},${r}` -> {x,y}
 
-const state = {
-  map: {
-    id: "default",
-    name: "Default",
-    gridSizePx: 48,
-    gridType: "square",
-    cols: 20,
-    rows: 12,
-    backgroundUrl: "",
-    heights: {}
-  },
-  tokenDefs: [],
-  tokens: [],
-  viewMode: "3d",
-  heightMap: {
-    showVolumes: false,
-    showMesh: savedHeight,
-    heightScale: 3,
-    grid: [],
-    maxThreat: 1,
-    maxSupport: 1
-  },
-  overlayCenters,
-  selectedTokenIds: new Set(),
-  activeMoves: [],
-  activeEffects: [],
-  moveSpeedScale: 1,
-  showModels: savedModels
-};
+state.heightMap.showMesh = savedHeight;
+state.showModels = savedModels;
 
 const coercePx = (val, fallback, min) => {
   const n = parseFloat(val);
