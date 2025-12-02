@@ -75,7 +75,6 @@ export const initLogger = ({
     if (Array.isArray(saved)) state.entries = saved.slice(0, maxStored);
   };
 
-  // Load persisted history and class filters, then bootstrap defaults.
   loadHistory();
   loadEnabled();
   const bootstrapClasses = ["INFO", "DIM", "BUILD", "PARSE", "CAMERA", "3DLOAD", "ERROR"];
@@ -90,10 +89,8 @@ export const initLogger = ({
       logWindow.style.right = "auto";
       logWindow.style.bottom = "auto";
     }
-    if (saved.width) logWindow.style.width = coercePx(saved.width, `${MIN_W}px`, MIN_W);
-    else logWindow.style.width = `${MIN_W}px`;
-    if (saved.height) logWindow.style.height = coercePx(saved.height, `${MIN_H}px`, MIN_H);
-    else logWindow.style.height = `${MIN_H}px`;
+    logWindow.style.width = saved.width ? coercePx(saved.width, `${MIN_W}px`, MIN_W) : `${MIN_W}px`;
+    logWindow.style.height = saved.height ? coercePx(saved.height, `${MIN_H}px`, MIN_H) : `${MIN_H}px`;
   };
 
   const openLogWindow = () => {
@@ -124,7 +121,7 @@ export const initLogger = ({
     const enabled = state.enabledClasses.size ? state.enabledClasses : null;
     const visible = state.entries
       .filter((e) => {
-        if (e.class === "ERROR") return true; // always show errors
+        if (e.class === "ERROR") return true;
         return !enabled || enabled.has(e.class);
       })
       .sort((a, b) => b.time - a.time)
@@ -138,6 +135,7 @@ export const initLogger = ({
       const text = document.createElement("span");
       text.className = "log-text";
       text.textContent = `${new Date(entry.time).toLocaleTimeString()} — ${entry.msg}`;
+      if (entry.class === "ERROR") div.classList.add("log-error");
       div.appendChild(tag);
       div.appendChild(text);
       logEl.appendChild(div);
@@ -150,7 +148,6 @@ export const initLogger = ({
     if (!state.classes.has(cls)) {
       state.classes.add(cls);
       if (!state.enabledClasses.size) state.enabledClasses.add(cls);
-      // Always surface errors
       if (cls === "ERROR") state.enabledClasses.add(cls);
       buildClassFilters();
     }
@@ -200,59 +197,57 @@ export const initLogger = ({
       label.appendChild(span);
       classFilterContainer.appendChild(label);
     });
+    if (logWindow) {
+      logWindow.querySelector(".log-window-header")?.appendChild(classFilterContainer);
+    }
   };
 
-  // Wire buttons
-  if (logOpenBtn) {
-    logOpenBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (logWindow?.classList.contains("open")) closeLogWindow();
-      else openLogWindow();
-    });
+  // Drag handling for log window
+  if (logWindow) {
+    const logHeader = logWindow.querySelector(".log-window-header");
+    let draggingLog = false;
+    let dragOffsetLog = { x: 0, y: 0 };
+    const onLogMove = (e) => {
+      if (!draggingLog) return;
+      const x = e.clientX - dragOffsetLog.x;
+      const y = e.clientY - dragOffsetLog.y;
+      logWindow.style.left = `${x}px`;
+      logWindow.style.top = `${y}px`;
+      logWindow.style.right = "auto";
+      logWindow.style.bottom = "auto";
+    };
+    const endLogDrag = () => {
+      if (!draggingLog) return;
+      draggingLog = false;
+      window.removeEventListener("mousemove", onLogMove);
+      window.removeEventListener("mouseup", endLogDrag);
+      const rect = logWindow.getBoundingClientRect();
+      persistState({
+        left: rect.left,
+        top: rect.top,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`
+      });
+    };
+    if (logHeader) {
+      logHeader.addEventListener("mousedown", (e) => {
+        if (e.target.tagName === "BUTTON") return;
+        draggingLog = true;
+        const rect = logWindow.getBoundingClientRect();
+        dragOffsetLog = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        window.addEventListener("mousemove", onLogMove);
+        window.addEventListener("mouseup", endLogDrag);
+      });
+    }
   }
-  if (logCloseBtn) {
-    logCloseBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      closeLogWindow();
-    });
-  }
-  if (logClearBtn) {
-    logClearBtn.addEventListener("click", () => {
-      state.entries = [];
-      persistHistory();
-      renderEntries();
-    });
-  }
-  if (logCopyBtn) {
-    logCopyBtn.addEventListener("click", async () => {
-      const visible = renderEntries() || [];
-      const text = visible
-        .map((e) => `[${new Date(e.time).toLocaleTimeString()}][${e.class}] ${e.msg}`)
-        .join("\n");
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch {
-        /* ignore */
-      }
-    });
-  }
-  if (dbOpenBtn && dbWindow && dbBody) {
-    dbOpenBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (dbWindow.classList.contains("open")) {
-        dbWindow.classList.remove("open");
-        return;
-      }
-      const entries = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        entries.push({ key, value: localStorage.getItem(key) });
-      }
-      dbBody.textContent = entries
-        .map((kv) => `${kv.key}: ${kv.value}`)
-        .sort((a, b) => a.localeCompare(b))
-        .join("\n");
-      const saved = safeJsonParse(localStorage.getItem("db-window-state") || "{}", {});
+
+  const attachDbWindow = () => {
+    if (!dbOpenBtn || !dbWindow || !dbBody) return;
+    const header = dbWindow.querySelector(".db-window-header");
+    let dragging = false;
+    let dragOffset = { x: 0, y: 0 };
+
+    const applyDbState = (saved = {}) => {
       if (saved.left !== undefined && saved.top !== undefined) {
         dbWindow.style.left = `${saved.left}px`;
         dbWindow.style.top = `${saved.top}px`;
@@ -261,126 +256,11 @@ export const initLogger = ({
       }
       dbWindow.style.width = saved.width ? coercePx(saved.width, `${DB_MIN_W}px`, DB_MIN_W) : `${DB_MIN_W}px`;
       dbWindow.style.height = saved.height ? coercePx(saved.height, `${DB_MIN_H}px`, DB_MIN_H) : `${DB_MIN_H}px`;
-      dbWindow.classList.add("open");
-      persistDbState({ open: true });
-    });
-  }
-  if (dbCloseBtn && dbWindow) {
-    dbCloseBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      dbWindow.classList.remove("open");
-      const rect = dbWindow.getBoundingClientRect();
-      persistDbState({
-        left: rect.left,
-        top: rect.top,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
-        open: false
-      });
-    });
-  }
-
-  // Pipe console.error into the log as ERROR
-  const origConsoleError = console.error.bind(console);
-  console.error = (...args) => {
-    origConsoleError(...args);
-    const msg = args
-      .map((a) => {
-        if (a instanceof Error) return a.message;
-        if (typeof a === "object") return JSON.stringify(a);
-        return String(a);
-      })
-      .join(" ");
-    logClass("ERROR", msg);
-  };
-
-  // Global error handlers -> ERROR class
-  window.addEventListener("error", (e) => {
-    const msg = e.message || "Unknown error";
-    logClass("ERROR", msg);
-  });
-  window.addEventListener("unhandledrejection", (e) => {
-    const msg = e.reason?.message || String(e.reason || "Unhandled rejection");
-    logClass("ERROR", msg);
-  });
-
-  // Dragging
-  if (logWindow) {
-    const header = logWindow.querySelector(".log-window-header");
-    let dragging = false;
-    let dragOffset = { x: 0, y: 0 };
-    const resizeObserver = new ResizeObserver(() => {
-      const rect = logWindow.getBoundingClientRect();
-      persistState({ width: `${rect.width}px`, height: `${rect.height}px` });
-    });
-    resizeObserver.observe(logWindow);
-
-    const saveState = () => {
-      const rect = logWindow.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-      persistState({
-        left: rect.left,
-        top: rect.top,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
-        open: logWindow.classList.contains("open")
-      });
     };
 
-    const onMove = (e) => {
-      if (!dragging) return;
-      const x = e.clientX - dragOffset.x;
-      const y = e.clientY - dragOffset.y;
-      logWindow.style.left = `${x}px`;
-      logWindow.style.top = `${y}px`;
-      logWindow.style.right = "auto";
-      logWindow.style.bottom = "auto";
-    };
-
-    const endDrag = () => {
-      if (!dragging) return;
-      dragging = false;
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", endDrag);
-      saveState();
-    };
-
-    if (header) {
-      header.addEventListener("mousedown", (e) => {
-        if (e.target.tagName === "BUTTON") return;
-        dragging = true;
-        const rect = logWindow.getBoundingClientRect();
-        dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-        window.addEventListener("mousemove", onMove);
-        window.addEventListener("mouseup", endDrag);
-      });
-    }
-    // Insert filters panel below header
-    if (classFilterContainer && !classFilterContainer.parentElement) {
-      logWindow.insertBefore(classFilterContainer, logWindow.querySelector(".log-body"));
-    }
-
-    // Restore saved state on init
-    const saved = safeJsonParse(localStorage.getItem(storageKey) || "{}", {});
-    applyState(saved);
-    if (saved.open) logWindow.classList.add("open");
-  }
-
-  // DB window drag/restore
-  if (dbWindow) {
-    const header = dbWindow.querySelector(".db-window-header");
-    let dragging = false;
-    let dragOffset = { x: 0, y: 0 };
-
-    const saveState = () => {
-      const rect = dbWindow.getBoundingClientRect();
-      persistDbState({
-        left: rect.left,
-        top: rect.top,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
-        open: dbWindow.classList.contains("open")
-      });
+    const persistDb = (winState) => {
+      const saved = safeJsonParse(localStorage.getItem("db-window-state") || "{}", {});
+      localStorage.setItem("db-window-state", JSON.stringify({ ...saved, ...winState }));
     };
 
     const onMove = (e) => {
@@ -392,13 +272,18 @@ export const initLogger = ({
       dbWindow.style.right = "auto";
       dbWindow.style.bottom = "auto";
     };
-
     const endDrag = () => {
       if (!dragging) return;
       dragging = false;
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", endDrag);
-      saveState();
+      const rect = dbWindow.getBoundingClientRect();
+      persistDb({
+        left: rect.left,
+        top: rect.top,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`
+      });
     };
 
     if (header) {
@@ -413,25 +298,82 @@ export const initLogger = ({
     }
 
     const savedDb = safeJsonParse(localStorage.getItem("db-window-state") || "{}", {});
-    if (savedDb.left !== undefined) dbWindow.style.left = `${savedDb.left}px`;
-    if (savedDb.top !== undefined) dbWindow.style.top = `${savedDb.top}px`;
-    if (savedDb.width) dbWindow.style.width = coercePx(savedDb.width, `${DB_MIN_W}px`, DB_MIN_W);
-    if (savedDb.height) dbWindow.style.height = coercePx(savedDb.height, `${DB_MIN_H}px`, DB_MIN_H);
-    if (savedDb.open) dbWindow.classList.add("open");
-  }
+    if (savedDb.open) {
+      applyDbState(savedDb);
+      dbWindow.classList.add("open");
+    }
 
-  // Restore history into DOM from oldest to newest so ordering matches live logging.
-  loadHistory();
-  loadEnabled();
-  state.entries.forEach((e) => ensureClass(e.class));
+    dbOpenBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (dbWindow.classList.contains("open")) {
+        const rect = dbWindow.getBoundingClientRect();
+        persistDb({
+          left: rect.left,
+          top: rect.top,
+          width: `${rect.width}px`,
+          height: `${rect.height}px`,
+          open: false
+        });
+        dbWindow.classList.remove("open");
+        return;
+      }
+      const saved = safeJsonParse(localStorage.getItem("db-window-state") || "{}", {});
+      applyDbState(saved);
+      dbWindow.classList.add("open");
+      persistDb({ open: true });
+      dbBody.innerText = JSON.stringify(localStorage, null, 2);
+    });
+
+    if (dbCloseBtn) {
+      dbCloseBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const rect = dbWindow.getBoundingClientRect();
+        persistDb({
+          left: rect.left,
+          top: rect.top,
+          width: `${rect.width}px`,
+          height: `${rect.height}px`,
+          open: false
+        });
+        dbWindow.classList.remove("open");
+      });
+    }
+  };
+
+  if (logOpenBtn) {
+    logOpenBtn.addEventListener("click", () => {
+      if (logWindow?.classList.contains("open")) {
+        closeLogWindow();
+      } else {
+        openLogWindow();
+      }
+    });
+  }
+  if (logCloseBtn) logCloseBtn.addEventListener("click", closeLogWindow);
+  if (logClearBtn) logClearBtn.addEventListener("click", () => {
+    state.entries = [];
+    persistHistory();
+    renderEntries();
+  });
+  if (logCopyBtn) logCopyBtn.addEventListener("click", async () => {
+    const visible = renderEntries();
+    const lines = (visible || []).map((e) => `${e.class || "INFO"} ${new Date(e.time).toLocaleTimeString()} ${e.msg}`);
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+    } catch {
+      /* ignore */
+    }
+  });
+
   buildClassFilters();
-  for (let i = state.entries.length - 1; i >= 0; i--) {
-    /* noop; rendering done after class restoration */
-  }
   renderEntries();
+  attachDbWindow();
 
-  return { log, logClass, openLogWindow, closeLogWindow };
+  const savedLog = safeJsonParse(localStorage.getItem(storageKey) || "{}", {});
+  if (savedLog.open) {
+    applyState(savedLog);
+    logWindow?.classList.add("open");
+  }
+
+  return { log, logClass, classFilterContainer };
 };
-
-export const readLogHistory = (historyKey = "log-history") =>
-  safeJsonParse(localStorage.getItem(historyKey) || "[]", []);

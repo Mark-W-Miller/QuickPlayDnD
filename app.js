@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { buildAxisArena } from "./axes.js";
 import { updateHeightMapFromHeights, sampleHeightMap, rebuildHeightMesh } from "./heightmap.js";
-import { initLogger } from "./logger.js";
+import { initLogger } from "./ui/logger.js";
 import { createCameraManager } from "./camera.js";
 import { createSceneBuilder } from "./buildScene.js";
 import { parseScript } from "./parser.js";
