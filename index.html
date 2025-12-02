@@ -40,7 +40,7 @@
       </header>
 
       <section id="top-panel" class="panel top-panel">
-        <h3 class="section-title">Top Panel <label class="test-toggle"><input type="checkbox" id="show-test-dirs" /> Test Dirs</label></h3>
+        <h3 class="section-title">Top Panel</h3>
         <div class="top-panel-body"></div>
       </section>
 
@@ -98,8 +98,11 @@
         <span>Scripts</span>
         <button id="scripts-close">Close</button>
       </div>
-      <div id="script-tree-scroll" class="tree-scroll">
-        <div id="script-tree" class="script-tree" aria-label="Script list"></div>
+      <div class="scripts-window-body">
+        <label class="test-toggle"><input type="checkbox" id="show-test-dirs" /> Test Dirs</label>
+        <div id="script-tree-scroll" class="tree-scroll">
+          <div id="script-tree" class="script-tree" aria-label="Script list"></div>
+        </div>
       </div>
       <div class="scripts-window-resize" aria-label="Resize scripts window"></div>
     </div>

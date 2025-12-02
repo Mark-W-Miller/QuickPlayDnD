@@ -250,7 +250,14 @@ body {
 .scripts-window .tree-scroll {
   flex: 1;
   height: auto;
-  margin: 6px;
+  margin: 6px 0 0 0;
+}
+
+.scripts-window-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px 10px 8px;
 }
 
 .scripts-window-resize {
