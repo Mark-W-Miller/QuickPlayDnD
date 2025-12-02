@@ -12,6 +12,7 @@ Plain text commands, one per line. Lines starting with `#` are comments.
 - `EFFECT <magic|physical> AT A1 [SPEED <n>] [DUR <ms>]` — spawn a transient ground effect at a coordinate.
 - `REMOVE <tokenId>` — remove the first token whose id starts with `tokenId`.
 - `REMOVE HEIGHTMAP` — clear all height values and flatten the terrain.
+- `HEIGHT_RANDOM max=<n>` — generate a procedural heightmap with values in the range roughly [-n, n] (default n=2).
 - `CLEAR TOKENS` — remove all tokens.
 - `CLEAR ALL` — clear map, sprites, and tokens.
 - `RESET` — clear everything (map, sprites, tokens, backgrounds).

@@ -6,6 +6,7 @@
   { "dir": "test", "testOnly": true },
   { "file": "razorback-pass/map-razorback-pass.txt", "type": "map", "name": "Razorback Pass" },
   { "file": "razorback-pass/map-razorback-pass-flat.txt", "type": "map", "name": "Razorback Pass Flat" },
+  { "file": "razorback-pass/map-razorback-pass-Rnd.txt", "type": "map", "name": "Razorback Pass Random" },
   { "file": "test/map-hex.txt", "type": "map", "name": "Hex Board" },
   { "file": "test/map-grid.txt", "type": "map", "name": "Grid Board" },
   { "file": "test/map-hex-flat.txt", "type": "map", "name": "Hex Board (Flat)" },

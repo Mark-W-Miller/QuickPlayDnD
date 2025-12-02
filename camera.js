@@ -89,19 +89,12 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
       const azimuth = typeof saved.azimuth === "number" ? saved.azimuth : spherical.theta;
       const polar = typeof saved.polar === "number" ? saved.polar : spherical.phi;
 
-      const map = state.map || { cols: 20, rows: 20, gridSizePx: 48 };
-      const boardWidth = Math.max(1, textureCanvas.width || map.cols * map.gridSizePx);
-      const boardDepth = Math.max(1, textureCanvas.height || map.rows * map.gridSizePx);
-      const sceneRadius = Math.max(boardWidth, boardDepth);
-      const minDist = Math.max(2, sceneRadius * 0.1);
-      const maxDist = Math.max(sceneRadius, sceneRadius * 2.5);
-      distance = clamp(distance, minDist, maxDist);
-
-      const clampedPolar = clamp(polar, 0.05, Math.PI - 0.05);
+      // Apply payload as-is; keep clamps wide to preserve saved view.
+      const clampedPolar = clamp(polar, 0.001, Math.PI - 0.001);
       const newPos = new THREE.Vector3().setFromSpherical(new THREE.Spherical(distance, clampedPolar, azimuth)).add(target);
 
-      three.controls.minDistance = Math.min(minDist, distance * 0.9);
-      three.controls.maxDistance = Math.max(maxDist, distance * 1.1);
+      three.controls.minDistance = 0.001;
+      three.controls.maxDistance = 100000;
       if (Array.isArray(saved.up)) three.camera.up.fromArray(saved.up);
       three.camera.position.copy(newPos);
       three.controls.target.copy(target);

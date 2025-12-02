@@ -592,17 +592,19 @@ const applyInstructions = (instructions) => {
       default:
       case "height-rando": {
         const map = ensureMap();
-        const amp = Number(instr.kv.amp || instr.kv.scale || 2);
+        const amp = Number(instr.kv.max || instr.kv.amp || instr.kv.scale || 2);
+        let seed = Number(instr.kv.seed) || Date.now();
+        const rnd = () => {
+          seed = (seed * 1664525 + 1013904223) % 4294967296;
+          return seed / 4294967296;
+        };
         map.heights = {};
         for (let r = 0; r < map.rows; r++) {
           for (let c = 0; c < map.cols; c++) {
-            const h =
-              Math.sin(c * 0.08) * (amp * 0.5) +
-              Math.cos(r * 0.06) * (amp * 0.4) +
-              Math.sin((c + r) * 0.04) * (amp * 0.3);
-            map.heights[`${c},${r}`] = h;
+            map.heights[`${c},${r}`] = rnd() * amp; // [0, max)
           }
         }
+        logClass?.("BUILD", `HEIGHT_RANDOM seed=${seed} max=${amp}`);
         mapChanged = true;
         break;
       }
