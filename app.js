@@ -112,6 +112,7 @@ const state = {
     maxSupport: 1
   },
   overlayCenters,
+  selectedTokenIds: new Set(),
   activeMoves: [],
   activeEffects: [],
   moveSpeedScale: 1
@@ -433,6 +434,12 @@ const applyInstructions = (instructions) => {
           speed: token.speed || 12,
           progress: 0
         });
+        logClass?.(
+          "MOVE",
+          `Queued move ${token.id} from (${token.col},${token.row}) to (${instr.coord.col},${instr.coord.row}) speed=${
+            token.speed || 12
+          }`
+        );
         break;
       }
       case "attack": {
@@ -719,7 +726,8 @@ const sceneBuilder = createSceneBuilder({
   clamp,
   logClass
 });
-const { initThree, updateBoardScene, clearGroup, render3d, resizeRenderer, updateEffects3d } = sceneBuilder;
+const { initThree, updateBoardScene, clearGroup, render3d, resizeRenderer, updateEffects3d, updateTokens3d } =
+  sceneBuilder;
 const cameraManager = createCameraManager({ three, state, textureCanvas, clamp, logClass });
 
 const ensureRandomHeights = (map) => {
@@ -971,6 +979,9 @@ const runSelectedScripts = async ({ runIfNoneFallback = true } = {}) => {
 let lastAnimTime = null;
 const stepActiveMoves = (dt) => {
   let changed = false;
+  if (state.activeMoves.length) {
+    logClass?.("MOVE", `Stepping ${state.activeMoves.length} active moves dt=${dt.toFixed(4)}`);
+  }
   state.activeMoves = state.activeMoves.filter((move) => {
     const token = state.tokens.find((t) => t.id.startsWith(move.tokenId));
     if (!token) return false;
@@ -1086,16 +1097,38 @@ const syncMoveSpeedControls = () => {
   moveSpeedValue.textContent = `${state.moveSpeedScale.toFixed(2)}x`;
 };
 
+let tokenTableData = [];
+let lastTokenSelectIndex = null;
 const renderTokensWindow = () => {
   if (!tokensBody) return;
-  const lines = (state.tokens || [])
-    .map((t) => {
-      const col = Number.isFinite(t.col) ? t.col.toFixed(2) : t.col;
-      const row = Number.isFinite(t.row) ? t.row.toFixed(2) : t.row;
-      return `${t.id} (${t.defId}) @ (${col},${row}) speed=${t.speed || 0}`;
-    })
-    .sort((a, b) => a.localeCompare(b));
-  tokensBody.textContent = lines.join("\n");
+  const tokens = [...(state.tokens || [])].sort((a, b) => a.id.localeCompare(b.id));
+  tokenTableData = tokens;
+  const table = document.createElement("table");
+  table.className = "token-table";
+  const thead = document.createElement("thead");
+  thead.innerHTML = "<tr><th>ID</th><th>Type</th><th>Col</th><th>Row</th></tr>";
+  table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  tokens.forEach((t, idx) => {
+    const tr = document.createElement("tr");
+    tr.dataset.index = idx;
+    tr.dataset.id = t.id;
+    if (state.selectedTokenIds?.has(t.id)) tr.classList.add("selected");
+    const col = Number.isFinite(t.col) ? Math.round(t.col) : t.col;
+    const row = Number.isFinite(t.row) ? Math.round(t.row) : t.row;
+    tr.innerHTML = `<td>${t.id}</td><td>${t.defId}</td><td>${col}</td><td>${row}</td>`;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  tokensBody.innerHTML = "";
+  tokensBody.appendChild(table);
+};
+
+const refreshTokenHighlights = () => {
+  if (!state.lastBoard) return;
+  const { boardWidth, boardDepth, surfaceY, cellUnit } = state.lastBoard;
+  if (updateTokens3d) updateTokens3d(boardWidth, boardDepth, surfaceY, cellUnit);
+  if (render3d) render3d();
 };
 
 heatHeightSlider.addEventListener("input", (e) => {
@@ -1357,6 +1390,36 @@ if (tokensOpenBtn && tokensWindow && tokensBody) {
       tokensWindow.classList.remove("open");
     });
   }
+
+  tokensBody.addEventListener("click", (e) => {
+    const rowEl = e.target.closest("tr[data-index]");
+    if (!rowEl) return;
+    const idx = Number(rowEl.dataset.index);
+    const token = tokenTableData[idx];
+    if (!token) return;
+    const selected = new Set(state.selectedTokenIds || []);
+    const doRange = e.shiftKey && lastTokenSelectIndex != null;
+    const toggle = e.metaKey || e.ctrlKey;
+
+    if (doRange) {
+      const [a, b] = [lastTokenSelectIndex, idx].sort((x, y) => x - y);
+      if (!toggle) selected.clear();
+      for (let i = a; i <= b; i++) {
+        selected.add(tokenTableData[i].id);
+      }
+    } else if (toggle) {
+      if (selected.has(token.id)) selected.delete(token.id);
+      else selected.add(token.id);
+      lastTokenSelectIndex = idx;
+    } else {
+      selected.clear();
+      selected.add(token.id);
+      lastTokenSelectIndex = idx;
+    }
+    state.selectedTokenIds = selected;
+    renderTokensWindow();
+    refreshTokenHighlights();
+  });
 }
 
 // Sidebar drag-to-resize

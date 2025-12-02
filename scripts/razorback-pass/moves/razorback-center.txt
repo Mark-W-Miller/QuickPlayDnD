@@ -1,0 +1,7 @@
+# Bring everyone back toward the center of the board
+MOVE CLER TO M10
+MOVE MONK TO M9
+MOVE RANG TO M11
+MOVE ROGU TO M8
+MOVE WARR TO M12
+MOVE WIZ TO M13

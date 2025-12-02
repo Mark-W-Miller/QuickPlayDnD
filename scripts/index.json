@@ -1,5 +1,5 @@
 [
-  { "dir": "wight-battle", "testOnly": true },
+  { "dir": "wight-battle"},
   { "dir": "moves", "testOnly": true },
   { "dir": "razorback-pass" },
   { "dir": "3dTest", "testOnly": true },
@@ -20,6 +20,9 @@
   { "file": "3dTest/ranger-3d-demo.txt", "type": "map", "name": "3D Ranger Demo", "testOnly": true },
   { "file": "3dTest/all-3d-demo.txt", "type": "map", "name": "3D All Characters Demo", "testOnly": true },
   { "file": "3dTest/castle-demo.txt", "type": "map", "name": "3D Castle Demo", "testOnly": true },
+  { "file": "razorback-pass/razorback_pass_pop.txt", "type": "pop", "name": "Razorback Pass Pop" },
+  { "file": "razorback-pass/moves/razorback-wander.txt", "type": "move", "name": "Razorback Wander" },
+  { "file": "razorback-pass/moves/razorback-center.txt", "type": "move", "name": "Razorback Return Center" },
   { "file": "wight-battle/pop-wight-battle.txt", "type": "pop", "name": "Wight Battle Pop" },
   { "file": "test/pop-wight-edge.txt", "type": "pop", "name": "Wight Edge Tokens", "testOnly": true },
   { "file": "test/pop-templates.txt", "type": "pop", "name": "Template Samples", "testOnly": true },

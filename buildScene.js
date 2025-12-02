@@ -50,32 +50,42 @@ export const createSceneBuilder = ({
   // Cache GLB models for 3D tokens.
   const gltfLoader = new GLTFLoader();
   const modelCache = new Map();
+  let modelLoadChain = Promise.resolve();
   const getModelEntry = (url) => {
     if (!url) return null;
     if (modelCache.has(url)) return modelCache.get(url);
     const entry = { scene: null, bbox: null, promise: null };
     logClass("3DLOAD", `Start loading model ${url}`);
-    entry.promise = new Promise((resolve, reject) => {
-      gltfLoader.load(
-        url,
-        (gltf) => {
-          entry.scene = gltf.scene || gltf.scenes?.[0];
-          entry.bbox = new THREE.Box3().setFromObject(entry.scene);
-          const size = new THREE.Vector3();
-          entry.bbox.getSize(size);
-          logClass(
-            "3DLOAD",
-            `Loaded ${url} size(${size.x.toFixed(2)},${size.y.toFixed(2)},${size.z.toFixed(2)})`
-          );
-          resolve(entry);
-        },
-        undefined,
-        (err) => {
-          logClass("3DLOAD", `Failed to load ${url}: ${err?.message || err}`);
-          reject(err);
-        }
-      );
-    });
+    entry.promise = modelLoadChain = modelLoadChain
+      .then(
+        () =>
+          new Promise((resolve, reject) => {
+            gltfLoader.load(
+              url,
+              (gltf) => {
+                entry.scene = gltf.scene || gltf.scenes?.[0];
+                entry.bbox = new THREE.Box3().setFromObject(entry.scene);
+                const size = new THREE.Vector3();
+                entry.bbox.getSize(size);
+                logClass(
+                  "3DLOAD",
+                  `Loaded ${url} size(${size.x.toFixed(2)},${size.y.toFixed(2)},${size.z.toFixed(2)})`
+                );
+                resolve(entry);
+              },
+              undefined,
+              (err) => {
+                logClass("3DLOAD", `Failed to load ${url}: ${err?.message || err}`);
+                reject(err);
+              }
+            );
+          })
+      )
+      .catch((err) => {
+        // Do not break the chain on failure.
+        logClass("3DLOAD", `Model load chain error ${url}: ${err?.message || err}`);
+        return entry;
+      });
     modelCache.set(url, entry);
     return entry;
   };
@@ -113,19 +123,22 @@ export const createSceneBuilder = ({
   };
 
   const computeHexPlacement = (token, boardWidth, boardDepth) => {
-    const oc = state.overlayCenters;
-    const key = `${token.col},${token.row}`;
-    const center = oc ? oc.get(key) : null;
-    if (!center) {
-      logClass?.("ERROR", `Missing overlay center for ${key}`);
-      return { x: 0, z: 0, cellW: 0, cellH: 0 };
-    }
+    // Smooth placement based on overlay bounds; avoid snapping to centers so animation stays continuous.
     const ob = state.overlayBounds;
-    const u = (center.x - ob.minX) / ob.width;
-    const v = (center.y - ob.minY) / ob.height;
-    const x = u * boardWidth;
-    const z = v * boardDepth;
-    return { x, z, cellW: 0, cellH: 0 };
+    const cols = state.map.cols;
+    const rows = state.map.rows;
+    const originX = ob.minX;
+    const originY = ob.minY;
+    const spanW = ob.width;
+    const spanH = ob.height;
+    const cellW = spanW / (cols + 0.5);
+    const cellH = spanH / (rows + 0.5);
+    const rowBase = Math.floor(token.row);
+    const isOdd = rowBase % 2 !== 0;
+    const rowOffset = isOdd ? 0 : cellW * 0.5;
+    const x = originX + (token.col + 0.5) * cellW + rowOffset;
+    const z = originY + (token.row + 0.5) * cellH;
+    return { x, z, cellW, cellH };
   };
 
   const buildTokenMesh = (token, boardWidth, boardDepth, surfaceY, cellUnit) => {
@@ -174,6 +187,7 @@ export const createSceneBuilder = ({
     const normal = new THREE.Vector3(-dx, 1, -dz).normalize();
     const tokenSize = token.size || def.baseSize || 1;
     const isStructure = (token.type || def.category || "").toString().toLowerCase() === "structure";
+    const isSelected = state.selectedTokenIds?.has(token.id);
 
     // Build base disk (skip for structures).
     const faceTexture = getTokenTexture(token.svgUrl || def.svgUrl);
@@ -184,7 +198,7 @@ export const createSceneBuilder = ({
     const topBottomMat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0xffffff), // keep caps neutral so SVG colors stay true
       emissive: new THREE.Color(0x000000),
-      emissiveIntensity: 0,
+      emissiveIntensity: 0.25,
       metalness: 0.1,
       roughness: 0.4,
       map: faceTexture || null
@@ -192,10 +206,17 @@ export const createSceneBuilder = ({
     const sideMat = new THREE.MeshStandardMaterial({
       color: new THREE.Color("#b59b2a"), // dull yellow sides
       emissive: new THREE.Color("#b59b2a"),
-      emissiveIntensity: 0.15,
+      emissiveIntensity: 0.6,
       metalness: 0.05,
       roughness: 0.8
     });
+    if (isSelected) {
+      const glow = new THREE.Color("#4da3ff");
+      topBottomMat.emissive = glow;
+      topBottomMat.emissiveIntensity = 1.4;
+      sideMat.emissive = glow;
+      sideMat.emissiveIntensity = 1.4;
+    }
     const baseMesh = new THREE.Mesh(geometry, [sideMat, topBottomMat, topBottomMat]);
     baseMesh.castShadow = true;
 
@@ -227,8 +248,11 @@ export const createSceneBuilder = ({
           if (n.material) {
             const mats = Array.isArray(n.material) ? n.material : [n.material];
             mats.forEach((m) => {
-              if (m.emissive?.setScalar) m.emissive.setScalar(0.1);
-              if (m.emissiveIntensity !== undefined) m.emissiveIntensity = 0.4;
+              if (m.emissive?.setScalar) m.emissive.setScalar(0.3);
+              if (m.emissiveIntensity !== undefined) m.emissiveIntensity = Math.max(0.9, m.emissiveIntensity || 0);
+              if (m.color?.convertSRGBToLinear) m.color.convertSRGBToLinear();
+              if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+              m.needsUpdate = true;
             });
           }
           if (n.material?.clone) n.material = n.material.clone();
@@ -365,6 +389,9 @@ export const createSceneBuilder = ({
     three.scene.background = new THREE.Color(0x0a101a);
 
     three.renderer = new THREE.WebGLRenderer({ canvas: webglCanvas, antialias: true, alpha: true });
+    three.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    three.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    three.renderer.toneMappingExposure = 1.2;
     three.renderer.shadowMap.enabled = true;
     three.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     three.renderer.setPixelRatio(window.devicePixelRatio || 1);
@@ -390,7 +417,7 @@ export const createSceneBuilder = ({
     three.ambient = new THREE.AmbientLight(0xffffff, 1.7);
     three.scene.add(three.ambient);
 
-    three.directional = new THREE.DirectionalLight(0xffffff, 1.35);
+    three.directional = new THREE.DirectionalLight(0xffffff, 2.8);
     three.directional.position.set(4, 8, 6);
     three.directional.castShadow = true;
     three.directional.shadow.mapSize.set(1024, 1024);

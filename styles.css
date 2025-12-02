@@ -500,11 +500,27 @@ button:active {
   flex: 1;
   padding: 10px;
   overflow: auto;
+}
+
+.token-table {
+  width: 100%;
+  border-collapse: collapse;
   font-family: "JetBrains Mono", monospace;
   font-size: 0.9rem;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-word;
+}
+.token-table th,
+.token-table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.token-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+.token-table tbody tr.selected {
+  background: rgba(89, 145, 255, 0.18);
+  outline: 1px solid rgba(89, 145, 255, 0.6);
 }
 
 .db-window-header {
