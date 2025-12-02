@@ -6,7 +6,6 @@ export function initTokensWindow({
   state,
   coercePx,
   safeJsonParse,
-  renderTokensWindow,
   refreshTokenHighlights
 }) {
   if (!tokensOpenBtn || !tokensWindow || !tokensBody) return;
@@ -16,6 +15,29 @@ export function initTokensWindow({
   const MIN_W = 320;
   const MIN_H = 240;
   let lastSelectIndex = null;
+
+  const renderTokensWindow = () => {
+    const tokens = [...(state.tokens || [])].sort((a, b) => a.id.localeCompare(b.id));
+    const table = document.createElement("table");
+    table.className = "token-table";
+    const thead = document.createElement("thead");
+    thead.innerHTML = "<tr><th>ID</th><th>Type</th><th>Col</th><th>Row</th></tr>";
+    table.appendChild(thead);
+    const tbody = document.createElement("tbody");
+    tokens.forEach((t, idx) => {
+      const tr = document.createElement("tr");
+      tr.dataset.index = idx;
+      tr.dataset.id = t.id;
+      if (state.selectedTokenIds?.has(t.id)) tr.classList.add("selected");
+      const col = Number.isFinite(t.col) ? Math.round(t.col) : t.col;
+      const row = Number.isFinite(t.row) ? Math.round(t.row) : t.row;
+      tr.innerHTML = `<td>${t.id}</td><td>${t.defId}</td><td>${col}</td><td>${row}</td>`;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    tokensBody.innerHTML = "";
+    tokensBody.appendChild(table);
+  };
 
   const applyTokenWinState = (saved = {}) => {
     if (!tokensWindow) return;

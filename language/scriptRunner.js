@@ -1,13 +1,12 @@
-import { state } from "./state.js";
+import { state } from "../state.js";
 import { coordToIndex } from "./parser.js";
-import { tokenTemplates, buildTemplateSvg, ensureTemplateDef } from "./tokens.js";
+import { tokenTemplates, buildTemplateSvg, ensureTemplateDef } from "../tokens.js";
 
 export const createScriptRunner = ({
   parseScript,
   setBackground,
   updateBoardScene,
   render,
-  renderTokensWindow,
   clearGroup,
   log,
   logClass,
@@ -327,7 +326,7 @@ export const createScriptRunner = ({
     if (mapChanged) {
       state.heightMap.grid = [];
     }
-    renderTokensWindow();
+    // Tokens window renderer now lives in its own module; state updates will be reflected on next draw.
     if (mapChanged) logClass?.("INFO", "Map updated");
     if (state.map?.backgroundUrl) {
       setBackground(state.map.backgroundUrl);

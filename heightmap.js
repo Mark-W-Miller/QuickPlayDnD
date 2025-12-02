@@ -27,7 +27,17 @@ export const updateHeightMapFromHeights = (state, map) => {
   state.heightMap.grid = grid;
 };
 
+const zeroCell = { threat: 0, support: 0 };
+const getGridCell = (grid, r, c) => {
+  if (!Array.isArray(grid) || !grid.length) return zeroCell;
+  const row = grid[r];
+  if (!Array.isArray(row)) return zeroCell;
+  return row[c] || zeroCell;
+};
+
 export const sampleHeightMap = (state, u, v) => {
+  const grid = state.heightMap?.grid;
+  if (!grid) return 0;
   const x = clamp(u, 0, 1) * 7;
   const z = clamp(v, 0, 1) * 7;
   const x0 = Math.floor(x);
@@ -36,10 +46,10 @@ export const sampleHeightMap = (state, u, v) => {
   const z1 = clamp(z0 + 1, 0, 7);
   const fx = smoothstep(x - x0);
   const fz = smoothstep(z - z0);
-  const h00 = state.heightMap.grid[z0][x0];
-  const h10 = state.heightMap.grid[z0][x1];
-  const h01 = state.heightMap.grid[z1][x0];
-  const h11 = state.heightMap.grid[z1][x1];
+  const h00 = getGridCell(grid, z0, x0);
+  const h10 = getGridCell(grid, z0, x1);
+  const h01 = getGridCell(grid, z1, x0);
+  const h11 = getGridCell(grid, z1, x1);
   const heightVal = (cell) =>
     Math.max(
       cell.threat / (state.heightMap.maxThreat || 1),

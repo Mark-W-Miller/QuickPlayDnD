@@ -35,28 +35,11 @@
             <button id="tokens-open">Open Tokens</button>
             <button id="scripts-open">Scripts</button>
             <button id="params-open">View Parameters</button>
+            <button id="lang-open">Battle Language</button>
           </div>
         </div>
       </header>
 
-      <section id="top-panel" class="panel top-panel">
-        <h3 class="section-title">Top Panel</h3>
-        <div class="top-panel-body"></div>
-      </section>
-
-      <div id="sidebar-h-resizer" class="h-divider" aria-label="Resize panel vertically"></div>
-
-      <section class="panel console-panel">
-        <h3 class="section-title">Battle Language</h3>
-        <div class="actions">
-          <button id="run-btn">Run Script</button>
-          <button id="run-selected-btn">Run Selected</button>
-          <button id="clear-btn">Clear Tokens</button>
-        </div>
-        <textarea id="script-input" class="console" spellcheck="false"></textarea>
-      </section>
-
-      <div id="sidebar-resizer" class="divider" aria-label="Resize sidebar"></div>
 
       <section class="panel map-panel">
         <canvas id="map-canvas"></canvas>
@@ -105,6 +88,22 @@
         </div>
       </div>
       <div class="scripts-window-resize" aria-label="Resize scripts window"></div>
+    </div>
+
+    <div id="lang-window" class="lang-window">
+      <div class="lang-window-header">
+        <span>Battle Language</span>
+        <button id="lang-close">Close</button>
+      </div>
+      <div class="lang-body">
+        <div class="actions">
+          <button id="run-btn">Run Script</button>
+          <button id="run-selected-btn">Run Selected</button>
+          <button id="clear-btn">Clear Tokens</button>
+        </div>
+        <textarea id="script-input" class="console" spellcheck="false"></textarea>
+      </div>
+      <div class="lang-window-resize" aria-label="Resize battle language window"></div>
     </div>
 
     <div id="params-window" class="params-window">

@@ -4,9 +4,9 @@ import { updateHeightMapFromHeights, sampleHeightMap, rebuildHeightMesh } from "
 import { initLogger } from "./ui/logger.js";
 import { createCameraManager } from "./camera.js";
 import { createSceneBuilder } from "./buildScene.js";
-import { parseScript } from "./parser.js";
+import { parseScript } from "./language/parser.js";
 import { state, safeJsonParse, safeStorageGet, safeStorageSet } from "./state.js";
-import { createScriptRunner } from "./scriptRunner.js";
+import { createScriptRunner } from "./language/scriptRunner.js";
 import { overlayGridOnTexture as overlayGridOnTextureFn } from "./overlay/overlayGridOnTexture.js";
 import { cropTextureToOverlay as cropTextureToOverlayFn } from "./overlay/cropTextureToOverlay.js";
 import { setBackground as setBackgroundFn } from "./overlay/background.js";
@@ -15,6 +15,7 @@ import { createAnimationLoop } from "./animation/animation.js";
 import { initParamsWindow } from "./ui/paramsWindow.js";
 import { initTokensWindow } from "./ui/tokensWindow.js";
 import { initScriptsWindow } from "./ui/scriptsWindow.js";
+import { initLangWindow } from "./ui/langWindow.js";
 
 const canvas = document.getElementById("map-canvas");
 const inputEl = document.getElementById("script-input");
@@ -66,6 +67,9 @@ const showTestToggle = document.getElementById("show-test-dirs");
 const scriptsOpenBtn = document.getElementById("scripts-open");
 const scriptsCloseBtn = document.getElementById("scripts-close");
 const scriptsWindow = document.getElementById("scripts-window");
+const langOpenBtn = document.getElementById("lang-open");
+const langCloseBtn = document.getElementById("lang-close");
+const langWindow = document.getElementById("lang-window");
 let memHud = null;
 
 const initMemHud = () => {
@@ -285,29 +289,6 @@ const syncMoveSpeedControls = () => {
   moveSpeedValue.textContent = `${state.moveSpeedScale.toFixed(2)}x`;
 };
 
-const renderTokensWindow = () => {
-  if (!tokensBody) return;
-  const tokens = [...(state.tokens || [])].sort((a, b) => a.id.localeCompare(b.id));
-  const table = document.createElement("table");
-  table.className = "token-table";
-  const thead = document.createElement("thead");
-  thead.innerHTML = "<tr><th>ID</th><th>Type</th><th>Col</th><th>Row</th></tr>";
-  table.appendChild(thead);
-  const tbody = document.createElement("tbody");
-  tokens.forEach((t, idx) => {
-    const tr = document.createElement("tr");
-    tr.dataset.index = idx;
-    tr.dataset.id = t.id;
-    if (state.selectedTokenIds?.has(t.id)) tr.classList.add("selected");
-    const col = Number.isFinite(t.col) ? Math.round(t.col) : t.col;
-    const row = Number.isFinite(t.row) ? Math.round(t.row) : t.row;
-    tr.innerHTML = `<td>${t.id}</td><td>${t.defId}</td><td>${col}</td><td>${row}</td>`;
-    tbody.appendChild(tr);
-  });
-  table.appendChild(tbody);
-  tokensBody.innerHTML = "";
-  tokensBody.appendChild(table);
-};
 
 // Build script runner once dependencies are available.
 scriptRunner = createScriptRunner({
@@ -315,7 +296,6 @@ scriptRunner = createScriptRunner({
   setBackground,
   updateBoardScene,
   render,
-  renderTokensWindow,
   clearGroup,
   log,
   logClass,
@@ -471,10 +451,10 @@ initTokensWindow({
   state,
   coercePx,
   safeJsonParse,
-  renderTokensWindow,
   refreshTokenHighlights
 });
 initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWindow });
+initLangWindow({ langOpenBtn, langCloseBtn, langWindow });
 
 // Tokens window (movable/resizable, persisted)
 // tokens window handled in ui/tokensWindow.js

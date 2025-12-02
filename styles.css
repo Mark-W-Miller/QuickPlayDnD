@@ -22,8 +22,8 @@ body {
   margin: 0;
   padding: 16px;
   display: grid;
-  grid-template-columns: var(--sidebar-width) 8px 1fr;
-  grid-template-rows: auto var(--top-panel-height) 8px 1fr;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
   gap: 12px;
 }
 
@@ -67,9 +67,9 @@ body {
   width: 380px;
   height: 320px;
   background: rgba(11, 18, 32, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 14px 40px rgba(0, 0, 0, 0.5);
   border-radius: 10px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
   display: none;
   overflow: hidden;
   z-index: 12;
@@ -115,17 +115,12 @@ body {
 }
 
 .console-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  grid-column: 1 / 2;
-  grid-row: 4 / 5;
-  min-height: 0;
+  display: none;
 }
 
 .map-panel {
-  grid-column: 3 / 4;
-  grid-row: 2 / 5;
+  grid-column: 1 / -1;
+  grid-row: 2 / 3;
   padding: 0;
   display: flex;
   align-items: center;
@@ -140,17 +135,7 @@ body {
 }
 
 .top-panel {
-  grid-column: 1 / 2;
-  grid-row: 2 / 3;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.top-panel-body {
-  min-height: 80px;
-  flex: 1;
-  overflow: hidden;
+  display: none;
 }
 
 .test-toggle {
@@ -223,9 +208,9 @@ body {
   width: 440px;
   height: 420px;
   background: rgba(11, 18, 32, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 14px 40px rgba(0, 0, 0, 0.5);
   border-radius: 10px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
   display: none;
   overflow: hidden;
   z-index: 12;
@@ -543,9 +528,9 @@ button:active {
   width: 420px;
   height: 320px;
   background: rgba(11, 18, 32, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 14px 40px rgba(0, 0, 0, 0.5);
   border-radius: 10px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
   display: none;
   resize: both;
   overflow: hidden;
@@ -575,6 +560,65 @@ button:active {
 }
 
 .tokens-window-resize {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  right: 6px;
+  bottom: 6px;
+  cursor: se-resize;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+
+.lang-window {
+  position: fixed;
+  bottom: 140px;
+  right: 80px;
+  width: 520px;
+  height: 400px;
+  background: rgba(11, 18, 32, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 14px 40px rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  display: none;
+  overflow: hidden;
+  z-index: 12;
+}
+
+.lang-window.open {
+  display: flex;
+  flex-direction: column;
+}
+
+.lang-window-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+  cursor: move;
+}
+
+.lang-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.lang-body .console {
+  flex: 1;
+  width: 100%;
+  min-height: 180px;
+}
+
+.lang-window-resize {
   position: absolute;
   width: 14px;
   height: 14px;
