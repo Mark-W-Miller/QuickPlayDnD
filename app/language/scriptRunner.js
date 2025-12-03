@@ -330,6 +330,7 @@ export const createScriptRunner = ({
   state.tokens = working.tokens;
   if (mapChanged) {
     state.heightMap.grid = [];
+    state.cameraResetPending = true;
   }
   // Refresh tokens window if available.
   if (typeof state.renderTokensWindow === "function") {

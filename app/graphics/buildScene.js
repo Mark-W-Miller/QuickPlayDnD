@@ -398,7 +398,7 @@ export const createSceneBuilder = ({
     three.renderer.setPixelRatio(window.devicePixelRatio || 1);
 
     const rect = mapPanel.getBoundingClientRect();
-    three.camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.01, 5000);
+    three.camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.01, 50000);
     three.camera.position.set(5.5, 9, 5.5);
 
     three.controls = new OrbitControls(three.camera, three.renderer.domElement);

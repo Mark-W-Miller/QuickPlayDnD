@@ -52,7 +52,8 @@ const state = {
   moveSpeedScale: 1,
   showModels: true,
   lastBoard: null,
-  overlayBounds: null
+  overlayBounds: null,
+  cameraResetPending: false
 };
 
 export { state, safeJsonParse, safeStorageGet, safeStorageSet };

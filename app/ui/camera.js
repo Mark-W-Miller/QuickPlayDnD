@@ -201,7 +201,8 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
     const maxCellHeight = Math.max(0, ...Object.values(map.heights || {}));
     target.y = maxCellHeight > 0 ? Math.min(1.5, maxCellHeight * 0.2) : 0;
 
-    const baseDistance = clamp(Math.max(boardWidth, boardDepth) * 0.9, 4, 30);
+    // Start far enough to cover the whole board; let max distance scale with board size.
+    const baseDistance = clamp(Math.max(boardWidth, boardDepth) * 0.9, 4, Math.max(boardWidth, boardDepth) * 2);
     const presets = {
       top: { theta: 0, phi: 0.28 },
       nw: { theta: -Math.PI / 4, phi: 0.95 },

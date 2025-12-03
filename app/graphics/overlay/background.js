@@ -14,7 +14,8 @@ export function setBackground(url, deps) {
     three,
     webglCanvas,
     overlayGridToggle,
-    overlayLabelToggle
+    overlayLabelToggle,
+    onReady
   } = deps;
 
   if (!url) {
@@ -109,6 +110,7 @@ export function setBackground(url, deps) {
     cropTextureToOverlay({ textureCanvas, textureCtx, state, logClass });
     updateBoardScene();
     render();
+    if (typeof onReady === "function") onReady();
   };
   img.onerror = () => {
     logClass?.("ERROR", `Failed to load background ${url}`);

@@ -152,7 +152,13 @@ const setBackground = (url) =>
     three,
     webglCanvas,
     overlayGridToggle,
-    overlayLabelToggle
+    overlayLabelToggle,
+    onReady: () => {
+      if (state.cameraResetPending) {
+        state.cameraResetPending = false;
+        cameraManager.setCameraPreset("top", render3d);
+      }
+    }
   });
 
 
