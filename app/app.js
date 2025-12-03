@@ -70,7 +70,10 @@ const scriptsWindow = document.getElementById("scripts-window");
 const langOpenBtn = document.getElementById("lang-open");
 const langCloseBtn = document.getElementById("lang-close");
 const langWindow = document.getElementById("lang-window");
+const viewToggleBtn = document.getElementById("view-toggle");
 let memHud = null;
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
 
 const initMemHud = () => {
   memHud = document.createElement("div");
@@ -156,6 +159,17 @@ const setBackground = (url) =>
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const smoothstep = (t) => t * t * (3 - 2 * t);
+let interactionMode = "view"; // view | edit
+const applyControlMode = (mode) => {
+  const enabled = mode === "view";
+  if (three.controls) {
+    three.controls.enabled = true;
+    three.controls.enablePan = true;
+    three.controls.enableZoom = true;
+    // rotate only in view
+    three.controls.enableRotate = enabled;
+  }
+};
 const sceneBuilder = createSceneBuilder({
   state,
   three,
@@ -455,6 +469,87 @@ initTokensWindow({
 });
 initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWindow });
 initLangWindow({ langOpenBtn, langCloseBtn, langWindow });
+
+const setInteractionMode = (mode) => {
+  const next = mode === "edit" ? "edit" : "view";
+  interactionMode = next;
+  if (viewToggleBtn) viewToggleBtn.textContent = next === "view" ? "View" : "Edit";
+  applyControlMode(next);
+  logClass?.("INFO", `Mode changed to ${next}`);
+  logClass?.("EDIT", `interactionMode=${interactionMode}`);
+};
+
+const toggleMode = () => setInteractionMode(interactionMode === "view" ? "edit" : "view");
+
+if (viewToggleBtn) {
+  viewToggleBtn.textContent = "View";
+  viewToggleBtn.addEventListener("click", toggleMode);
+}
+
+// Keyboard shortcuts: V for view, E for edit (or toggle if already in that state)
+window.addEventListener("keydown", (e) => {
+  if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+  if (e.key.toLowerCase() === "v") setInteractionMode("view");
+  if (e.key.toLowerCase() === "e") setInteractionMode("edit");
+});
+
+// Initialize controls for the default mode
+applyControlMode(interactionMode);
+
+const handleCanvasClick = (event) => {
+  if (interactionMode !== "edit") return;
+  if (!three.scene || !three.camera || !three.tokenGroup || !state.lastBoard) return;
+  const rect = webglCanvas.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, three.camera);
+
+  // Check tokens first
+  const tokenHits = raycaster.intersectObjects(three.tokenGroup.children, true);
+  if (tokenHits.length) {
+    const tokenObj = tokenHits[0].object;
+    const tokenId = tokenObj.userData.tokenId || tokenObj.parent?.userData?.tokenId;
+    if (tokenId) {
+      logClass?.("EDIT", `Clicked token ${tokenId}`);
+      return;
+    }
+  }
+
+  // Then check board
+  const boardHits = raycaster.intersectObject(three.boardMesh, true);
+  if (boardHits.length) {
+    const hit = boardHits[0];
+    const { boardWidth, boardDepth } = state.lastBoard;
+    const { cols, rows, gridType } = state.map || {};
+    if (!cols || !rows) return;
+    const x = hit.point.x;
+    const z = hit.point.z;
+    if (gridType === "hex") {
+      const cellW = boardWidth / (cols + 0.5);
+      const cellH = boardDepth / (rows + 0.5);
+      let effRow = Math.round(z / cellH - 0.5);
+      effRow = Math.max(0, Math.min(rows - 1, effRow));
+      const row = effRow - 1;
+      const isOdd = row % 2 !== 0;
+      const rowOffset = isOdd ? cellW * 0.5 : -cellW * 0.5;
+      let col = Math.round((x - rowOffset) / cellW - 0.5);
+      col = Math.max(0, Math.min(cols - 1, col));
+      const ref = `${String.fromCharCode(65 + col)}${Math.max(0, row)}`;
+      logClass?.("EDIT", `Clicked hex ${ref}`);
+    } else {
+      const cellW = boardWidth / cols;
+      const cellH = boardDepth / rows;
+      let col = Math.round(x / cellW - 0.5);
+      let row = Math.round(z / cellH - 1.5);
+      col = Math.max(0, Math.min(cols - 1, col));
+      row = Math.max(0, Math.min(rows - 1, row));
+      const ref = `${String.fromCharCode(65 + col)}${row}`;
+      logClass?.("EDIT", `Clicked cell ${ref}`);
+    }
+  }
+};
+
+webglCanvas.addEventListener("mousedown", handleCanvasClick);
 
 // Tokens window (movable/resizable, persisted)
 // tokens window handled in ui/tokensWindow.js

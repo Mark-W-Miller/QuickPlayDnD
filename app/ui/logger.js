@@ -77,9 +77,12 @@ export const initLogger = ({
 
   loadHistory();
   loadEnabled();
-  const bootstrapClasses = ["INFO", "DIM", "BUILD", "PARSE", "CAMERA", "3DLOAD", "ERROR"];
+  const bootstrapClasses = ["INFO", "DIM", "BUILD", "PARSE", "CAMERA", "3DLOAD", "EDIT", "ERROR"];
   bootstrapClasses.forEach((c) => state.classes.add(c));
-  if (!state.enabledClasses.size) bootstrapClasses.forEach((c) => state.enabledClasses.add(c));
+  // Respect saved enabled classes; if none saved, enable defaults.
+  if (!state.enabledClasses.size) {
+    bootstrapClasses.forEach((c) => state.enabledClasses.add(c));
+  }
 
   const applyState = (saved = {}) => {
     if (!logWindow) return;
@@ -126,8 +129,7 @@ export const initLogger = ({
         if (e.class === "ERROR") return true;
         return !enabled || enabled.has(e.class);
       })
-      .sort((a, b) => b.time - a.time)
-      .slice(0, maxEntries);
+      .slice(-maxEntries); // keep chronological order
     visible.forEach((entry) => {
       const div = document.createElement("div");
       div.className = "log-entry";
@@ -142,6 +144,9 @@ export const initLogger = ({
       div.appendChild(text);
       logEl.appendChild(div);
     });
+    if (visible.length) {
+      logEl.scrollTop = logEl.scrollHeight;
+    }
     return visible;
   };
 
@@ -149,9 +154,9 @@ export const initLogger = ({
     if (!cls) return;
     if (!state.classes.has(cls)) {
       state.classes.add(cls);
-      if (!state.enabledClasses.size) state.enabledClasses.add(cls);
-      if (cls === "ERROR") state.enabledClasses.add(cls);
+      state.enabledClasses.add(cls);
       buildClassFilters();
+      persistEnabled();
     }
     if (cls === "ERROR") state.enabledClasses.add(cls);
   };
@@ -164,8 +169,8 @@ export const initLogger = ({
       data
     };
     ensureClass(entry.class);
-    state.entries.unshift(entry);
-    if (state.entries.length > maxStored) state.entries.length = maxStored;
+    state.entries.push(entry);
+    if (state.entries.length > maxStored) state.entries.shift();
     persistHistory();
     renderEntries();
   };

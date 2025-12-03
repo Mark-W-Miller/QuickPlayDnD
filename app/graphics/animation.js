@@ -39,6 +39,9 @@ export const createAnimationLoop = ({
       }
       return true;
     });
+    if (changed && typeof state.renderTokensWindow === "function") {
+      state.renderTokensWindow();
+    }
     return changed;
   };
 

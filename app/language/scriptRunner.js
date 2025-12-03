@@ -145,22 +145,25 @@ export const createScriptRunner = ({
             log(`Token ${instr.tokenId} not found`);
             return;
           }
-          state.activeMoves = state.activeMoves.filter((m) => !m.tokenId.startsWith(instr.tokenId));
-          state.activeMoves.push({
-            tokenId: token.id,
-            from: { col: token.col, row: token.row },
-            to: { col: instr.coord.col, row: instr.coord.row },
-            speed: token.speed || 12,
-            progress: 0
-          });
-          logClass?.(
-            "MOVE",
-            `Queued move ${token.id} from (${token.col},${token.row}) to (${instr.coord.col},${instr.coord.row}) speed=${
-              token.speed || 12
-            }`
-          );
-          break;
-        }
+  state.activeMoves = state.activeMoves.filter((m) => !m.tokenId.startsWith(instr.tokenId));
+  state.activeMoves.push({
+    tokenId: token.id,
+    from: { col: token.col, row: token.row },
+    to: { col: instr.coord.col, row: instr.coord.row },
+    speed: token.speed || 12,
+    progress: 0
+  });
+  logClass?.(
+    "MOVE",
+    `Queued move ${token.id} from (${token.col},${token.row}) to (${instr.coord.col},${instr.coord.row}) speed=${
+      token.speed || 12
+    }`
+  );
+  if (typeof state.renderTokensWindow === "function") {
+    state.renderTokensWindow();
+  }
+  break;
+}
         case "attack": {
           const attacker = working.tokens.find((t) => t.id.startsWith(instr.attackerId));
           const target = working.tokens.find((t) => t.id.startsWith(instr.targetId));
@@ -314,26 +317,29 @@ export const createScriptRunner = ({
       }
     });
 
-    if (!working.map.heights || !Object.keys(working.map.heights).length) {
-      working.map.heights = {};
-      for (let r = 0; r < working.map.rows; r++) {
-        for (let c = 0; c < working.map.cols; c++) {
-          working.map.heights[`${c},${r}`] = 0;
+  if (!working.map.heights || !Object.keys(working.map.heights).length) {
+    working.map.heights = {};
+    for (let r = 0; r < working.map.rows; r++) {
+      for (let c = 0; c < working.map.cols; c++) {
+        working.map.heights[`${c},${r}`] = 0;
         }
       }
     }
-    state.map = working.map;
-    state.tokenDefs = working.tokenDefs;
-    state.tokens = working.tokens;
-    if (mapChanged) {
-      state.heightMap.grid = [];
-    }
-    // Tokens window renderer now lives in its own module; state updates will be reflected on next draw.
-    if (mapChanged) logClass?.("INFO", "Map updated");
-    if (state.map?.backgroundUrl) {
-      setBackground(state.map.backgroundUrl);
-      log(`Applied ${instructions.length} instruction(s)`);
-      return;
+  state.map = working.map;
+  state.tokenDefs = working.tokenDefs;
+  state.tokens = working.tokens;
+  if (mapChanged) {
+    state.heightMap.grid = [];
+  }
+  // Refresh tokens window if available.
+  if (typeof state.renderTokensWindow === "function") {
+    state.renderTokensWindow();
+  }
+  if (mapChanged) logClass?.("INFO", "Map updated");
+  if (state.map?.backgroundUrl) {
+    setBackground(state.map.backgroundUrl);
+    log(`Applied ${instructions.length} instruction(s)`);
+    return;
     }
     if (!state.map) {
       log(`Applied ${instructions.length} instruction(s)`);

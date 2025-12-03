@@ -36,15 +36,18 @@ export function initTokensWindow({
       tr.dataset.index = idx;
       tr.dataset.id = t.id;
       if (state.selectedTokenIds?.has(t.id)) tr.classList.add("selected");
-      const col = Number.isFinite(t.col) ? Math.round(t.col) : t.col;
+      const colIdx = Number.isFinite(t.col) ? Math.round(t.col) : t.col;
+      const colLetter = Number.isFinite(colIdx) ? String.fromCharCode(65 + colIdx) : colIdx;
       const row = Number.isFinite(t.row) ? Math.round(t.row) : t.row;
-      tr.innerHTML = `<td>${t.id}</td><td>${t.defId}</td><td>${col}</td><td>${row}</td>`;
+      tr.innerHTML = `<td>${t.id}</td><td>${t.defId}</td><td>${colLetter}</td><td>${row}</td>`;
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
     tokensBody.innerHTML = "";
     tokensBody.appendChild(table);
   };
+  // Expose to other modules so they can refresh after token changes.
+  state.renderTokensWindow = renderTokensWindow;
 
   const applyTokenWinState = (saved = {}) => {
     if (!tokensWindow) return;

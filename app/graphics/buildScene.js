@@ -137,7 +137,7 @@ export const createSceneBuilder = ({
     const isOdd = rowBase % 2 !== 1;
     const rowOffset = isOdd ? 0 : cellW * 0.5;
     const x = originX + (token.col + 0.5) * cellW + rowOffset;
-    const z = 5+ originY + (token.row + 0.5) * cellH;
+    const z = 15+ (originY + (token.row + 0.5) * cellH) * 1.005;
     return { x, z, cellW, cellH };
   };
 
@@ -192,7 +192,7 @@ export const createSceneBuilder = ({
     // Build base disk (skip for structures).
     const faceTexture = getTokenTexture(token.svgUrl || def.svgUrl);
     const radius = Math.max(0.2, tokenSize * cellUnit * 0.35);
-    const height = Math.max(0.2, cellUnit * 0.2);
+    const height = Math.max(0.2, cellUnit * 0.3); // 1.5x taller base
     const geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
     const color = new THREE.Color(def.colorTint || "#ffffff");
     const topBottomMat = new THREE.MeshStandardMaterial({
@@ -285,6 +285,7 @@ export const createSceneBuilder = ({
       const yOffset = 0;
       baseGroup.position.set(placement.x, hCenter + yOffset + height / 2, placement.z);
     }
+    baseGroup.userData.tokenId = token.id;
     return baseGroup;
   };
 
