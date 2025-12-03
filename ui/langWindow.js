@@ -16,6 +16,12 @@ export function initLangWindow({ langOpenBtn, langCloseBtn, langWindow }) {
   let resizeStart = { x: 0, y: 0, w: 0, h: 0 };
   const MIN_W = 500;
   const MIN_H = 360;
+  const bringToFront = () => {
+    const next = (window.__winZCounter || 9000) + 1;
+    window.__winZCounter = next;
+    langWindow.style.zIndex = String(next);
+    persistState({ z: next });
+  };
 
   const applyState = (saved = {}) => {
     if (saved.left !== undefined && saved.top !== undefined) {
@@ -26,6 +32,7 @@ export function initLangWindow({ langOpenBtn, langCloseBtn, langWindow }) {
     }
     langWindow.style.width = saved.width ? coercePx(saved.width, `${MIN_W}px`, MIN_W) : `${MIN_W}px`;
     langWindow.style.height = saved.height ? coercePx(saved.height, `${MIN_H}px`, MIN_H) : `${MIN_H}px`;
+    if (saved.z) langWindow.style.zIndex = String(saved.z);
   };
 
   const persistState = (winState) => {
@@ -57,13 +64,15 @@ export function initLangWindow({ langOpenBtn, langCloseBtn, langWindow }) {
       left: rect.left,
       top: rect.top,
       width: `${rect.width}px`,
-      height: `${rect.height}px`
+      height: `${rect.height}px`,
+      z: Number(langWindow.style.zIndex) || undefined
     });
   };
 
   if (header) {
     header.addEventListener("mousedown", (e) => {
       if (e.target.tagName === "BUTTON") return;
+      bringToFront();
       dragging = true;
       const rect = langWindow.getBoundingClientRect();
       dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -71,6 +80,8 @@ export function initLangWindow({ langOpenBtn, langCloseBtn, langWindow }) {
       window.addEventListener("mouseup", endDrag);
     });
   }
+
+  langWindow.addEventListener("focusin", bringToFront);
 
   const onResizeMove = (e) => {
     if (!resizing) return;
@@ -92,7 +103,8 @@ export function initLangWindow({ langOpenBtn, langCloseBtn, langWindow }) {
       left: rect.left,
       top: rect.top,
       width: `${rect.width}px`,
-      height: `${rect.height}px`
+      height: `${rect.height}px`,
+      z: Number(langWindow.style.zIndex) || undefined
     });
   };
 
@@ -131,7 +143,8 @@ export function initLangWindow({ langOpenBtn, langCloseBtn, langWindow }) {
     })();
     applyState(saved);
     langWindow.classList.add("open");
-    persistState({ open: true });
+    bringToFront();
+    persistState({ open: true, z: Number(langWindow.style.zIndex) || undefined });
   });
 
   if (langCloseBtn) {
@@ -143,7 +156,8 @@ export function initLangWindow({ langOpenBtn, langCloseBtn, langWindow }) {
         top: rect.top,
         width: `${rect.width}px`,
         height: `${rect.height}px`,
-        open: false
+        open: false,
+        z: Number(langWindow.style.zIndex) || undefined
       });
       langWindow.classList.remove("open");
     });

@@ -91,6 +91,7 @@ export const initLogger = ({
     }
     logWindow.style.width = saved.width ? coercePx(saved.width, `${MIN_W}px`, MIN_W) : `${MIN_W}px`;
     logWindow.style.height = saved.height ? coercePx(saved.height, `${MIN_H}px`, MIN_H) : `${MIN_H}px`;
+    if (saved.z) logWindow.style.zIndex = String(saved.z);
   };
 
   const openLogWindow = () => {
@@ -111,7 +112,8 @@ export const initLogger = ({
       top: rect.height ? rect.top : prev.top,
       width: rect.width ? `${rect.width}px` : prev.width,
       height: rect.height ? `${rect.height}px` : prev.height,
-      open: false
+      open: false,
+      z: Number(logWindow.style.zIndex) || undefined
     });
   };
 
@@ -207,6 +209,11 @@ export const initLogger = ({
     const logHeader = logWindow.querySelector(".log-window-header");
     let draggingLog = false;
     let dragOffsetLog = { x: 0, y: 0 };
+    const bringToFront = () => {
+      const next = (window.__winZCounter || 9000) + 1;
+      window.__winZCounter = next;
+      logWindow.style.zIndex = String(next);
+    };
     const onLogMove = (e) => {
       if (!draggingLog) return;
       const x = e.clientX - dragOffsetLog.x;
@@ -226,12 +233,14 @@ export const initLogger = ({
         left: rect.left,
         top: rect.top,
         width: `${rect.width}px`,
-        height: `${rect.height}px`
+        height: `${rect.height}px`,
+        z: Number(logWindow.style.zIndex) || undefined
       });
     };
     if (logHeader) {
       logHeader.addEventListener("mousedown", (e) => {
         if (e.target.tagName === "BUTTON") return;
+        bringToFront();
         draggingLog = true;
         const rect = logWindow.getBoundingClientRect();
         dragOffsetLog = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -239,6 +248,15 @@ export const initLogger = ({
         window.addEventListener("mouseup", endLogDrag);
       });
     }
+
+    logWindow.addEventListener("focusin", bringToFront, true);
+    logWindow.addEventListener(
+      "mousedown",
+      (e) => {
+        if (e.target.closest(".log-window")) bringToFront();
+      },
+      true
+    );
   }
 
   const attachDbWindow = () => {
@@ -246,6 +264,12 @@ export const initLogger = ({
     const header = dbWindow.querySelector(".db-window-header");
     let dragging = false;
     let dragOffset = { x: 0, y: 0 };
+    const bringToFrontDb = () => {
+      const next = (window.__winZCounter || 9000) + 1;
+      window.__winZCounter = next;
+      dbWindow.style.zIndex = String(next);
+      persistDb({ z: next });
+    };
 
     const applyDbState = (saved = {}) => {
       if (saved.left !== undefined && saved.top !== undefined) {
@@ -289,6 +313,7 @@ export const initLogger = ({
     if (header) {
       header.addEventListener("mousedown", (e) => {
         if (e.target.tagName === "BUTTON") return;
+        bringToFrontDb();
         dragging = true;
         const rect = dbWindow.getBoundingClientRect();
         dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -338,6 +363,15 @@ export const initLogger = ({
         dbWindow.classList.remove("open");
       });
     }
+
+    dbWindow.addEventListener("focusin", bringToFrontDb, true);
+    dbWindow.addEventListener(
+      "mousedown",
+      (e) => {
+        if (e.target.closest(".db-window")) bringToFrontDb();
+      },
+      true
+    );
   };
 
   if (logOpenBtn) {

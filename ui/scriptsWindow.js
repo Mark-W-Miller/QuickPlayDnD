@@ -16,6 +16,12 @@ export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWind
   let resizeStart = { x: 0, y: 0, w: 0, h: 0 };
   const MIN_W = 360;
   const MIN_H = 300;
+  const bringToFront = () => {
+    const next = (window.__winZCounter || 9000) + 1;
+    window.__winZCounter = next;
+    scriptsWindow.style.zIndex = String(next);
+    persistState({ z: next });
+  };
 
   const applyState = (saved = {}) => {
     if (saved.left !== undefined && saved.top !== undefined) {
@@ -26,6 +32,7 @@ export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWind
     }
     scriptsWindow.style.width = saved.width ? coercePx(saved.width, `${MIN_W}px`, MIN_W) : `${MIN_W}px`;
     scriptsWindow.style.height = saved.height ? coercePx(saved.height, `${MIN_H}px`, MIN_H) : `${MIN_H}px`;
+    if (saved.z) scriptsWindow.style.zIndex = String(saved.z);
   };
 
   const persistState = (winState) => {
@@ -56,13 +63,15 @@ export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWind
       left: rect.left,
       top: rect.top,
       width: `${rect.width}px`,
-      height: `${rect.height}px`
+      height: `${rect.height}px`,
+      z: Number(scriptsWindow.style.zIndex) || undefined
     });
   };
 
   if (header) {
     header.addEventListener("mousedown", (e) => {
       if (e.target.tagName === "BUTTON") return;
+      bringToFront();
       dragging = true;
       const rect = scriptsWindow.getBoundingClientRect();
       dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -70,6 +79,16 @@ export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWind
       window.addEventListener("mouseup", endDrag);
     });
   }
+
+  scriptsWindow.addEventListener("focusin", bringToFront, true);
+  scriptsWindow.addEventListener(
+    "mousedown",
+    (e) => {
+      // ignore native scrollbar drags, but catch everything else
+      if (e.target.closest(".scripts-window")) bringToFront();
+    },
+    true
+  );
 
   const onResizeMove = (e) => {
     if (!resizing) return;
@@ -91,7 +110,8 @@ export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWind
       left: rect.left,
       top: rect.top,
       width: `${rect.width}px`,
-      height: `${rect.height}px`
+      height: `${rect.height}px`,
+      z: Number(scriptsWindow.style.zIndex) || undefined
     });
   };
 
@@ -130,7 +150,8 @@ export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWind
     })();
     applyState(saved);
     scriptsWindow.classList.add("open");
-    persistState({ open: true });
+    bringToFront();
+    persistState({ open: true, z: Number(scriptsWindow.style.zIndex) || undefined });
   });
 
   if (scriptsCloseBtn) {
@@ -148,15 +169,15 @@ export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWind
     });
   }
 
-  const saved = (() => {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    } catch {
-      return {};
+    const saved = (() => {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      } catch {
+        return {};
+      }
+    })();
+    if (saved.open) {
+      applyState(saved);
+      scriptsWindow.classList.add("open");
     }
-  })();
-  if (saved.open) {
-    applyState(saved);
-    scriptsWindow.classList.add("open");
-  }
 }

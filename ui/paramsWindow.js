@@ -33,6 +33,7 @@ export function initParamsWindow({ paramsOpenBtn, paramsCloseBtn, paramsWindow }
     }
     paramsWindow.style.width = saved.width ? coercePx(saved.width, `${MIN_W}px`, MIN_W) : `${MIN_W}px`;
     paramsWindow.style.height = saved.height ? coercePx(saved.height, `${MIN_H}px`, MIN_H) : `${MIN_H}px`;
+    if (saved.z) paramsWindow.style.zIndex = String(saved.z);
   };
 
   const persistState = (winState) => {
@@ -42,6 +43,13 @@ export function initParamsWindow({ paramsOpenBtn, paramsCloseBtn, paramsWindow }
     } catch {
       /* ignore */
     }
+  };
+
+  const bringToFront = () => {
+    const next = (window.__winZCounter || 9000) + 1;
+    window.__winZCounter = next;
+    paramsWindow.style.zIndex = String(next);
+    persistState({ z: next });
   };
 
   const onMove = (e) => {
@@ -71,6 +79,7 @@ export function initParamsWindow({ paramsOpenBtn, paramsCloseBtn, paramsWindow }
   if (header) {
     header.addEventListener("mousedown", (e) => {
       if (e.target.tagName === "BUTTON") return;
+      bringToFront();
       dragging = true;
       const rect = paramsWindow.getBoundingClientRect();
       dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -78,6 +87,8 @@ export function initParamsWindow({ paramsOpenBtn, paramsCloseBtn, paramsWindow }
       window.addEventListener("mouseup", endDrag);
     });
   }
+
+  paramsWindow.addEventListener("focusin", bringToFront);
 
   const onResizeMove = (e) => {
     if (!resizing) return;

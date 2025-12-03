@@ -16,6 +16,13 @@ export function initTokensWindow({
   const MIN_H = 240;
   let lastSelectIndex = null;
 
+  const bringToFront = () => {
+    const next = (window.__winZCounter || 9000) + 1;
+    window.__winZCounter = next;
+    tokensWindow.style.zIndex = String(next);
+    persistTokenWinState({ z: next });
+  };
+
   const renderTokensWindow = () => {
     const tokens = [...(state.tokens || [])].sort((a, b) => a.id.localeCompare(b.id));
     const table = document.createElement("table");
@@ -49,6 +56,7 @@ export function initTokensWindow({
     }
     tokensWindow.style.width = saved.width ? coercePx(saved.width, `${MIN_W}px`, MIN_W) : `${MIN_W}px`;
     tokensWindow.style.height = saved.height ? coercePx(saved.height, `${MIN_H}px`, MIN_H) : `${MIN_H}px`;
+    if (saved.z) tokensWindow.style.zIndex = String(saved.z);
   };
 
   const persistTokenWinState = (winState) => {
@@ -75,12 +83,14 @@ export function initTokensWindow({
       left: rect.left,
       top: rect.top,
       width: `${rect.width}px`,
-      height: `${rect.height}px`
+      height: `${rect.height}px`,
+      z: Number(tokensWindow.style.zIndex) || undefined
     });
   };
   if (header) {
     header.addEventListener("mousedown", (e) => {
       if (e.target.tagName === "BUTTON") return;
+      bringToFront();
       dragging = true;
       const rect = tokensWindow.getBoundingClientRect();
       dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -88,6 +98,8 @@ export function initTokensWindow({
       window.addEventListener("mouseup", endDrag);
     });
   }
+
+  tokensWindow.addEventListener("focusin", bringToFront);
 
   const resizeHandle = tokensWindow.querySelector(".tokens-window-resize");
   let resizing = false;
@@ -111,7 +123,8 @@ export function initTokensWindow({
       left: rect.left,
       top: rect.top,
       width: `${rect.width}px`,
-      height: `${rect.height}px`
+      height: `${rect.height}px`,
+      z: Number(tokensWindow.style.zIndex) || undefined
     });
   };
   if (resizeHandle) {
@@ -153,7 +166,8 @@ export function initTokensWindow({
     applyTokenWinState(saved);
     renderTokensWindow();
     tokensWindow.classList.add("open");
-    persistTokenWinState({ open: true });
+    bringToFront();
+    persistTokenWinState({ open: true, z: Number(tokensWindow.style.zIndex) || undefined });
   });
 
   if (tokensCloseBtn) {
