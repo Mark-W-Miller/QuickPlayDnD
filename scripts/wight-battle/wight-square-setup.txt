@@ -1,4 +1,0 @@
-# Wight Battle (square grid version)
-RESET
-MAP background=images/wight-battle.png grid=square size=50 board=20x32
-REMOVE HEIGHTMAP

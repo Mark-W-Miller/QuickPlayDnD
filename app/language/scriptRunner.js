@@ -2,6 +2,8 @@ import { state } from "../state.js";
 import { coordToIndex } from "./parser.js";
 import { tokenTemplates, buildTemplateSvg, ensureTemplateDef } from "../tokens.js";
 
+const SCRIPTS_BASE = "data/scripts";
+
 export const createScriptRunner = ({
   parseScript,
   setBackground,
@@ -365,7 +367,7 @@ export const createScriptRunner = ({
     const ordered = [...checked].sort((a, b) => (priority[a.type] ?? 3) - (priority[b.type] ?? 3));
     for (const item of ordered) {
       try {
-        const res = await fetch(`scripts/${item.file}`);
+        const res = await fetch(`${SCRIPTS_BASE}/${item.file}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
         const instructions = parseScript(text, { logClass });

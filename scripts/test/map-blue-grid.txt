@@ -1,4 +1,0 @@
-# Flat blue grid board
-RESET
-MAP background=images/blue-flat.png grid=square size=50 board=18x14
-REMOVE HEIGHTMAP

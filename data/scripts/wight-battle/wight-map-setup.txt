@@ -1,6 +1,6 @@
 # Wight Battle (flattened HEIGHT per row)
 RESET
-MAP background=images/wight-battle.png grid=hex size=64 board=20x38
+MAP background=data/images/wight-battle.png grid=hex size=64 board=20x38
 
 
 HEIGHT_START

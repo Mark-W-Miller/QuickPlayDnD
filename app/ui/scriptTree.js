@@ -1,3 +1,5 @@
+const SCRIPTS_BASE = "data/scripts";
+
 export function createScriptTreeManager({
   scriptTreeEl,
   showTestToggle,
@@ -17,7 +19,7 @@ export function createScriptTreeManager({
   const loadScriptIntoEditor = async (file) => {
     if (!file) return;
     try {
-      const res = await fetch(`scripts/${file}`);
+    const res = await fetch(`${SCRIPTS_BASE}/${file}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = await res.text();
       if (inputEl) inputEl.value = text.trim();
@@ -96,7 +98,7 @@ export function createScriptTreeManager({
         const first = nodeObj.entries?.[0];
         if (!first) return;
         try {
-          const res = await fetch(`scripts/${first.file}`);
+      const res = await fetch(`${SCRIPTS_BASE}/${first.file}`);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const text = await res.text();
           if (inputEl) inputEl.value = text.trim();
@@ -172,7 +174,7 @@ export function createScriptTreeManager({
 
   const loadScriptManifest = async (autoRunFn) => {
     try {
-      const res = await fetch("scripts/index.json");
+      const res = await fetch(`${SCRIPTS_BASE}/index.json`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (Array.isArray(data)) await buildScriptTree(data, autoRunFn);

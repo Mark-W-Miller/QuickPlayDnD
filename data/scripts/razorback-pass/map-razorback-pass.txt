@@ -1,6 +1,6 @@
 # Razorback Pass battle map setup
 # Uses hex grid; fit 1536x1024 image to max width 26 cols (size≈33.4px, rows≈20)
-MAP background=scripts/razorback-pass/images/razorback_pass_map.png grid=hex size=33.4 board=26x20
+MAP background=data/scripts/razorback-pass/images/razorback_pass_map.png grid=hex size=33.4 board=26x20
 
 # Heightmap — 0 = low grass, 4 = high ridge.
 # Two ridges (north & south), sloping down toward the road in the center.

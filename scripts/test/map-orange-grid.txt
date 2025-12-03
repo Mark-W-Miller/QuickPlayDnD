@@ -1,4 +1,0 @@
-# Flat orange grid board
-RESET
-MAP background=images/orange-flat.png grid=square size=50 board=16x12
-REMOVE HEIGHTMAP

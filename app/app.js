@@ -197,7 +197,7 @@ const buildDefaultMap = () => {
     gridType: "square",
     cols,
     rows,
-    backgroundUrl: "images/grid-default-map.png",
+    backgroundUrl: "data/images/grid-default-map.png",
     heights
   };
 };

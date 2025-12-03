@@ -1,4 +1,0 @@
-# Hex board (flat)
-RESET
-MAP background=images/hex-default-map.png grid=hex size=50 board=20x14
-REMOVE HEIGHTMAP

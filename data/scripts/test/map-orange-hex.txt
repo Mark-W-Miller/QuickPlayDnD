@@ -1,0 +1,4 @@
+# Flat orange hex board
+RESET
+MAP background=data/images/orange-flat.png grid=hex size=34 board=13x11
+REMOVE HEIGHTMAP

@@ -1,0 +1,4 @@
+# Flat green grid board
+RESET
+MAP background=data/images/green-flat.png grid=square size=50 board=20x20
+REMOVE HEIGHTMAP
