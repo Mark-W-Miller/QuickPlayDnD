@@ -389,7 +389,12 @@ export const createSceneBuilder = ({
     three.scene = new THREE.Scene();
     three.scene.background = new THREE.Color(0x0a101a);
 
-    three.renderer = new THREE.WebGLRenderer({ canvas: webglCanvas, antialias: true, alpha: true });
+    three.renderer = new THREE.WebGLRenderer({
+      canvas: webglCanvas,
+      antialias: true,
+      alpha: true,
+      logarithmicDepthBuffer: true // reduce z-fighting when zoomed out
+    });
     three.renderer.outputColorSpace = THREE.SRGBColorSpace;
     three.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     three.renderer.toneMappingExposure = 1.2;
@@ -398,7 +403,8 @@ export const createSceneBuilder = ({
     three.renderer.setPixelRatio(window.devicePixelRatio || 1);
 
     const rect = mapPanel.getBoundingClientRect();
-    three.camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.01, 50000);
+    // Use a slightly larger near plane for better depth precision; far will be tightened per board size.
+    three.camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.1, 50000);
     three.camera.position.set(5.5, 9, 5.5);
 
     three.controls = new OrbitControls(three.camera, three.renderer.domElement);
@@ -603,9 +609,13 @@ export const createSceneBuilder = ({
     }
     updateTokens3d(boardWidth, boardDepth, surfaceY, cellUnit);
 
-    if (three.controls) {
+    if (three.controls && three.camera) {
       const sceneRadius = Math.max(boardWidth, boardDepth);
-      three.controls.minDistance = 0.01;
+      // Tighten clip range to improve depth precision and reduce z-fighting.
+      three.camera.near = 0.1;
+      three.camera.far = Math.max(sceneRadius * 6, 200);
+      three.camera.updateProjectionMatrix();
+      three.controls.minDistance = 0.1;
       three.controls.maxDistance = Math.max(sceneRadius, sceneRadius * 2.5);
     }
 
