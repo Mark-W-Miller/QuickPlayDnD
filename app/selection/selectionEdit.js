@@ -62,8 +62,6 @@ export function createEditSelectionHandlers({
       refs.forEach((r) => next.add(r));
     }
     state.selectionCells = next;
-    selectionWindowApi?.setContent?.(Array.from(next).join(", "));
-    selectionWindowApi?.bringToFront?.();
     updateSelectionHighlights?.();
     render3d?.();
   };

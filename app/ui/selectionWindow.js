@@ -6,7 +6,7 @@ const coercePx = (val, fallback, min) => {
   return `${Math.max(n, min)}px`;
 };
 
-export function initSelectionWindow({ openBtn, closeBtn, clearBtn, windowEl, textarea }) {
+export function initSelectionWindow({ openBtn, closeBtn, clearBtn, windowEl, textarea, roadBtn, getSelectionRefs }) {
   if (!openBtn || !windowEl || !textarea) return null;
   const header = windowEl.querySelector(".selection-window-header");
   let dragging = false;
@@ -174,6 +174,16 @@ export function initSelectionWindow({ openBtn, closeBtn, clearBtn, windowEl, tex
       e.preventDefault();
       textarea.value = "";
       persistState({ content: "" });
+    });
+  }
+
+  if (roadBtn) {
+    roadBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const refs = (getSelectionRefs && getSelectionRefs()) || [];
+      const cmd = refs.length ? `ROADS ${refs.join(", ")}` : "ROADS";
+      textarea.value = cmd;
+      persistState({ content: cmd });
     });
   }
 

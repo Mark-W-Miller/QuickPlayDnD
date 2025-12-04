@@ -40,6 +40,7 @@ const selectionCloseBtn = document.getElementById("selection-close");
 const selectionWindow = document.getElementById("selection-window");
 const selectionClearBtn = document.getElementById("selection-clear");
 const selectionText = document.getElementById("selection-text");
+const selectionRoadBtn = document.getElementById("selection-road");
 const savedArenaGrid = (() => {
   return safeJsonParse(localStorage.getItem("arena-grid") || "false", false);
 })();
@@ -512,7 +513,9 @@ const selectionWindowApi =
     closeBtn: selectionCloseBtn,
     clearBtn: selectionClearBtn,
     windowEl: selectionWindow,
-    textarea: selectionText
+    textarea: selectionText,
+    roadBtn: selectionRoadBtn,
+    getSelectionRefs: () => Array.from(state.selectionCells || [])
   }) || { setContent: () => {}, bringToFront: () => {} };
 
 const setInteractionMode = (mode) => {
