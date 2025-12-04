@@ -526,8 +526,11 @@ const setInteractionMode = (mode) => {
   if (three.controls) {
     three.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
     three.controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
-    three.controls.enablePan = interactionMode === "view"; // no pan in edit
-    three.controls.enableRotate = interactionMode === "view"; // no rotate in edit
+    // In edit: disable rotate so left-drag does nothing; allow right-drag pan.
+    // In view: allow both.
+    three.controls.enableRotate = interactionMode === "view";
+    three.controls.enablePan = true;
+    // Also guard in selection handler to ignore right-drag when not edit, so LC in view remains orbit.
   }
 };
 

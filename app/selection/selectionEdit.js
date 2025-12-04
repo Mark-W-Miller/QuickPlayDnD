@@ -113,7 +113,8 @@ export function createEditSelectionHandlers({
   };
 
   const onMove = (event) => {
-    if (!dragSelecting) return false;
+    // Only respond to left-drag selection; let controls handle right-drag pan.
+    if (!dragSelecting || (event.buttons & 1) === 0) return false;
     const holdingShift = dragShift;
     const rect = canvas.getBoundingClientRect();
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
