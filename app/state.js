@@ -54,6 +54,7 @@ const state = {
   lastBoard: null,
   overlayBounds: null,
   cameraBounds: null,
+  selectionCells: new Set(),
   cameraResetPending: false
 };
 

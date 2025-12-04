@@ -47,6 +47,53 @@ export const createSceneBuilder = ({
     return tex;
   };
 
+  const updateSelectionHighlights = () => {
+    if (!three.selectionGroup || !state.selectionCells || !state.lastBoard) return;
+    // Clear previous
+    while (three.selectionGroup.children.length) {
+      const obj = three.selectionGroup.children.pop();
+      obj.geometry?.dispose?.();
+      if (obj.material?.map) obj.material.map.dispose?.();
+      obj.material?.dispose?.();
+    }
+    const { boardWidth, boardDepth, surfaceY } = state.lastBoard;
+    const map = state.map || {};
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+
+    state.selectionCells.forEach((ref) => {
+      const parts = /^([A-Z]+)(\d+)$/.exec(ref);
+      if (!parts) return;
+      const col = parts[1].charCodeAt(0) - 65;
+      const row = Number(parts[2]);
+      let mesh = null;
+      if (map.gridType === "hex") {
+        const placement = computeHexPlacement({ col, row }, boardWidth, boardDepth);
+        const s = Math.min(placement.cellW / Math.sqrt(3), placement.cellH / 1.5);
+        const hexShape = new THREE.Shape();
+        for (let i = 0; i < 6; i++) {
+          const ang = (Math.PI / 3) * i + Math.PI / 6; // flat-top orientation to match overlay
+          const px = s * Math.cos(ang);
+          const pz = s * Math.sin(ang);
+          if (i === 0) hexShape.moveTo(px, pz);
+          else hexShape.lineTo(px, pz);
+        }
+        hexShape.closePath();
+        const hexGeom = new THREE.ShapeGeometry(hexShape);
+        mesh = new THREE.Mesh(hexGeom, mat.clone());
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(placement.x, surfaceY + 0.05, placement.z);
+      } else {
+        const cellW = boardWidth / map.cols;
+        const cellH = boardDepth / map.rows;
+        const rect = new THREE.PlaneGeometry(cellW, cellH);
+        mesh = new THREE.Mesh(rect, mat.clone());
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(col * cellW + cellW / 2, surfaceY + 0.05, row * cellH + cellH / 2);
+      }
+      if (mesh) three.selectionGroup.add(mesh);
+    });
+  };
+
   // Cache GLB models for 3D tokens.
   const gltfLoader = new GLTFLoader();
   const modelCache = new Map();
@@ -491,9 +538,11 @@ export const createSceneBuilder = ({
     three.meshGroup.renderOrder = 2;
     three.tokenGroup = new THREE.Group();
     three.effectGroup = new THREE.Group();
+    three.selectionGroup = new THREE.Group();
     three.scene.add(three.meshGroup);
     three.scene.add(three.tokenGroup);
     three.scene.add(three.effectGroup);
+    three.scene.add(three.selectionGroup);
 
     resizeRenderer();
     window.addEventListener("resize", resizeRenderer);
@@ -674,6 +723,7 @@ export const createSceneBuilder = ({
     resizeRenderer,
     initThree,
     updateBoardScene,
-    updateEffects3d
+    updateEffects3d,
+    updateSelectionHighlights
   };
 };

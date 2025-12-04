@@ -17,6 +17,8 @@ import { initTokensWindow } from "./ui/tokensWindow.js";
 import { initScriptsWindow } from "./ui/scriptsWindow.js";
 import { initLangWindow } from "./ui/langWindow.js";
 import { initSelectionWindow } from "./ui/selectionWindow.js";
+import { createEditSelectionHandlers } from "./ui/selectionEdit.js";
+import { createViewSelectionHandlers } from "./ui/selectionView.js";
 
 const canvas = document.getElementById("map-canvas");
 const inputEl = document.getElementById("script-input");
@@ -198,8 +200,16 @@ const sceneBuilder = createSceneBuilder({
   clamp,
   logClass
 });
-const { initThree, updateBoardScene, clearGroup, render3d, resizeRenderer, updateEffects3d, updateTokens3d } =
-  sceneBuilder;
+const {
+  initThree,
+  updateBoardScene,
+  clearGroup,
+  render3d,
+  resizeRenderer,
+  updateEffects3d,
+  updateTokens3d,
+  updateSelectionHighlights
+} = sceneBuilder;
 const cameraManager = createCameraManager({ three, state, textureCanvas, clamp, logClass });
 
 const buildDefaultMap = () => {
@@ -512,6 +522,13 @@ const setInteractionMode = (mode) => {
   applyControlMode(next);
   logClass?.("INFO", `Mode changed to ${next}`);
   logClass?.("EDIT", `interactionMode=${interactionMode}`);
+  // Update orbit mouse bindings: disable rotate on left drag in edit mode.
+  if (three.controls) {
+    three.controls.mouseButtons.LEFT = interactionMode === "edit" ? null : THREE.MOUSE.ROTATE;
+    three.controls.mouseButtons.RIGHT = interactionMode === "edit" ? null : THREE.MOUSE.PAN;
+    three.controls.enablePan = interactionMode === "view";
+    three.controls.enableRotate = interactionMode === "view";
+  }
 };
 
 const toggleMode = () => setInteractionMode(interactionMode === "view" ? "edit" : "view");
@@ -526,111 +543,75 @@ window.addEventListener("keydown", (e) => {
   if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
   if (e.key.toLowerCase() === "v") setInteractionMode("view");
   if (e.key.toLowerCase() === "e") setInteractionMode("edit");
+  // Disable rotate orbit on left-click drag in edit mode by switching controls
+  if (three.controls) {
+    if (interactionMode === "edit") {
+      three.controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+    } else {
+      three.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    }
+  }
 });
 
 // Initialize controls for the default mode
 applyControlMode(interactionMode);
 
-const pickCellFromPoint = (x, z) => {
-  const { boardWidth, boardDepth } = state.lastBoard || {};
-  const { cols, rows, gridType } = state.map || {};
-  if (!cols || !rows || !boardWidth || !boardDepth) return null;
-  if (gridType === "hex" && state.overlayBounds && state.overlayCenters?.size) {
-    const ob = state.overlayBounds;
-    const normX = x / ob.width;
-    const normY = z / ob.height;
-    let best = null;
-    state.overlayCenters.forEach((pt, key) => {
-      const cx = pt.x / ob.width;
-      const cy = pt.y / ob.height;
-      const dx = normX - cx;
-      const dy = normY - cy;
-      const d2 = dx * dx + dy * dy;
-      if (best === null || d2 < best.d2) best = { key, d2 };
-    });
-    if (best) {
-      const [cStr, rStr] = best.key.split(",");
-      const col = Number(cStr);
-      const row = Number(rStr);
-      return { col, row, ref: `${String.fromCharCode(65 + col)}${row}` };
+// Selection handling
+const editSelect = createEditSelectionHandlers({
+  canvas: webglCanvas,
+  three,
+  state,
+  raycaster,
+  pointer,
+  logClass,
+  selectionWindowApi,
+  updateSelectionHighlights
+});
+const viewSelect = createViewSelectionHandlers({ three });
+
+webglCanvas.addEventListener("mousedown", (e) => {
+  const mode = interactionMode;
+  if (mode === "edit") {
+    if (e.button === 0 || e.button === 2) {
+      const handled = editSelect.onDown(e.button, e.shiftKey, e);
+      if (handled) e.preventDefault();
     }
-    return null;
+  } else {
+    viewSelect.onDown(e.button, e.shiftKey, e);
   }
-  const cellW = boardWidth / cols;
-  const cellH = boardDepth / rows;
-  let col = Math.floor(x / cellW);
-  let row = Math.floor(z / cellH);
-  col = Math.max(0, Math.min(cols - 1, col));
-  row = Math.max(0, Math.min(rows - 1, row));
-  return { col, row, ref: `${String.fromCharCode(65 + col)}${row}` };
-};
+});
 
-let dragSelecting = false;
-let dragStartCell = null;
-
-const handleCanvasMouseDown = (event) => {
-  if (interactionMode !== "edit") return;
-  if (!three.scene || !three.camera || !three.tokenGroup || !state.lastBoard) return;
-  const rect = webglCanvas.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-  raycaster.setFromCamera(pointer, three.camera);
-
-  // Check tokens first
-  const tokenHits = raycaster.intersectObjects(three.tokenGroup.children, true);
-  if (tokenHits.length) {
-    const tokenObj = tokenHits[0].object;
-    const tokenId = tokenObj.userData.tokenId || tokenObj.parent?.userData?.tokenId;
-    if (tokenId) {
-      logClass?.("EDIT", `Clicked token ${tokenId}`);
-      dragSelecting = false;
-      return;
+webglCanvas.addEventListener("mouseup", (e) => {
+  const mode = interactionMode;
+  if (mode === "edit") {
+    if (e.button === 0 || e.button === 2) {
+      const handled = editSelect.onUp(e.button, e.shiftKey, e);
+      if (handled) e.preventDefault();
     }
+  } else {
+    viewSelect.onUp(e.button, e.shiftKey, e);
   }
+});
 
-  const boardHits = raycaster.intersectObject(three.boardMesh, true);
-  if (boardHits.length) {
-    const hit = boardHits[0];
-    const cell = pickCellFromPoint(hit.point.x, hit.point.z);
-    if (cell) {
-      logClass?.("EDIT", `Clicked cell ${cell.ref}`);
-      dragSelecting = true;
-      dragStartCell = cell;
+webglCanvas.addEventListener("mousemove", (e) => {
+  const mode = interactionMode;
+  if (mode === "edit") {
+    if (e.buttons === 1) {
+      const handled = editSelect.onMove(e);
+      if (handled) e.preventDefault();
     }
+  } else {
+    viewSelect.onMove(e);
   }
-};
+});
 
-const handleCanvasMouseUp = (event) => {
-  if (!dragSelecting) return;
-  dragSelecting = false;
-  const rect = webglCanvas.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-  raycaster.setFromCamera(pointer, three.camera);
-  const boardHits = raycaster.intersectObject(three.boardMesh, true);
-  if (!boardHits.length || !dragStartCell) return;
-  const hit = boardHits[0];
-  const endCell = pickCellFromPoint(hit.point.x, hit.point.z);
-  if (!endCell) return;
-  const cols = state.map.cols;
-  const rows = state.map.rows;
-  const minCol = Math.max(0, Math.min(dragStartCell.col, endCell.col));
-  const maxCol = Math.min(cols - 1, Math.max(dragStartCell.col, endCell.col));
-  const minRow = Math.max(0, Math.min(dragStartCell.row, endCell.row));
-  const maxRow = Math.min(rows - 1, Math.max(dragStartCell.row, endCell.row));
-  const refs = [];
-  for (let r = minRow; r <= maxRow; r++) {
-    for (let c = minCol; c <= maxCol; c++) {
-      refs.push(`${String.fromCharCode(65 + c)}${r}`);
-    }
-  }
-  const output = refs.join(", ");
-  selectionWindowApi.setContent(output);
-  selectionWindowApi.bringToFront();
-};
-
-webglCanvas.addEventListener("mousedown", handleCanvasMouseDown);
-webglCanvas.addEventListener("mouseup", handleCanvasMouseUp);
+if (selectionClearBtn) {
+  selectionClearBtn.addEventListener("click", () => {
+    state.selectionCells = new Set();
+    selectionWindowApi.setContent("");
+    updateSelectionHighlights();
+  });
+}
 
 // Tokens window (movable/resizable, persisted)
 // tokens window handled in ui/tokensWindow.js
