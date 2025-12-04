@@ -58,7 +58,7 @@ export const createSceneBuilder = ({
     }
     const { boardWidth, boardDepth, surfaceY } = state.lastBoard;
     const map = state.map || {};
-    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
 
     state.selectionCells.forEach((ref) => {
       const parts = /^([A-Z]+)(\d+)$/.exec(ref);

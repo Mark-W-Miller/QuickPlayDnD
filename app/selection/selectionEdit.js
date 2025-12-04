@@ -8,12 +8,12 @@ export function createEditSelectionHandlers({
   pointer,
   logClass,
   selectionWindowApi,
-  updateSelectionHighlights
+  updateSelectionHighlights,
+  render3d
 }) {
   let dragSelecting = false;
-  let dragStartCell = null;
   let dragShift = false;
-
+  let lastDragRef = null;
   const pickCellFromPoint = (x, z) => {
     const { boardWidth, boardDepth } = state.lastBoard || {};
     const { cols, rows, gridType } = state.map || {};
@@ -49,30 +49,31 @@ export function createEditSelectionHandlers({
   };
 
   const applySelectionRefs = (refs, mode) => {
-    const next = new Set(mode === "toggle" ? state.selectionCells : []);
+    const next = new Set(state.selectionCells);
     if (mode === "toggle") {
       refs.forEach((ref) => {
         if (next.has(ref)) next.delete(ref);
         else next.add(ref);
       });
+    } else if (mode === "add") {
+      refs.forEach((r) => next.add(r));
     } else {
-      const same = refs.length === state.selectionCells.size && refs.every((ref) => state.selectionCells.has(ref));
-      if (same) {
-        next.clear();
-      } else {
-        refs.forEach((r) => next.add(r));
-      }
+      next.clear();
+      refs.forEach((r) => next.add(r));
     }
     state.selectionCells = next;
     selectionWindowApi?.setContent?.(Array.from(next).join(", "));
     selectionWindowApi?.bringToFront?.();
     updateSelectionHighlights?.();
+    render3d?.();
   };
 
   const onDown = (button, shift, event) => {
-    if (button !== 0 && button !== 2) return false;
+    if (button !== 0) return false; // only left click selects
     if (!three.scene || !three.camera || !three.tokenGroup || !state.lastBoard) return false;
+    logClass?.("SELECTION", `edit onDown button=${button} shift=${shift}`);
     dragShift = shift;
+    lastDragRef = null;
     const rect = canvas.getBoundingClientRect();
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -91,75 +92,44 @@ export function createEditSelectionHandlers({
     }
 
     const boardHits = raycaster.intersectObject(three.boardMesh, true);
-    if (boardHits.length) {
-      const hit = boardHits[0];
-      const cell = pickCellFromPoint(hit.point.x, hit.point.z);
-      if (cell) {
-        logClass?.("EDIT", `Clicked cell ${cell.ref}`);
-        dragSelecting = true;
-        dragStartCell = cell;
-        if (!shift) {
-          applySelectionRefs([cell.ref], "replace");
-        }
-        return true;
-      }
-    }
-    return false;
+    if (!boardHits.length) return false;
+    const hit = boardHits[0];
+    const cell = pickCellFromPoint(hit.point.x, hit.point.z);
+    if (!cell) return false;
+    logClass?.("EDIT", `Clicked cell ${cell.ref}`);
+    dragSelecting = true;
+    lastDragRef = cell.ref;
+    const mode = shift ? "toggle" : "add";
+    applySelectionRefs([cell.ref], mode);
+    return true;
   };
 
   const onUp = (button, shift, event) => {
-    if (button !== 0 && button !== 2) return false;
-    if (!dragSelecting) return false;
+    if (button !== 0) return false;
+    logClass?.("SELECTION", `edit onUp button=${button} shift=${shift}`);
     dragSelecting = false;
-    const rect = canvas.getBoundingClientRect();
-    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(pointer, three.camera);
-    const boardHits = raycaster.intersectObject(three.boardMesh, true);
-    if (!boardHits.length || !dragStartCell) return true;
-    const hit = boardHits[0];
-    const endCell = pickCellFromPoint(hit.point.x, hit.point.z);
-    if (!endCell) return true;
-    const cols = state.map.cols;
-    const rows = state.map.rows;
-    const minCol = Math.max(0, Math.min(dragStartCell.col, endCell.col));
-    const maxCol = Math.min(cols - 1, Math.max(dragStartCell.col, endCell.col));
-    const minRow = Math.max(0, Math.min(dragStartCell.row, endCell.row));
-    const maxRow = Math.min(rows - 1, Math.max(dragStartCell.row, endCell.row));
-    const refs = [];
-    for (let r = minRow; r <= maxRow; r++) {
-      for (let c = minCol; c <= maxCol; c++) {
-        refs.push(`${String.fromCharCode(65 + c)}${r}`);
-      }
-    }
-    applySelectionRefs(refs, dragShift ? "toggle" : "replace");
+    lastDragRef = null;
     return true;
   };
 
   const onMove = (event) => {
     if (!dragSelecting) return false;
+    const holdingShift = dragShift;
     const rect = canvas.getBoundingClientRect();
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, three.camera);
     const boardHits = raycaster.intersectObject(three.boardMesh, true);
-    if (!boardHits.length || !dragStartCell) return true;
+    if (!boardHits.length) return true;
     const hit = boardHits[0];
-    const endCell = pickCellFromPoint(hit.point.x, hit.point.z);
-    if (!endCell) return true;
-    const cols = state.map.cols;
-    const rows = state.map.rows;
-    const minCol = Math.max(0, Math.min(dragStartCell.col, endCell.col));
-    const maxCol = Math.min(cols - 1, Math.max(dragStartCell.col, endCell.col));
-    const minRow = Math.max(0, Math.min(dragStartCell.row, endCell.row));
-    const maxRow = Math.min(rows - 1, Math.max(dragStartCell.row, endCell.row));
-    const refs = [];
-    for (let r = minRow; r <= maxRow; r++) {
-      for (let c = minCol; c <= maxCol; c++) {
-        refs.push(`${String.fromCharCode(65 + c)}${r}`);
-      }
-    }
-    applySelectionRefs(refs, dragShift ? "toggle" : "replace");
+    const cell = pickCellFromPoint(hit.point.x, hit.point.z);
+    if (!cell) return true;
+    if (cell.ref === lastDragRef) return true;
+    lastDragRef = cell.ref;
+    const refs = [cell.ref];
+    const mode = dragShift ? "toggle" : "add";
+    applySelectionRefs(refs, mode);
+    logClass?.("SELECTION", `edit onMove refs: ${refs.join(", ")}`);
     return true;
   };
 

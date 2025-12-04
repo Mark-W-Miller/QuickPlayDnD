@@ -17,8 +17,8 @@ import { initTokensWindow } from "./ui/tokensWindow.js";
 import { initScriptsWindow } from "./ui/scriptsWindow.js";
 import { initLangWindow } from "./ui/langWindow.js";
 import { initSelectionWindow } from "./ui/selectionWindow.js";
-import { createEditSelectionHandlers } from "./ui/selectionEdit.js";
-import { createViewSelectionHandlers } from "./ui/selectionView.js";
+import { createEditSelectionHandlers } from "./selection/selectionEdit.js";
+import { createViewSelectionHandlers } from "./selection/selectionView.js";
 
 const canvas = document.getElementById("map-canvas");
 const inputEl = document.getElementById("script-input");
@@ -524,10 +524,10 @@ const setInteractionMode = (mode) => {
   logClass?.("EDIT", `interactionMode=${interactionMode}`);
   // Update orbit mouse bindings: disable rotate on left drag in edit mode.
   if (three.controls) {
-    three.controls.mouseButtons.LEFT = interactionMode === "edit" ? null : THREE.MOUSE.ROTATE;
-    three.controls.mouseButtons.RIGHT = interactionMode === "edit" ? null : THREE.MOUSE.PAN;
-    three.controls.enablePan = interactionMode === "view";
-    three.controls.enableRotate = interactionMode === "view";
+    three.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    three.controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+    three.controls.enablePan = interactionMode === "view"; // no pan in edit
+    three.controls.enableRotate = interactionMode === "view"; // no rotate in edit
   }
 };
 
@@ -543,6 +543,12 @@ window.addEventListener("keydown", (e) => {
   if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
   if (e.key.toLowerCase() === "v") setInteractionMode("view");
   if (e.key.toLowerCase() === "e") setInteractionMode("edit");
+  if (e.key === "Escape") {
+    state.selectionCells = new Set();
+    selectionWindowApi.setContent("");
+    updateSelectionHighlights();
+    render3d();
+  }
   // Disable rotate orbit on left-click drag in edit mode by switching controls
   if (three.controls) {
     if (interactionMode === "edit") {
@@ -565,7 +571,8 @@ const editSelect = createEditSelectionHandlers({
   pointer,
   logClass,
   selectionWindowApi,
-  updateSelectionHighlights
+  updateSelectionHighlights,
+  render3d
 });
 const viewSelect = createViewSelectionHandlers({ three });
 
