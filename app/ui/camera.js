@@ -196,7 +196,7 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
 
   const applySavedCamera = () => {
     const rec = getLatestCameraRecord();
-    if (!rec?.camera) return;
+    if (!rec?.camera) return false;
     const cbNow = state.lastBoard
       ? { w: state.lastBoard.cameraWidth || state.lastBoard.boardWidth, h: state.lastBoard.cameraDepth || state.lastBoard.boardDepth }
       : null;
@@ -223,6 +223,7 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
     }
     logClass?.("INFO", "Applying saved camera-state", cam);
     applyCameraPayload(cam);
+    return true;
   };
 
   const transitionToCamera = (payload, render3d) => {

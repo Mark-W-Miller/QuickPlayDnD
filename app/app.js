@@ -154,10 +154,10 @@ const setBackground = (url) =>
     overlayGridToggle,
     overlayLabelToggle,
     onReady: () => {
-      if (state.cameraResetPending) {
-        state.cameraResetPending = false;
-        cameraManager.setCameraPreset("top", render3d);
-      }
+      // After a map load, prefer restoring the last saved camera; if unavailable, fall back to top preset.
+      if (state.cameraResetPending) state.cameraResetPending = false;
+      const restored = cameraManager.applySavedCamera();
+      if (!restored) cameraManager.setCameraPreset("top", render3d);
     }
   });
 
