@@ -87,9 +87,17 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
   const buildPayload = () => {
     const target = three.controls?.target?.clone() || new THREE.Vector3();
     const distance = three.camera?.position?.distanceTo ? three.camera.position.distanceTo(target) : 0;
+    const cb = state.lastBoard
+      ? { w: state.lastBoard.cameraWidth || state.lastBoard.boardWidth, h: state.lastBoard.cameraDepth || state.lastBoard.boardDepth }
+      : null;
+    const normVec = (vec) => (cb ? [vec[0] / cb.w, vec[1], vec[2] / cb.h] : null);
+    const posArr = three.camera?.position?.toArray ? three.camera.position.toArray() : [0, 0, 0];
+    const tgtArr = target.toArray();
     return {
-      position: three.camera?.position?.toArray ? three.camera.position.toArray() : [0, 0, 0],
-      target: target.toArray(),
+      position: posArr,
+      target: tgtArr,
+      positionNorm: normVec(posArr),
+      targetNorm: normVec(tgtArr),
       distance,
       azimuth: three.controls?.getAzimuthalAngle ? three.controls.getAzimuthalAngle() : 0,
       polar: three.controls?.getPolarAngle ? three.controls.getPolarAngle() : Math.PI / 4,
@@ -189,11 +197,23 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
   const applySavedCamera = () => {
     const rec = getLatestCameraRecord();
     if (!rec?.camera) return;
+    const cbNow = state.lastBoard
+      ? { w: state.lastBoard.cameraWidth || state.lastBoard.boardWidth, h: state.lastBoard.cameraDepth || state.lastBoard.boardDepth }
+      : null;
     let cam = rec.camera;
-    // If the saved board differs from current, rescale X/Z to current board size.
-    if (rec.board && state.lastBoard && rec.board.width && rec.board.depth) {
-      const sx = (state.lastBoard.cameraWidth || state.lastBoard.boardWidth) / rec.board.width;
-      const sz = (state.lastBoard.cameraDepth || state.lastBoard.boardDepth) / rec.board.depth;
+    // Prefer normalized coords if present
+    const denorm = (vecNorm) => {
+      if (!vecNorm || !cbNow) return null;
+      return [vecNorm[0] * cbNow.w, vecNorm[1], vecNorm[2] * cbNow.h];
+    };
+    const posFromNorm = denorm(cam.positionNorm);
+    const tgtFromNorm = denorm(cam.targetNorm);
+    if (posFromNorm && tgtFromNorm) {
+      cam = { ...cam, position: posFromNorm, target: tgtFromNorm };
+    } else if (rec.board && cbNow && rec.board.width && rec.board.depth) {
+      // If the saved board differs from current, rescale X/Z to current board size.
+      const sx = cbNow.w / rec.board.width;
+      const sz = cbNow.h / rec.board.depth;
       const scaleVec = (vec) => [vec[0] * sx, vec[1], vec[2] * sz];
       cam = {
         ...cam,

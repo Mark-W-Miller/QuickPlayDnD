@@ -27,6 +27,8 @@ export function cropTextureToOverlay({ textureCanvas, textureCtx, state, logClas
     });
   }
   state.overlayBounds = { minX: 0, minY: 0, maxX: ob.width, maxY: ob.height, width: ob.width, height: ob.height };
+  // Keep cameraBounds in sync with the final overlay extent so hex/grid share the same camera frame.
+  state.cameraBounds = { width: ob.width, height: ob.height };
   logClass?.(
     "BUILD",
     `cropTextureToOverlay: trimmed canvas to ${crop.width}x${crop.height} from overlay bounds`
