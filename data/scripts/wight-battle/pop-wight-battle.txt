@@ -1,18 +1,18 @@
 #############################################
 # PCs
-CREATE template=token-small id=VC initials=VC bg=#dbeafe fg=#1d4ed8 @ B3
-CREATE template=token-medium id=CT initials=CT bg=#dbeafe fg=#1d4ed8 @ C5
-CREATE template=token-medium id=RS initials=RS bg=#dbeafe fg=#1d4ed8 @ D7
-CREATE template=token-medium id=TN initials=TN bg=#dbeafe fg=#1d4ed8 @ E5
-CREATE template=token-medium id=JS initials=JS bg=#dbeafe fg=#1d4ed8 @ F3
+CREATE template=token-small id=VC initials=VC name=Valiant bg=#dbeafe fg=#1d4ed8 faction=pc @ B3
+CREATE template=token-medium id=CT initials=CT name=Cleric bg=#dbeafe fg=#1d4ed8 faction=pc @ C5
+CREATE template=token-medium id=RS initials=RS name=Ranger bg=#dbeafe fg=#1d4ed8 faction=pc @ D7
+CREATE template=token-medium id=TN initials=TN name=Tank bg=#dbeafe fg=#1d4ed8 faction=pc @ E5
+CREATE template=token-medium id=JS initials=JS name=Jester bg=#dbeafe fg=#1d4ed8 faction=pc @ F3
 
 # NPC allies
-CREATE template=token-large id=ET initials=ET bg=#dbeafe fg=#1d4ed8 @ G7
+CREATE template=token-large id=ET initials=ET name=Ettin bg=#dbeafe fg=#1d4ed8 faction=ally @ G7
 
 # Enemies
-CREATE template=token-medium id=SS initials=SS bg=#fee2e2 fg=#b91c1c @ J4
-CREATE template=token-medium id=DC initials=DC bg=#fee2e2 fg=#b91c1c @ K6
-CREATE template=token-large id=MT initials=MT bg=#fee2e2 fg=#b91c1c @ L8
-CREATE template=token-medium id=MY initials=MY bg=#fee2e2 fg=#b91c1c @ I6
-CREATE template=token-medium id=FF initials=FF bg=#fee2e2 fg=#b91c1c @ H8
-CREATE template=token-medium id=DB initials=DB bg=#fee2e2 fg=#b91c1c @ I9
+CREATE template=token-medium id=SS initials=SS name=Shadow bg=#fee2e2 fg=#b91c1c faction=npc @ J4
+CREATE template=token-medium id=DC initials=DC name=DarkClaw bg=#fee2e2 fg=#b91c1c faction=npc @ K6
+CREATE template=token-large id=MT initials=MT name=Matron bg=#fee2e2 fg=#b91c1c faction=npc @ L8
+CREATE template=token-medium id=MY initials=MY name=Myconid bg=#fee2e2 fg=#b91c1c faction=npc @ I6
+CREATE template=token-medium id=FF initials=FF name=Foe bg=#fee2e2 fg=#b91c1c faction=npc @ H8
+CREATE template=token-medium id=DB initials=DB name=Dragonborn bg=#fee2e2 fg=#b91c1c faction=npc @ I9

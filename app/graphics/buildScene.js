@@ -203,10 +203,12 @@ export const createSceneBuilder = ({
       roughness: 0.4,
       map: faceTexture || null
     });
+    const sideColor =
+      (token.faction === "npc" || token.faction === "enemy" || token.faction === "hostile") ? "#b91c1c" : "#166534";
     const sideMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color("#b59b2a"), // dull yellow sides
-      emissive: new THREE.Color("#b59b2a"),
-      emissiveIntensity: 0.6,
+      color: new THREE.Color(sideColor),
+      emissive: new THREE.Color(sideColor),
+      emissiveIntensity: 0.9,
       metalness: 0.05,
       roughness: 0.8
     });
@@ -222,6 +224,33 @@ export const createSceneBuilder = ({
 
     const baseGroup = new THREE.Group();
     if (!isStructure) baseGroup.add(baseMesh);
+
+    // Add name wrapped around the side of the cylinder.
+    if (!isStructure && token.name) {
+      const labelCanvas = document.createElement("canvas");
+      labelCanvas.width = 512;
+      labelCanvas.height = 128;
+      const lctx = labelCanvas.getContext("2d");
+      lctx.clearRect(0, 0, labelCanvas.width, labelCanvas.height);
+      lctx.fillStyle = "rgba(0,0,0,0.25)"; // lighter band
+      lctx.fillRect(0, 0, labelCanvas.width, labelCanvas.height);
+      lctx.fillStyle = "#f8fafc";
+      lctx.font = "48px sans-serif";
+      lctx.textAlign = "center";
+      lctx.textBaseline = "middle";
+      lctx.fillText(token.name, labelCanvas.width / 2, labelCanvas.height / 2);
+      const tex = new THREE.CanvasTexture(labelCanvas);
+      tex.wrapS = THREE.ClampToEdgeWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      const labelGeom = new THREE.CylinderGeometry(radius * 1.05, radius * 1.05, height, 64, 1, true);
+      // Front faces only so the text isn’t visible through the cylinder; keep depthTest true to avoid bleed.
+      const labelMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.FrontSide, depthTest: true });
+      for (let i = 0; i < 2; i++) {
+        const labelMesh = new THREE.Mesh(labelGeom, labelMat);
+        labelMesh.rotation.y = i * Math.PI; // two sides opposite each other
+        baseGroup.add(labelMesh);
+      }
+    }
 
     // If a model URL is provided, add it on top of the disk (never replace the disk).
     if (def.modelUrl && state.showModels !== false) {

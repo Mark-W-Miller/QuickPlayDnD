@@ -77,14 +77,15 @@ export const parseScript = (script, { logClass } = {}) => {
       instructions.push({
         type: "sprite-def",
         def: {
-          id: code,
-          code,
-          name: kv.name || code,
-          category: kv.category || "Object",
-          svgUrl: kv.url || kv.svg || "",
-          modelUrl: kv.model || kv.modelurl || "",
-          baseSize: kv.size ? Number(kv.size) : 1,
-          colorTint: kv.tint
+        id: code,
+        code,
+        name: kv.name || code,
+        category: kv.category || "Object",
+        svgUrl: kv.url || kv.svg || "",
+        modelUrl: kv.model || kv.modelurl || "",
+        baseSize: kv.size ? Number(kv.size) : 1,
+        colorTint: kv.tint,
+        faction: (kv.faction || kv.side || kv.team || "").toLowerCase()
         }
       });
 

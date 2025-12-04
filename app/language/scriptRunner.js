@@ -270,6 +270,7 @@ export const createScriptRunner = ({
           const svgSource = tokenTemplates[svgKey] ? svgKey : tplKey || templateKey;
           const svgUrl = buildTemplateSvg(svgSource, { bg, fg, initials });
           const type = instr.kv.type || def.category || "Object";
+          const faction = (instr.kv.faction || instr.kv.side || instr.kv.team || def.faction || "").toLowerCase();
           const size = Number(instr.kv.size) || def.baseSize || 1;
           const coords =
             instr.allCoords && map
@@ -285,10 +286,12 @@ export const createScriptRunner = ({
               mapId: map.id,
               col: coord.col,
               row: coord.row,
+              name: instr.kv.name || def.name || baseId,
               initials,
               svgUrl,
               speed: Number(instr.kv.speed) || def.speed || 12,
               type,
+              faction,
               size
             });
           });
