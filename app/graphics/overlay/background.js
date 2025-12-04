@@ -107,6 +107,8 @@ export function setBackground(url, deps) {
       state,
       logClass
     });
+    // Remember untrimmed draw size for camera scaling so grid/hex overlays share a consistent extent.
+    state.cameraBounds = { width: drawW, height: drawH };
     cropTextureToOverlay({ textureCanvas, textureCtx, state, logClass });
     updateBoardScene();
     render();

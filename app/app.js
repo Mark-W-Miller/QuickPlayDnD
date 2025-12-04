@@ -385,7 +385,10 @@ const saveCamSlot = (slot) => {
   const payload = cameraManager.getCurrentCamera();
   try {
     const board = state.lastBoard
-      ? { width: state.lastBoard.boardWidth, depth: state.lastBoard.boardDepth }
+      ? {
+          width: state.lastBoard.cameraWidth || state.lastBoard.boardWidth,
+          depth: state.lastBoard.cameraDepth || state.lastBoard.boardDepth
+        }
       : null;
     localStorage.setItem(`camera-slot-${slot}`, JSON.stringify({ camera: payload, board }));
     refreshCamSlotIndicators();

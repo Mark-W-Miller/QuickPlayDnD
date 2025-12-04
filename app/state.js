@@ -53,6 +53,7 @@ const state = {
   showModels: true,
   lastBoard: null,
   overlayBounds: null,
+  cameraBounds: null,
   cameraResetPending: false
 };
 

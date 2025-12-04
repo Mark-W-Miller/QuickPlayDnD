@@ -46,8 +46,8 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
     const lb = state?.lastBoard;
     if (!lb) return null;
     return {
-      width: lb.boardWidth,
-      depth: lb.boardDepth,
+      width: lb.cameraWidth || lb.boardWidth,
+      depth: lb.cameraDepth || lb.boardDepth,
       mapId: state.map?.id || null,
       gridType: state.map?.gridType || null
     };
@@ -192,8 +192,8 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
     let cam = rec.camera;
     // If the saved board differs from current, rescale X/Z to current board size.
     if (rec.board && state.lastBoard && rec.board.width && rec.board.depth) {
-      const sx = state.lastBoard.boardWidth / rec.board.width;
-      const sz = state.lastBoard.boardDepth / rec.board.depth;
+      const sx = (state.lastBoard.cameraWidth || state.lastBoard.boardWidth) / rec.board.width;
+      const sz = (state.lastBoard.cameraDepth || state.lastBoard.boardDepth) / rec.board.depth;
       const scaleVec = (vec) => [vec[0] * sx, vec[1], vec[2] * sz];
       cam = {
         ...cam,
@@ -238,8 +238,9 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
   const setCameraPreset = (preset, render3d) => {
     if (!three.controls || !state.map) return;
     const map = state.map || { cols: 20, rows: 20 };
-    const boardWidth = Math.max(1, map.cols);
-    const boardDepth = Math.max(1, map.rows);
+    const lb = state.lastBoard;
+    const boardWidth = Math.max(1, lb?.cameraWidth || lb?.boardWidth || map.cols);
+    const boardDepth = Math.max(1, lb?.cameraDepth || lb?.boardDepth || map.rows);
     const target = new THREE.Vector3(boardWidth / 2, 0, boardDepth / 2);
     const maxCellHeight = Math.max(0, ...Object.values(map.heights || {}));
     target.y = maxCellHeight > 0 ? Math.min(1.5, maxCellHeight * 0.2) : 0;

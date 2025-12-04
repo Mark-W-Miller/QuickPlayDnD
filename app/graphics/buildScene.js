@@ -495,6 +495,8 @@ export const createSceneBuilder = ({
       boardWidth = Math.max(1, map.cols * cellSize);
       boardDepth = Math.max(1, map.rows * cellSize);
     }
+    const cameraWidth = state.cameraBounds?.width || boardWidth;
+    const cameraDepth = state.cameraBounds?.height || boardDepth;
     logClass(
       "BUILD",
       `buildScene: board=${boardWidth.toFixed(1)}x${boardDepth.toFixed(1)} tex=${texW}x${texH} cols=${map.cols} rows=${map.rows} size=${map.gridSizePx?.toFixed?.(
@@ -511,7 +513,14 @@ export const createSceneBuilder = ({
     );
     const maxCellHeight = Math.max(0, ...Object.values(map.heights || {}));
     const surfaceY = maxCellHeight > 0 ? Math.min(map.gridSizePx * 0.5, maxCellHeight * map.gridSizePx * 0.05) : 0;
-    state.lastBoard = { boardWidth, boardDepth, surfaceY, cellUnit: boardWidth / state.map.cols };
+    state.lastBoard = {
+      boardWidth,
+      boardDepth,
+      cameraWidth,
+      cameraDepth,
+      surfaceY,
+      cellUnit: boardWidth / state.map.cols
+    };
 
     three.boardMesh.geometry.dispose();
     three.boardMesh.geometry = new THREE.PlaneGeometry(boardWidth, boardDepth, 32, 32);
