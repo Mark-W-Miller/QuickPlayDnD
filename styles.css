@@ -114,6 +114,74 @@ body {
   z-index: 2;
 }
 
+.selection-window {
+  position: fixed;
+  bottom: 60px;
+  left: 60px;
+  width: 420px;
+  height: 240px;
+  background: rgba(11, 18, 32, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 14px 40px rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  display: none;
+  overflow: hidden;
+  z-index: 12;
+}
+
+.selection-window.open {
+  display: flex;
+  flex-direction: column;
+}
+
+.selection-window-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+  cursor: move;
+}
+
+.selection-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.selection-body {
+  flex: 1;
+  padding: 10px;
+}
+
+.selection-body textarea {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  background: rgba(0, 0, 0, 0.4);
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 8px;
+  font-family: monospace;
+}
+
+.selection-window-resize {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  right: 6px;
+  bottom: 6px;
+  cursor: se-resize;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+
 .console-panel {
   display: none;
 }

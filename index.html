@@ -36,6 +36,7 @@
             <button id="scripts-open">Scripts</button>
             <button id="params-open">View Parameters</button>
             <button id="lang-open">Battle Language</button>
+            <button id="selection-open">Selection</button>
             <button id="view-toggle">View</button>
           </div>
         </div>
@@ -143,6 +144,20 @@
         </div>
       </div>
       <div class="params-window-resize" aria-label="Resize"></div>
+    </div>
+
+    <div id="selection-window" class="selection-window">
+      <div class="selection-window-header">
+        <span>Selection</span>
+        <div class="selection-actions">
+          <button id="selection-clear">Clear</button>
+        </div>
+        <button id="selection-close">Close</button>
+      </div>
+      <div class="selection-body">
+        <textarea id="selection-text" spellcheck="false"></textarea>
+      </div>
+      <div class="selection-window-resize" aria-label="Resize selection window"></div>
     </div>
 
     <script type="module" src="app/app.js"></script>

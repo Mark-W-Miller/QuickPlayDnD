@@ -16,6 +16,7 @@ import { initParamsWindow } from "./ui/paramsWindow.js";
 import { initTokensWindow } from "./ui/tokensWindow.js";
 import { initScriptsWindow } from "./ui/scriptsWindow.js";
 import { initLangWindow } from "./ui/langWindow.js";
+import { initSelectionWindow } from "./ui/selectionWindow.js";
 
 const canvas = document.getElementById("map-canvas");
 const inputEl = document.getElementById("script-input");
@@ -32,6 +33,11 @@ const tokensBody = document.getElementById("tokens-body");
 const paramsOpenBtn = document.getElementById("params-open");
 const paramsCloseBtn = document.getElementById("params-close");
 const paramsWindow = document.getElementById("params-window");
+const selectionOpenBtn = document.getElementById("selection-open");
+const selectionCloseBtn = document.getElementById("selection-close");
+const selectionWindow = document.getElementById("selection-window");
+const selectionClearBtn = document.getElementById("selection-clear");
+const selectionText = document.getElementById("selection-text");
 const savedArenaGrid = (() => {
   return safeJsonParse(localStorage.getItem("arena-grid") || "false", false);
 })();
@@ -490,6 +496,14 @@ initTokensWindow({
 });
 initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWindow });
 initLangWindow({ langOpenBtn, langCloseBtn, langWindow });
+const selectionWindowApi =
+  initSelectionWindow({
+    openBtn: selectionOpenBtn,
+    closeBtn: selectionCloseBtn,
+    clearBtn: selectionClearBtn,
+    windowEl: selectionWindow,
+    textarea: selectionText
+  }) || { setContent: () => {}, bringToFront: () => {} };
 
 const setInteractionMode = (mode) => {
   const next = mode === "edit" ? "edit" : "view";
@@ -517,7 +531,44 @@ window.addEventListener("keydown", (e) => {
 // Initialize controls for the default mode
 applyControlMode(interactionMode);
 
-const handleCanvasClick = (event) => {
+const pickCellFromPoint = (x, z) => {
+  const { boardWidth, boardDepth } = state.lastBoard || {};
+  const { cols, rows, gridType } = state.map || {};
+  if (!cols || !rows || !boardWidth || !boardDepth) return null;
+  if (gridType === "hex" && state.overlayBounds && state.overlayCenters?.size) {
+    const ob = state.overlayBounds;
+    const normX = x / ob.width;
+    const normY = z / ob.height;
+    let best = null;
+    state.overlayCenters.forEach((pt, key) => {
+      const cx = pt.x / ob.width;
+      const cy = pt.y / ob.height;
+      const dx = normX - cx;
+      const dy = normY - cy;
+      const d2 = dx * dx + dy * dy;
+      if (best === null || d2 < best.d2) best = { key, d2 };
+    });
+    if (best) {
+      const [cStr, rStr] = best.key.split(",");
+      const col = Number(cStr);
+      const row = Number(rStr);
+      return { col, row, ref: `${String.fromCharCode(65 + col)}${row}` };
+    }
+    return null;
+  }
+  const cellW = boardWidth / cols;
+  const cellH = boardDepth / rows;
+  let col = Math.floor(x / cellW);
+  let row = Math.floor(z / cellH);
+  col = Math.max(0, Math.min(cols - 1, col));
+  row = Math.max(0, Math.min(rows - 1, row));
+  return { col, row, ref: `${String.fromCharCode(65 + col)}${row}` };
+};
+
+let dragSelecting = false;
+let dragStartCell = null;
+
+const handleCanvasMouseDown = (event) => {
   if (interactionMode !== "edit") return;
   if (!three.scene || !three.camera || !three.tokenGroup || !state.lastBoard) return;
   const rect = webglCanvas.getBoundingClientRect();
@@ -532,54 +583,54 @@ const handleCanvasClick = (event) => {
     const tokenId = tokenObj.userData.tokenId || tokenObj.parent?.userData?.tokenId;
     if (tokenId) {
       logClass?.("EDIT", `Clicked token ${tokenId}`);
+      dragSelecting = false;
       return;
     }
   }
 
-  // Then check board
   const boardHits = raycaster.intersectObject(three.boardMesh, true);
   if (boardHits.length) {
     const hit = boardHits[0];
-    const { boardWidth, boardDepth } = state.lastBoard;
-    const { cols, rows, gridType } = state.map || {};
-    if (!cols || !rows) return;
-    const x = hit.point.x;
-    const z = hit.point.z;
-    if (gridType === "hex" && state.overlayBounds && state.overlayCenters?.size) {
-      const ob = state.overlayBounds;
-      // Normalize click into overlay space (0..1)
-      const normX = x / ob.width;
-      const normY = z / ob.height;
-      let best = null;
-      state.overlayCenters.forEach((pt, key) => {
-        const cx = pt.x / ob.width;
-        const cy = pt.y / ob.height;
-        const dx = normX - cx;
-        const dy = normY - cy;
-        const d2 = dx * dx + dy * dy;
-        if (best === null || d2 < best.d2) best = { key, d2 };
-      });
-      if (best) {
-        const [cStr, rStr] = best.key.split(",");
-        const col = Number(cStr);
-        const row = Number(rStr);
-        const ref = `${String.fromCharCode(65 + col)}${row}`;
-        logClass?.("EDIT", `Clicked hex ${ref}`);
-      }
-    } else {
-      const cellW = boardWidth / cols;
-      const cellH = boardDepth / rows;
-      let col = Math.floor(x / cellW);
-      let row = Math.floor(z / cellH);
-      col = Math.max(0, Math.min(cols - 1, col));
-      row = Math.max(0, Math.min(rows - 1, row));
-      const ref = `${String.fromCharCode(65 + col)}${row}`;
-      logClass?.("EDIT", `Clicked cell ${ref}`);
+    const cell = pickCellFromPoint(hit.point.x, hit.point.z);
+    if (cell) {
+      logClass?.("EDIT", `Clicked cell ${cell.ref}`);
+      dragSelecting = true;
+      dragStartCell = cell;
     }
   }
 };
 
-webglCanvas.addEventListener("mousedown", handleCanvasClick);
+const handleCanvasMouseUp = (event) => {
+  if (!dragSelecting) return;
+  dragSelecting = false;
+  const rect = webglCanvas.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, three.camera);
+  const boardHits = raycaster.intersectObject(three.boardMesh, true);
+  if (!boardHits.length || !dragStartCell) return;
+  const hit = boardHits[0];
+  const endCell = pickCellFromPoint(hit.point.x, hit.point.z);
+  if (!endCell) return;
+  const cols = state.map.cols;
+  const rows = state.map.rows;
+  const minCol = Math.max(0, Math.min(dragStartCell.col, endCell.col));
+  const maxCol = Math.min(cols - 1, Math.max(dragStartCell.col, endCell.col));
+  const minRow = Math.max(0, Math.min(dragStartCell.row, endCell.row));
+  const maxRow = Math.min(rows - 1, Math.max(dragStartCell.row, endCell.row));
+  const refs = [];
+  for (let r = minRow; r <= maxRow; r++) {
+    for (let c = minCol; c <= maxCol; c++) {
+      refs.push(`${String.fromCharCode(65 + c)}${r}`);
+    }
+  }
+  const output = refs.join(", ");
+  selectionWindowApi.setContent(output);
+  selectionWindowApi.bringToFront();
+};
+
+webglCanvas.addEventListener("mousedown", handleCanvasMouseDown);
+webglCanvas.addEventListener("mouseup", handleCanvasMouseUp);
 
 // Tokens window (movable/resizable, persisted)
 // tokens window handled in ui/tokensWindow.js
