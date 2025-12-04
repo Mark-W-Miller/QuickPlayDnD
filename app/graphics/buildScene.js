@@ -410,10 +410,13 @@ export const createSceneBuilder = ({
     three.controls = new OrbitControls(three.camera, three.renderer.domElement);
     three.controls.enablePan = true;
     three.controls.enableDamping = false;
-    three.controls.minDistance = 0.01;
+    three.controls.minDistance = 0.001;
     three.controls.maxDistance = 400;
     three.controls.minPolarAngle = -Math.PI; // allow full under-orbit
     three.controls.maxPolarAngle = Math.PI;  // allow full over-orbit
+    three.controls.zoomSpeed = 2.0; // faster wheel zoom
+    three.controls.panSpeed = 2.0;  // snappier panning
+    three.controls.zoomToCursor = true;
     three.controls.mouseButtons = {
       LEFT: THREE.MOUSE.ROTATE,
       MIDDLE: THREE.MOUSE.DOLLY,
@@ -476,20 +479,18 @@ export const createSceneBuilder = ({
     const cellSize = map.gridSizePx || 1;
     let boardWidth = 1;
     let boardDepth = 1;
-    if (map.gridType === "hex") {
-      const bounds = state.overlayBounds;
-      if (bounds && bounds.width && bounds.height) {
-        boardWidth = bounds.width;
-        boardDepth = bounds.height;
-        logClass(
-          "BUILD",
-          `buildScene: using overlay bounds for board size ${boardWidth.toFixed(1)}x${boardDepth.toFixed(1)}`
-        );
-      } else {
-        const sqrt3 = Math.sqrt(3);
-        boardWidth = Math.max(1, sqrt3 * (map.cols + 0.5) * cellSize);
-        boardDepth = Math.max(1, (1.5 * map.rows + 0.5) * cellSize);
-      }
+    const bounds = state.overlayBounds;
+    if (bounds && bounds.width && bounds.height) {
+      boardWidth = bounds.width;
+      boardDepth = bounds.height;
+      logClass(
+        "BUILD",
+        `buildScene: using overlay bounds for board size ${boardWidth.toFixed(1)}x${boardDepth.toFixed(1)}`
+      );
+    } else if (map.gridType === "hex") {
+      const sqrt3 = Math.sqrt(3);
+      boardWidth = Math.max(1, sqrt3 * (map.cols + 0.5) * cellSize);
+      boardDepth = Math.max(1, (1.5 * map.rows + 0.5) * cellSize);
     } else {
       boardWidth = Math.max(1, map.cols * cellSize);
       boardDepth = Math.max(1, map.rows * cellSize);
@@ -612,7 +613,7 @@ export const createSceneBuilder = ({
     if (three.controls && three.camera) {
       const sceneRadius = Math.max(boardWidth, boardDepth);
       // Tighten clip range to improve depth precision and reduce z-fighting.
-      three.camera.near = 0.1;
+      three.camera.near = 0.05;
       three.camera.far = Math.max(sceneRadius * 6, 200);
       three.camera.updateProjectionMatrix();
       three.controls.minDistance = 0.1;

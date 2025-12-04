@@ -197,17 +197,13 @@ const { initThree, updateBoardScene, clearGroup, render3d, resizeRenderer, updat
 const cameraManager = createCameraManager({ three, state, textureCanvas, clamp, logClass });
 
 const buildDefaultMap = () => {
-  const cols = 100;
-  const rows = 80;
-  const size = 10;
+  const cols = 20;
+  const rows = 20;
+  const size = 48;
   const heights = {};
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const h =
-        Math.sin(c * 0.08) * 2 +
-        Math.cos(r * 0.06) * 1.5 +
-        Math.sin((c + r) * 0.04) * 1.2;
-      heights[`${c},${r}`] = h;
+      heights[`${c},${r}`] = 0;
     }
   }
   state.map = {
@@ -369,13 +365,29 @@ const applyCamSlot = (slot) => {
   if (!raw) return;
   const parsed = safeJsonParse(raw, null);
   if (!parsed) return;
-  cameraManager.transitionToCamera(parsed, render3d);
+  let payload = parsed.camera || parsed;
+  // If the saved slot was normalized to a previous board size, rescale to the current one.
+  const savedBoard = parsed.board;
+  if (savedBoard && state.lastBoard) {
+    const sx = state.lastBoard.boardWidth / (savedBoard.width || state.lastBoard.boardWidth);
+    const sz = state.lastBoard.boardDepth / (savedBoard.depth || state.lastBoard.boardDepth);
+    const scaleVec = (vec) => [vec[0] * sx, vec[1], vec[2] * sz];
+    payload = {
+      ...payload,
+      position: scaleVec(payload.position || [0, 0, 0]),
+      target: scaleVec(payload.target || [0, 0, 0])
+    };
+  }
+  cameraManager.transitionToCamera(payload, render3d);
 };
 
 const saveCamSlot = (slot) => {
   const payload = cameraManager.getCurrentCamera();
   try {
-    localStorage.setItem(`camera-slot-${slot}`, JSON.stringify(payload));
+    const board = state.lastBoard
+      ? { width: state.lastBoard.boardWidth, depth: state.lastBoard.boardDepth }
+      : null;
+    localStorage.setItem(`camera-slot-${slot}`, JSON.stringify({ camera: payload, board }));
     refreshCamSlotIndicators();
     if (logClass) logClass("CAMERA", `Saved view slot ${slot}`, payload);
   } catch {
@@ -530,23 +542,32 @@ const handleCanvasClick = (event) => {
     if (!cols || !rows) return;
     const x = hit.point.x;
     const z = hit.point.z;
-    if (gridType === "hex") {
-      const cellW = boardWidth / (cols + 0.5);
-      const cellH = boardDepth / (rows + 0.5);
-      let effRow = Math.round(z / cellH - 0.5);
-      effRow = Math.max(0, Math.min(rows - 1, effRow));
-      const row = effRow - 1;
-      const isOdd = row % 2 !== 0;
-      const rowOffset = isOdd ? cellW * 0.5 : -cellW * 0.5;
-      let col = Math.round((x - rowOffset) / cellW - 0.5);
-      col = Math.max(0, Math.min(cols - 1, col));
-      const ref = `${String.fromCharCode(65 + col)}${Math.max(0, row)}`;
-      logClass?.("EDIT", `Clicked hex ${ref}`);
+    if (gridType === "hex" && state.overlayBounds && state.overlayCenters?.size) {
+      const ob = state.overlayBounds;
+      // Normalize click into overlay space (0..1)
+      const normX = x / ob.width;
+      const normY = z / ob.height;
+      let best = null;
+      state.overlayCenters.forEach((pt, key) => {
+        const cx = pt.x / ob.width;
+        const cy = pt.y / ob.height;
+        const dx = normX - cx;
+        const dy = normY - cy;
+        const d2 = dx * dx + dy * dy;
+        if (best === null || d2 < best.d2) best = { key, d2 };
+      });
+      if (best) {
+        const [cStr, rStr] = best.key.split(",");
+        const col = Number(cStr);
+        const row = Number(rStr);
+        const ref = `${String.fromCharCode(65 + col)}${row}`;
+        logClass?.("EDIT", `Clicked hex ${ref}`);
+      }
     } else {
       const cellW = boardWidth / cols;
       const cellH = boardDepth / rows;
-      let col = Math.round(x / cellW - 0.5);
-      let row = Math.round(z / cellH - 1.5);
+      let col = Math.floor(x / cellW);
+      let row = Math.floor(z / cellH);
       col = Math.max(0, Math.min(cols - 1, col));
       row = Math.max(0, Math.min(rows - 1, row));
       const ref = `${String.fromCharCode(65 + col)}${row}`;

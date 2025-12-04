@@ -26,7 +26,12 @@ const parseCameraPayload = (payload) => {
 };
 
 export const createCameraManager = ({ three, state, textureCanvas, clamp, logClass }) => {
-  let lastSavedCamera = parseCameraPayload(safeJsonParse(localStorage.getItem("camera-state") || "null", null));
+  let lastSavedRecord = (() => {
+    const raw = safeJsonParse(localStorage.getItem("camera-state") || "null", null);
+    if (!raw) return null;
+    if (raw.camera) return { camera: parseCameraPayload(raw.camera), board: raw.board || null };
+    return { camera: parseCameraPayload(raw), board: raw.board || null };
+  })();
   const nearlyEqual = (a, b, eps = 1e-4) => Math.abs(a - b) <= eps;
   const sameVec3 = (a, b, eps = 1e-4) =>
     Array.isArray(a) &&
@@ -37,29 +42,46 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
     nearlyEqual(a[1], b[1], eps) &&
     nearlyEqual(a[2], b[2], eps);
 
-  const getLatestCameraPayload = () => {
-    const storedCam = parseCameraPayload(safeJsonParse(localStorage.getItem("camera-state") || "null", null));
-    const fallbackCam = parseCameraPayload(lastSavedCamera);
+  const getBoardSnapshot = () => {
+    const lb = state?.lastBoard;
+    if (!lb) return null;
+    return {
+      width: lb.boardWidth,
+      depth: lb.boardDepth,
+      mapId: state.map?.id || null,
+      gridType: state.map?.gridType || null
+    };
+  };
+
+  const getLatestCameraRecord = () => {
+    const raw = safeJsonParse(localStorage.getItem("camera-state") || "null", null);
+    const normalize = (rec) => {
+      if (!rec) return null;
+      if (rec.camera) return { camera: parseCameraPayload(rec.camera), board: rec.board || null };
+      return { camera: parseCameraPayload(rec), board: rec.board || null };
+    };
+    const storedRec = normalize(raw);
+    const fallbackRec = normalize(lastSavedRecord);
     const candidates = [
-      storedCam && { payload: storedCam, source: "camera-state" },
-      fallbackCam && { payload: fallbackCam, source: "last-saved" }
+      storedRec && { rec: storedRec, source: "camera-state" },
+      fallbackRec && { rec: fallbackRec, source: "last-saved" }
     ].filter(Boolean);
     if (!candidates.length) return null;
     const best = candidates.reduce((best, cam) => {
-      const tCam = cam.payload.time || 0;
-      const tBest = best.payload.time || 0;
+      const tCam = cam.rec?.camera?.time || 0;
+      const tBest = best.rec?.camera?.time || 0;
       return tCam >= tBest ? cam : best;
     });
     if (logClass) {
       const sources = candidates
-        .map((c) => `${c.source}:${(c.payload.time || 0).toFixed(0)}`)
+        .map((c) => `${c.source}:${(c.rec?.camera?.time || 0).toFixed(0)}`)
         .join(" | ");
       logClass("CAMERA", `Selecting camera from ${best.source} (times ${sources})`, {
         chosen: best,
         candidates
       });
     }
-    return best.payload;
+    return best.rec;
   };
 
   const buildPayload = () => {
@@ -128,19 +150,27 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
     if (!three.camera || !three.controls) return;
     try {
       const payload = buildPayload();
+      const board = getBoardSnapshot();
+      const record = { camera: payload, board };
       if (
-        lastSavedCamera &&
-        sameVec3(payload.position, lastSavedCamera.position) &&
-        sameVec3(payload.target, lastSavedCamera.target) &&
-        nearlyEqual(payload.distance, lastSavedCamera.distance, 1e-3) &&
-        nearlyEqual(payload.azimuth, lastSavedCamera.azimuth, 1e-3) &&
-        nearlyEqual(payload.polar, lastSavedCamera.polar, 1e-3)
+        lastSavedRecord &&
+        lastSavedRecord.camera &&
+        sameVec3(payload.position, lastSavedRecord.camera.position) &&
+        sameVec3(payload.target, lastSavedRecord.camera.target) &&
+        nearlyEqual(payload.distance, lastSavedRecord.camera.distance, 1e-3) &&
+        nearlyEqual(payload.azimuth, lastSavedRecord.camera.azimuth, 1e-3) &&
+        nearlyEqual(payload.polar, lastSavedRecord.camera.polar, 1e-3) &&
+        ((!board && !lastSavedRecord.board) ||
+          (board &&
+            lastSavedRecord.board &&
+            nearlyEqual(board.width || 0, lastSavedRecord.board.width || 0, 1e-3) &&
+            nearlyEqual(board.depth || 0, lastSavedRecord.board.depth || 0, 1e-3)))
       ) {
         return;
       }
-      localStorage.setItem("camera-state", JSON.stringify(payload));
-      logClass?.("CAMERA", "Saved camera-state", payload);
-      lastSavedCamera = payload;
+      localStorage.setItem("camera-state", JSON.stringify(record));
+      logClass?.("CAMERA", "Saved camera-state", record);
+      lastSavedRecord = record;
       if (logClass) {
         const fmt = (arr) => arr.map((n) => Number(n).toFixed(2)).join(", ");
         logClass(
@@ -148,7 +178,7 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
           `Saved pos [${fmt(payload.position)}] target [${fmt(payload.target)}] dist ${distance.toFixed(
             2
           )} az ${payload.azimuth.toFixed(2)} polar ${payload.polar.toFixed(2)}`,
-          payload
+          record
         );
       }
     } catch {
@@ -157,9 +187,22 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
   };
 
   const applySavedCamera = () => {
-    const payload = getLatestCameraPayload();
-    logClass?.("INFO", "Applying saved camera-state", payload);
-    applyCameraPayload(payload);
+    const rec = getLatestCameraRecord();
+    if (!rec?.camera) return;
+    let cam = rec.camera;
+    // If the saved board differs from current, rescale X/Z to current board size.
+    if (rec.board && state.lastBoard && rec.board.width && rec.board.depth) {
+      const sx = state.lastBoard.boardWidth / rec.board.width;
+      const sz = state.lastBoard.boardDepth / rec.board.depth;
+      const scaleVec = (vec) => [vec[0] * sx, vec[1], vec[2] * sz];
+      cam = {
+        ...cam,
+        position: scaleVec(cam.position || [0, 0, 0]),
+        target: scaleVec(cam.target || [0, 0, 0])
+      };
+    }
+    logClass?.("INFO", "Applying saved camera-state", cam);
+    applyCameraPayload(cam);
   };
 
   const transitionToCamera = (payload, render3d) => {
@@ -231,7 +274,7 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
     three.controls.addEventListener("end", saveCameraState);
   };
 
-  const getLastSavedCamera = () => lastSavedCamera;
+  const getLastSavedCamera = () => lastSavedRecord?.camera || null;
   const getCurrentCamera = () => buildPayload();
 
   return {
