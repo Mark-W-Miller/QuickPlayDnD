@@ -1,6 +1,6 @@
 # Demo: 3D Ranger token using GLB model
 # Define a sprite that uses the converted Ranger GLB
-SPRITE DEF RG name="Ranger 3D" model=models/Ranger.glb size=1 category=PC
+SPRITE DEF RG name="Ranger 3D" model=data/models/Ranger.glb size=1 category=PC
 
 # Place one instance in the middle
 CREATE template=RG,token-small id=RANGER initials=RG @ F6

@@ -143,7 +143,7 @@ export const createSceneBuilder = ({
   const getModelEntry = (url) => {
     if (!url) return null;
     if (modelCache.has(url)) return modelCache.get(url);
-    const entry = { scene: null, bbox: null, promise: null };
+    const entry = { scene: null, bbox: null, promise: null, failed: false };
     logClass("3DLOAD", `Start loading model ${url}`);
     entry.promise = modelLoadChain = modelLoadChain
       .then(
@@ -164,8 +164,9 @@ export const createSceneBuilder = ({
               },
               undefined,
               (err) => {
-                logClass("3DLOAD", `Failed to load ${url}: ${err?.message || err}`);
-                reject(err);
+                entry.failed = true;
+                logClass("ERROR", `Failed to load model ${url}: ${err?.message || err}`);
+                resolve(entry); // resolve to avoid unhandled rejection; keep entry.failed set
               }
             );
           })
@@ -190,14 +191,23 @@ export const createSceneBuilder = ({
   };
   // Attach logger to state so downstream utilities (heightmap) can log without guards.
   state.logClass = logClass || (() => {});
+  // Dispose geometry and materials, but leave shared textures intact to avoid
+  // blowing away cached GLTF assets. Canvas/label textures are small and will
+  // be released with their materials.
+  const disposeMaterial = (mat) => {
+    if (!mat) return;
+    if (mat.dispose) mat.dispose();
+  };
+
   const clearGroup = (group) => {
     if (!group) return;
     group.children.forEach((child) => {
       if (child.geometry) child.geometry.dispose();
       if (child.material) {
-        if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose && m.dispose());
-        else child.material.dispose && child.material.dispose();
+        if (Array.isArray(child.material)) child.material.forEach((m) => disposeMaterial(m));
+        else disposeMaterial(child.material);
       }
+      if (child.texture && child.texture.dispose) child.texture.dispose();
     });
     group.clear();
   };
@@ -322,14 +332,14 @@ export const createSceneBuilder = ({
       lctx.fillStyle = "rgba(0,0,0,0.25)"; // lighter band
       lctx.fillRect(0, 0, labelCanvas.width, labelCanvas.height);
       lctx.fillStyle = "#f8fafc";
-      lctx.font = "48px sans-serif";
+      lctx.font = "32px sans-serif";
       lctx.textAlign = "center";
       lctx.textBaseline = "middle";
       lctx.fillText(token.name, labelCanvas.width / 2, labelCanvas.height / 2);
       const tex = new THREE.CanvasTexture(labelCanvas);
       tex.wrapS = THREE.ClampToEdgeWrapping;
       tex.wrapT = THREE.ClampToEdgeWrapping;
-      const labelGeom = new THREE.CylinderGeometry(radius * 1.05, radius * 1.05, height, 64, 1, true);
+      const labelGeom = new THREE.CylinderGeometry(radius * 1.05, radius * 1.05, height, 24, 1, true);
       // Front faces only so the text isn’t visible through the cylinder; keep depthTest true to avoid bleed.
       const labelMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.FrontSide, depthTest: true });
       for (let i = 0; i < 2; i++) {
@@ -344,6 +354,13 @@ export const createSceneBuilder = ({
       logClass("3DLOAD", `Attempt model ${def.modelUrl}`);
       const entry = getModelEntry(def.modelUrl);
       if (!entry) return baseGroup;
+      if (entry.failed) {
+        logClass("ERROR", `Model ${def.modelUrl} previously failed; showing disk only`);
+        baseGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+        const yOffsetPending = 0;
+        baseGroup.position.set(placement.x, hCenter + yOffsetPending + (isStructure ? 0 : height / 2), placement.z);
+        return baseGroup;
+      }
       if (!entry.scene) {
         logClass("3DLOAD", `Model pending for ${def.modelUrl} — will retry on load`);
         entry.promise
@@ -359,8 +376,8 @@ export const createSceneBuilder = ({
       const clone = entry.scene.clone(true);
       clone.traverse((n) => {
         if (n.isMesh) {
-          n.castShadow = true;
-          n.receiveShadow = true;
+          n.castShadow = false;
+          n.receiveShadow = false;
           if (n.material) {
             const mats = Array.isArray(n.material) ? n.material : [n.material];
             mats.forEach((m) => {
@@ -487,10 +504,11 @@ export const createSceneBuilder = ({
   const resizeRenderer = () => {
     if (!three.renderer || !three.camera || !state.map) return;
     const rect = mapPanel.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
     const w = Math.max(1, rect.width);
     const h = Math.max(1, rect.height);
-    three.renderer.setSize(w * dpr, h * dpr, false);
+    // Keep pixel ratio at 1 to reduce GPU memory usage and avoid crashes.
+    three.renderer.setPixelRatio(1);
+    three.renderer.setSize(w, h, false);
     three.camera.aspect = w / h;
     three.camera.updateProjectionMatrix();
     webglCanvas.style.width = `${w}px`;
@@ -512,8 +530,8 @@ export const createSceneBuilder = ({
     three.renderer.outputColorSpace = THREE.SRGBColorSpace;
     three.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     three.renderer.toneMappingExposure = 1.2;
-    three.renderer.shadowMap.enabled = true;
-    three.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Disable shadows to reduce GPU memory / crashes on large POPs.
+    three.renderer.shadowMap.enabled = false;
     three.renderer.setPixelRatio(window.devicePixelRatio || 1);
 
     const rect = mapPanel.getBoundingClientRect();
@@ -544,7 +562,8 @@ export const createSceneBuilder = ({
     three.directional = new THREE.DirectionalLight(0xffffff, 2.8);
     three.directional.position.set(4, 8, 6);
     three.directional.castShadow = true;
-    three.directional.shadow.mapSize.set(1024, 1024);
+    // Shadows disabled; keep a small map size in case re-enabled.
+    three.directional.shadow.mapSize.set(256, 256);
     three.directional.shadow.camera.near = 0.5;
     three.directional.shadow.camera.far = 40;
     three.scene.add(three.directional);
