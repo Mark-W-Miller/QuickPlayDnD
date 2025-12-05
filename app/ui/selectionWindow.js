@@ -16,7 +16,9 @@ export function initSelectionWindow({
   raiseBtn,
   lowerBtn,
   zeroBtn,
+  exportBtn,
   getSelectionRefs,
+  onExportHeight,
   onAdjustHeight,
   onZeroHeight
 }) {
@@ -225,6 +227,19 @@ export function initSelectionWindow({
       e.preventDefault();
       if (typeof onZeroHeight === "function") {
         onZeroHeight();
+      }
+    });
+  }
+
+  if (exportBtn) {
+    exportBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (typeof onExportHeight === "function") {
+        const text = onExportHeight();
+        if (typeof text === "string") {
+          textarea.value = text;
+          persistState({ content: text });
+        }
       }
     });
   }

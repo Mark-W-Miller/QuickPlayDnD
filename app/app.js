@@ -45,6 +45,7 @@ const selectionRoadBtn = document.getElementById("selection-road");
 const selectionRaiseBtn = document.getElementById("selection-raise");
 const selectionLowerBtn = document.getElementById("selection-lower");
 const selectionZeroBtn = document.getElementById("selection-zero");
+const selectionExportBtn = document.getElementById("selection-export");
 const canvasEventShield = document.getElementById("canvas-event-shield");
 
 const { log, logClass } = initLogger();
@@ -564,6 +565,22 @@ const zeroSelectionHeights = () => {
   render3d();
 };
 
+const exportHeightMap = () => {
+  const map = state.map;
+  if (!map) return "";
+  const rows = Math.max(1, map.rows || 1);
+  const cols = Math.max(1, map.cols || 1);
+  const lines = [];
+  for (let r = 0; r < rows; r++) {
+    const rowVals = [];
+    for (let c = 0; c < cols; c++) {
+      rowVals.push(Number(map.heights?.[`${c},${r}`]) || 0);
+    }
+    lines.push(rowVals.join(","));
+  }
+  return `HEIGHT_START\n${lines.join("\n")}\nHEIGHT_END`;
+};
+
 const selectionWindowApi =
   initSelectionWindow({
     openBtn: selectionOpenBtn,
@@ -575,6 +592,8 @@ const selectionWindowApi =
     raiseBtn: selectionRaiseBtn,
     lowerBtn: selectionLowerBtn,
     zeroBtn: selectionZeroBtn,
+    exportBtn: selectionExportBtn,
+    onExportHeight: exportHeightMap,
     onAdjustHeight: adjustSelectionHeights,
     onZeroHeight: zeroSelectionHeights,
     getSelectionRefs: () => Array.from(state.selectionCells || [])
