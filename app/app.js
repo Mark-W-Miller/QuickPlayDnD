@@ -15,10 +15,11 @@ import { createAnimationLoop } from "./graphics/animation.js";
 import { initParamsWindow } from "./ui/paramsWindow.js";
 import { initTokensWindow } from "./ui/tokensWindow.js";
 import { initScriptsWindow } from "./ui/scriptsWindow.js";
-import { initLangWindow } from "./ui/langWindow.js";
 import { initSelectionWindow } from "./ui/selectionWindow.js";
 import { createEditSelectionHandlers } from "./selection/selectionEdit.js";
 import { createViewSelectionHandlers } from "./selection/selectionView.js";
+import { createInteractionManager } from "./selection/interactionManager.js";
+import { initLangWindow } from "./ui/langWindow.js";
 
 const canvas = document.getElementById("map-canvas");
 const inputEl = document.getElementById("script-input");
@@ -41,6 +42,10 @@ const selectionWindow = document.getElementById("selection-window");
 const selectionClearBtn = document.getElementById("selection-clear");
 const selectionText = document.getElementById("selection-text");
 const selectionRoadBtn = document.getElementById("selection-road");
+const canvasEventShield = document.getElementById("canvas-event-shield");
+
+const { log, logClass } = initLogger();
+const interactionManager = createInteractionManager({ logClass });
 const savedArenaGrid = (() => {
   return safeJsonParse(localStorage.getItem("arena-grid") || "false", false);
 })();
@@ -110,6 +115,12 @@ const coercePx = (val, fallback, min) => {
   return `${Math.max(n, min)}px`;
 };
 
+const updateCanvasShield = () => {
+  if (canvasEventShield) {
+    canvasEventShield.style.pointerEvents = interactionMode === "edit" ? "auto" : "none";
+  }
+};
+
 const three = {
   scene: null,
   camera: null,
@@ -126,7 +137,6 @@ const three = {
   arenaGrid: null
 };
 
-const { log, logClass } = initLogger();
 let scriptRunner = null;
 
 const overlayGridOnTexture = (map) =>
@@ -212,6 +222,7 @@ const {
   updateSelectionHighlights
 } = sceneBuilder;
 const cameraManager = createCameraManager({ three, state, textureCanvas, clamp, logClass });
+interactionManager.attachControls(three.controls);
 
 const buildDefaultMap = () => {
   const cols = 20;
@@ -519,22 +530,29 @@ const selectionWindowApi =
   }) || { setContent: () => {}, bringToFront: () => {} };
 
 const setInteractionMode = (mode) => {
-  const next = mode === "edit" ? "edit" : "view";
+  const next = interactionManager.setMode(mode);
   interactionMode = next;
   if (viewToggleBtn) viewToggleBtn.textContent = next === "view" ? "View" : "Edit";
   applyControlMode(next);
   logClass?.("INFO", `Mode changed to ${next}`);
   logClass?.("EDIT", `interactionMode=${interactionMode}`);
-  // Update orbit mouse bindings: disable rotate on left drag in edit mode.
+  // Clamp OrbitControls behavior per mode
   if (three.controls) {
-    three.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    three.controls.mouseButtons.LEFT = interactionMode === "edit" ? null : THREE.MOUSE.ROTATE;
     three.controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
-    // In edit: disable rotate so left-drag does nothing; allow right-drag pan.
-    // In view: allow both.
-    three.controls.enableRotate = interactionMode === "view";
-    three.controls.enablePan = true;
-    // Also guard in selection handler to ignore right-drag when not edit, so LC in view remains orbit.
+    three.controls.enableZoom = true; // wheel zoom always ok
+    if (interactionMode === "view") {
+      three.controls.enabled = true;
+      three.controls.enableRotate = true;
+      three.controls.enablePan = true;
+    } else {
+      // Edit: disable rotate; allow pan via right-click only.
+      three.controls.enabled = true;
+      three.controls.enableRotate = false;
+      three.controls.enablePan = true;
+    }
   }
+  updateCanvasShield();
 };
 
 const toggleMode = () => setInteractionMode(interactionMode === "view" ? "edit" : "view");
@@ -555,14 +573,6 @@ window.addEventListener("keydown", (e) => {
     updateSelectionHighlights();
     render3d();
   }
-  // Disable rotate orbit on left-click drag in edit mode by switching controls
-  if (three.controls) {
-    if (interactionMode === "edit") {
-      three.controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
-    } else {
-      three.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
-    }
-  }
 });
 
 // Initialize controls for the default mode
@@ -581,42 +591,37 @@ const editSelect = createEditSelectionHandlers({
   render3d
 });
 const viewSelect = createViewSelectionHandlers({ three });
+interactionManager.setHandlers({ edit: editSelect, view: viewSelect });
+// Ensure shield state matches initial mode
+updateCanvasShield();
 
 webglCanvas.addEventListener("mousedown", (e) => {
   const mode = interactionMode;
-  if (mode === "edit") {
-    if (e.button === 0 || e.button === 2) {
-      const handled = editSelect.onDown(e.button, e.shiftKey, e);
-      if (handled) e.preventDefault();
-    }
-  } else {
-    viewSelect.onDown(e.button, e.shiftKey, e);
+  const handled = interactionManager.handleDown(e.button, e.shiftKey, e);
+  if (handled) {
+    e.preventDefault();
+    if (mode === "edit" && e.button === 0) e.stopPropagation();
   }
 });
 
 webglCanvas.addEventListener("mouseup", (e) => {
-  const mode = interactionMode;
-  if (mode === "edit") {
-    if (e.button === 0 || e.button === 2) {
-      const handled = editSelect.onUp(e.button, e.shiftKey, e);
-      if (handled) e.preventDefault();
-    }
-  } else {
-    viewSelect.onUp(e.button, e.shiftKey, e);
+  const handled = interactionManager.handleUp(e.button, e.shiftKey, e);
+  if (handled) {
+    e.preventDefault();
+    if (interactionMode === "edit" && e.button === 0) e.stopPropagation();
   }
 });
 
 webglCanvas.addEventListener("mousemove", (e) => {
-  const mode = interactionMode;
-  if (mode === "edit") {
-    if (e.buttons === 1) {
-      const handled = editSelect.onMove(e);
-      if (handled) e.preventDefault();
-    }
-  } else {
-    viewSelect.onMove(e);
+  const handled = interactionManager.handleMove(e);
+  if (handled) {
+    e.preventDefault();
+    if (interactionMode === "edit" && e.buttons === 1) e.stopPropagation();
   }
 });
+
+// Ensure shield state matches initial mode
+updateCanvasShield();
 
 if (selectionClearBtn) {
   selectionClearBtn.addEventListener("click", () => {

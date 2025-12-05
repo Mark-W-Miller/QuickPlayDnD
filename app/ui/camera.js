@@ -130,13 +130,16 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
       three.controls.target.copy(target);
       three.controls.update();
       three.restoredCamera = true;
-      lastSavedCamera = {
-        position: newPos.toArray(),
-        target: target.toArray(),
-        distance,
-        azimuth,
-        polar: clampedPolar,
-        time: saved.time || Date.now()
+      lastSavedRecord = {
+        camera: {
+          position: newPos.toArray(),
+          target: target.toArray(),
+          distance,
+          azimuth,
+          polar: clampedPolar,
+          time: saved.time || Date.now()
+        },
+        board: getBoardSnapshot()
       };
       saveCameraState();
       if (logClass) {
@@ -146,7 +149,7 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
           `Restored pos [${fmt(newPos.toArray())}] target [${fmt(target.toArray())}] dist ${distance.toFixed(
             2
           )} az ${azimuth.toFixed(2)} polar ${clampedPolar.toFixed(2)}`,
-          lastSavedCamera
+          lastSavedRecord
         );
       }
     } catch (err) {
@@ -183,7 +186,7 @@ export const createCameraManager = ({ three, state, textureCanvas, clamp, logCla
         const fmt = (arr) => arr.map((n) => Number(n).toFixed(2)).join(", ");
         logClass(
           "CAMERA",
-          `Saved pos [${fmt(payload.position)}] target [${fmt(payload.target)}] dist ${distance.toFixed(
+          `Saved pos [${fmt(payload.position)}] target [${fmt(payload.target)}] dist ${(payload.distance ?? 0).toFixed(
             2
           )} az ${payload.azimuth.toFixed(2)} polar ${payload.polar.toFixed(2)}`,
           record

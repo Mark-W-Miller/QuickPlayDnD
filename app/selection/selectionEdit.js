@@ -68,6 +68,10 @@ export function createEditSelectionHandlers({
 
   const onDown = (button, shift, event) => {
     if (button !== 0) return false; // only left click selects
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     if (!three.scene || !three.camera || !three.tokenGroup || !state.lastBoard) return false;
     logClass?.("SELECTION", `edit onDown button=${button} shift=${shift}`);
     dragShift = shift;
@@ -105,6 +109,10 @@ export function createEditSelectionHandlers({
   const onUp = (button, shift, event) => {
     if (button !== 0) return false;
     logClass?.("SELECTION", `edit onUp button=${button} shift=${shift}`);
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     dragSelecting = false;
     lastDragRef = null;
     return true;
@@ -113,6 +121,8 @@ export function createEditSelectionHandlers({
   const onMove = (event) => {
     // Only respond to left-drag selection; let controls handle right-drag pan.
     if (!dragSelecting || (event.buttons & 1) === 0) return false;
+    event.preventDefault();
+    event.stopPropagation();
     const holdingShift = dragShift;
     const rect = canvas.getBoundingClientRect();
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
