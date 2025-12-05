@@ -13,6 +13,7 @@ Plain text commands, one per line. Lines starting with `#` are comments.
 - `REMOVE <tokenId>` — remove the first token whose id starts with `tokenId`.
 - `REMOVE HEIGHTMAP` — clear all height values and flatten the terrain.
 - `HEIGHT_RANDOM max=<n>` — generate a procedural heightmap with values in the range roughly [-n, n] (default n=2).
+- `ROADS <A0,B1,...>` — reserved/output for map authoring; currently ignored by the engine (no effect on heights or tokens).
 - `CLEAR TOKENS` — remove all tokens.
 - `CLEAR ALL` — clear map, sprites, and tokens.
 - `RESET` — clear everything (map, sprites, tokens, backgrounds).

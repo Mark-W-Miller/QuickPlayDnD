@@ -316,6 +316,11 @@ export const createScriptRunner = ({
           mapChanged = true;
           break;
         }
+        case "roads": {
+          // Informational only for now.
+          logClass?.("PARSE", `Skipping ROADS (${(instr.refs || []).length} refs)`);
+          break;
+        }
           break;
       }
     });

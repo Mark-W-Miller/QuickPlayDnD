@@ -6,7 +6,18 @@ const coercePx = (val, fallback, min) => {
   return `${Math.max(n, min)}px`;
 };
 
-export function initSelectionWindow({ openBtn, closeBtn, clearBtn, windowEl, textarea, roadBtn, getSelectionRefs }) {
+export function initSelectionWindow({
+  openBtn,
+  closeBtn,
+  clearBtn,
+  windowEl,
+  textarea,
+  roadBtn,
+  raiseBtn,
+  lowerBtn,
+  getSelectionRefs,
+  onAdjustHeight
+}) {
   if (!openBtn || !windowEl || !textarea) return null;
   const header = windowEl.querySelector(".selection-window-header");
   let dragging = false;
@@ -184,6 +195,26 @@ export function initSelectionWindow({ openBtn, closeBtn, clearBtn, windowEl, tex
       const cmd = refs.length ? `ROADS ${refs.join(", ")}` : "ROADS";
       textarea.value = cmd;
       persistState({ content: cmd });
+    });
+  }
+
+  const handleAdjust = (delta) => {
+    if (typeof onAdjustHeight !== "function") return;
+    const refs = (getSelectionRefs && getSelectionRefs()) || [];
+    onAdjustHeight(delta, refs);
+  };
+
+  if (raiseBtn) {
+    raiseBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      handleAdjust(1);
+    });
+  }
+
+  if (lowerBtn) {
+    lowerBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      handleAdjust(-1);
     });
   }
 

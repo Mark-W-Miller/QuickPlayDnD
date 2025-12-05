@@ -55,6 +55,8 @@ export function createEditSelectionHandlers({
         if (next.has(ref)) next.delete(ref);
         else next.add(ref);
       });
+    } else if (mode === "remove") {
+      refs.forEach((ref) => next.delete(ref));
     } else if (mode === "add") {
       refs.forEach((r) => next.add(r));
     } else {
@@ -101,7 +103,7 @@ export function createEditSelectionHandlers({
     logClass?.("EDIT", `Clicked cell ${cell.ref}`);
     dragSelecting = true;
     lastDragRef = cell.ref;
-    const mode = shift ? "toggle" : "add";
+    const mode = shift ? "remove" : "add";
     applySelectionRefs([cell.ref], mode);
     return true;
   };
@@ -136,7 +138,7 @@ export function createEditSelectionHandlers({
     if (cell.ref === lastDragRef) return true;
     lastDragRef = cell.ref;
     const refs = [cell.ref];
-    const mode = dragShift ? "toggle" : "add";
+    const mode = dragShift ? "remove" : "add";
     applySelectionRefs(refs, mode);
     logClass?.("SELECTION", `edit onMove refs: ${refs.join(", ")}`);
     return true;

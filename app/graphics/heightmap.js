@@ -6,14 +6,16 @@ const smoothstep = (t) => t * t * (3 - 2 * t);
 
 export const updateHeightMapFromHeights = (state, map) => {
   if (!map) return;
-  const grid = Array.from({ length: 8 }, () =>
-    Array.from({ length: 8 }, () => ({ threat: 0, support: 0 }))
+  const cols = Math.max(1, map.cols || 1);
+  const rows = Math.max(1, map.rows || 1);
+  const grid = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => ({ threat: 0, support: 0 }))
   );
   Object.entries(map.heights || {}).forEach(([key, val]) => {
     const [col, row] = key.split(",").map(Number);
     if (Number.isNaN(col) || Number.isNaN(row)) return;
-    const gx = clamp(Math.floor((col / Math.max(1, map.cols)) * 8), 0, 7);
-    const gz = clamp(Math.floor((row / Math.max(1, map.rows)) * 8), 0, 7);
+    const gx = clamp(col, 0, cols - 1);
+    const gz = clamp(row, 0, rows - 1);
     const threat = Math.max(0, val);
     const support = Math.max(0, -val);
     grid[gz][gx].threat = Math.max(grid[gz][gx].threat, threat);
@@ -38,12 +40,17 @@ const getGridCell = (grid, r, c) => {
 export const sampleHeightMap = (state, u, v) => {
   const grid = state.heightMap?.grid;
   if (!grid) return 0;
-  const x = clamp(u, 0, 1) * 7;
-  const z = clamp(v, 0, 1) * 7;
+  const rows = grid.length;
+  const cols = grid[0]?.length || 0;
+  if (!rows || !cols) return 0;
+  const maxX = Math.max(1, cols - 1);
+  const maxZ = Math.max(1, rows - 1);
+  const x = clamp(u, 0, 1) * maxX;
+  const z = clamp(v, 0, 1) * maxZ;
   const x0 = Math.floor(x);
   const z0 = Math.floor(z);
-  const x1 = clamp(x0 + 1, 0, 7);
-  const z1 = clamp(z0 + 1, 0, 7);
+  const x1 = clamp(x0 + 1, 0, cols - 1);
+  const z1 = clamp(z0 + 1, 0, rows - 1);
   const fx = smoothstep(x - x0);
   const fz = smoothstep(z - z0);
   const h00 = getGridCell(grid, z0, x0);

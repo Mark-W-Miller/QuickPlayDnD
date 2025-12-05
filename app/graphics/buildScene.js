@@ -56,15 +56,26 @@ export const createSceneBuilder = ({
       if (obj.material?.map) obj.material.map.dispose?.();
       obj.material?.dispose?.();
     }
-    const { boardWidth, boardDepth, surfaceY } = state.lastBoard;
+    const { boardWidth, boardDepth, surfaceY, cellUnit } = state.lastBoard;
     const map = state.map || {};
+    const heightScale = state.heightMap?.heightScale || 1;
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x3b82f6, // blue fill
+      color: 0x1e3a8a, // darker blue fill
       transparent: true,
-      opacity: 0.35,
-      side: THREE.DoubleSide
+      opacity: 0.5,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
     });
-    const outlineMat = new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 2 });
+    const outlineMat = new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 2, depthTest: false, depthWrite: false });
+    const lift = Math.max(0.05, (cellUnit || 1) * 0.05);
+    const sampleY = (x, z) => {
+      const u = THREE.MathUtils.clamp(x / Math.max(1, boardWidth), 0, 1);
+      const v = THREE.MathUtils.clamp(z / Math.max(1, boardDepth), 0, 1);
+      const hNorm = sampleHeightMap(state, u, v);
+      const scale = cellUnit * 0.6;
+      return surfaceY + hNorm * heightScale * scale;
+    };
 
     state.selectionCells.forEach((ref) => {
       const parts = /^([A-Z]+)(\d+)$/.exec(ref);
@@ -75,6 +86,7 @@ export const createSceneBuilder = ({
       if (map.gridType === "hex") {
         const placement = computeHexPlacement({ col, row }, boardWidth, boardDepth);
         const s = Math.min(placement.cellW / Math.sqrt(3), placement.cellH / 1.5);
+        const yBase = sampleY(placement.x, placement.z) + lift;
         const hexShape = new THREE.Shape();
         const outlinePts = [];
         for (let i = 0; i < 6; i++) {
@@ -89,21 +101,25 @@ export const createSceneBuilder = ({
         const hexGeom = new THREE.ShapeGeometry(hexShape);
         mesh = new THREE.Mesh(hexGeom, mat.clone());
         mesh.rotation.x = -Math.PI / 2;
-        mesh.position.set(placement.x, surfaceY + 0.05, placement.z);
+        mesh.position.set(placement.x, yBase, placement.z);
 
         // Outline
         const outlineGeo = new THREE.BufferGeometry().setFromPoints([...outlinePts, outlinePts[0]]);
         const outline = new THREE.Line(outlineGeo, outlineMat.clone());
         outline.rotation.x = -Math.PI / 2;
-        outline.position.copy(mesh.position);
+        outline.position.set(placement.x, yBase, placement.z);
+        outline.renderOrder = 5;
         three.selectionGroup.add(outline);
       } else {
         const cellW = boardWidth / map.cols;
         const cellH = boardDepth / map.rows;
+        const xCenter = col * cellW + cellW / 2;
+        const zCenter = row * cellH + cellH / 2;
+        const yBase = sampleY(xCenter, zCenter) + lift;
         const rect = new THREE.PlaneGeometry(cellW, cellH);
         mesh = new THREE.Mesh(rect, mat.clone());
         mesh.rotation.x = -Math.PI / 2;
-        mesh.position.set(col * cellW + cellW / 2, surfaceY + 0.05, row * cellH + cellH / 2);
+        mesh.position.set(xCenter, yBase, zCenter);
         // Outline
         const outlineGeo = new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(-cellW / 2, 0, -cellH / 2),
@@ -114,7 +130,8 @@ export const createSceneBuilder = ({
         ]);
         const outline = new THREE.Line(outlineGeo, outlineMat.clone());
         outline.rotation.x = -Math.PI / 2;
-        outline.position.copy(mesh.position);
+        outline.position.set(xCenter, yBase, zCenter);
+        outline.renderOrder = 5;
         three.selectionGroup.add(outline);
       }
       if (mesh) three.selectionGroup.add(mesh);
@@ -551,6 +568,22 @@ export const createSceneBuilder = ({
     three.boardMesh.receiveShadow = true;
     three.scene.add(three.boardMesh);
 
+    // Zero-height reference grid (red wireframe at height 0/surface).
+    three.zeroGrid = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1, 1, 1),
+      new THREE.MeshBasicMaterial({
+        color: 0xff4444,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+        depthTest: false
+      })
+    );
+    three.zeroGrid.rotation.x = -Math.PI / 2;
+    three.zeroGrid.renderOrder = 1;
+    three.scene.add(three.zeroGrid);
+
     const originGeo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(-0.5, 0.02, 0),
       new THREE.Vector3(0.5, 0.02, 0),
@@ -631,6 +664,16 @@ export const createSceneBuilder = ({
     three.boardMesh.geometry = new THREE.PlaneGeometry(boardWidth, boardDepth, 32, 32);
     three.boardMesh.rotation.set(-Math.PI / 2, 0, 0);
     three.boardMesh.position.set(boardWidth / 2, surfaceY + 0.001, boardDepth / 2);
+
+    // Update zero-height reference grid.
+    if (three.zeroGrid) {
+      if (three.zeroGrid.geometry) three.zeroGrid.geometry.dispose();
+      const gridSegX = Math.max(1, map.cols);
+      const gridSegZ = Math.max(1, map.rows);
+      three.zeroGrid.geometry = new THREE.PlaneGeometry(boardWidth, boardDepth, gridSegX, gridSegZ);
+      three.zeroGrid.position.set(boardWidth / 2, surfaceY + 0.0005, boardDepth / 2);
+      three.zeroGrid.visible = true;
+    }
 
     const boardMaterial = three.boardMesh.material;
     boardMaterial.emissive = new THREE.Color(0x111111);

@@ -42,6 +42,8 @@ const selectionWindow = document.getElementById("selection-window");
 const selectionClearBtn = document.getElementById("selection-clear");
 const selectionText = document.getElementById("selection-text");
 const selectionRoadBtn = document.getElementById("selection-road");
+const selectionRaiseBtn = document.getElementById("selection-raise");
+const selectionLowerBtn = document.getElementById("selection-lower");
 const canvasEventShield = document.getElementById("canvas-event-shield");
 
 const { log, logClass } = initLogger();
@@ -518,6 +520,37 @@ initTokensWindow({
 });
 initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWindow });
 initLangWindow({ langOpenBtn, langCloseBtn, langWindow });
+const refToIndex = (ref) => {
+  const m = /^([A-Z]+)(\d+)$/.exec(ref || "");
+  if (!m) return null;
+  const letters = m[1].toUpperCase();
+  let col = 0;
+  for (let i = 0; i < letters.length; i++) {
+    col = col * 26 + (letters.charCodeAt(i) - 64);
+  }
+  col -= 1; // convert to 0-based
+  const row = Number(m[2]);
+  return { col, row };
+};
+
+const adjustSelectionHeights = (delta, refs) => {
+  const map = state.map;
+  if (!map || !Array.isArray(refs) || !refs.length) return;
+  map.heights = map.heights || {};
+  refs.forEach((ref) => {
+    const idx = refToIndex(ref);
+    if (!idx) return;
+    const key = `${idx.col},${idx.row}`;
+    const current = Number(map.heights[key]) || 0;
+    const next = Math.max(0, current + delta);
+    map.heights[key] = next;
+  });
+  logClass?.("EDIT", `Adjusted heights by ${delta} for ${refs.length} cell(s)`);
+  updateBoardScene();
+  updateSelectionHighlights();
+  render3d();
+};
+
 const selectionWindowApi =
   initSelectionWindow({
     openBtn: selectionOpenBtn,
@@ -526,6 +559,9 @@ const selectionWindowApi =
     windowEl: selectionWindow,
     textarea: selectionText,
     roadBtn: selectionRoadBtn,
+    raiseBtn: selectionRaiseBtn,
+    lowerBtn: selectionLowerBtn,
+    onAdjustHeight: adjustSelectionHeights,
     getSelectionRefs: () => Array.from(state.selectionCells || [])
   }) || { setContent: () => {}, bringToFront: () => {} };
 

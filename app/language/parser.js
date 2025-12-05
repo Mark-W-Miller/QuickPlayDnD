@@ -41,10 +41,14 @@ export const parseScript = (script, { logClass } = {}) => {
       continue;
     }
     if (inHeightBlock) {
-      if (/^END_HEIGHT\.?$/i.test(line)) {
+      // Accept either HEIGHT_END or END_HEIGHT terminators.
+      if (/^(HEIGHT_END|END_HEIGHT)\.?$/i.test(line)) {
         instructions.push({ type: "height-rows", rows: heightRows.slice() });
         inHeightBlock = false;
         heightRows = [];
+      } else if (/^ROADS\\s+/i.test(line)) {
+        // Ignore ROADS lines inside HEIGHT block so they don't corrupt height rows.
+        continue;
       } else if (line) {
         heightRows.push(line);
       }
@@ -152,6 +156,16 @@ export const parseScript = (script, { logClass } = {}) => {
     if ((match = /^HEIGHT_RANDOM\s*(.*)$/i.exec(line))) {
       const kv = parseKeyValues(match[1]);
       instructions.push({ type: "height-rando", kv });
+      continue;
+    }
+    if (line.toUpperCase().startsWith("ROADS ")) {
+      // Roads are emitted for authoring; skip for now but keep parsed payload for future use.
+      const refs = line
+        .slice(6)
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean);
+      instructions.push({ type: "roads", refs });
       continue;
     }
     if ((match = /^HEIGHT\s*(.*)$/i.exec(line))) {
