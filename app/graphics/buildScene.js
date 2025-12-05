@@ -58,7 +58,13 @@ export const createSceneBuilder = ({
     }
     const { boardWidth, boardDepth, surfaceY } = state.lastBoard;
     const map = state.map || {};
-    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x3b82f6, // blue fill
+      transparent: true,
+      opacity: 0.35,
+      side: THREE.DoubleSide
+    });
+    const outlineMat = new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 2 });
 
     state.selectionCells.forEach((ref) => {
       const parts = /^([A-Z]+)(\d+)$/.exec(ref);
@@ -70,10 +76,12 @@ export const createSceneBuilder = ({
         const placement = computeHexPlacement({ col, row }, boardWidth, boardDepth);
         const s = Math.min(placement.cellW / Math.sqrt(3), placement.cellH / 1.5);
         const hexShape = new THREE.Shape();
+        const outlinePts = [];
         for (let i = 0; i < 6; i++) {
           const ang = (Math.PI / 3) * i + Math.PI / 6; // flat-top orientation to match overlay
           const px = s * Math.cos(ang);
           const pz = s * Math.sin(ang);
+          outlinePts.push(new THREE.Vector3(px, 0, pz));
           if (i === 0) hexShape.moveTo(px, pz);
           else hexShape.lineTo(px, pz);
         }
@@ -82,6 +90,13 @@ export const createSceneBuilder = ({
         mesh = new THREE.Mesh(hexGeom, mat.clone());
         mesh.rotation.x = -Math.PI / 2;
         mesh.position.set(placement.x, surfaceY + 0.05, placement.z);
+
+        // Outline
+        const outlineGeo = new THREE.BufferGeometry().setFromPoints([...outlinePts, outlinePts[0]]);
+        const outline = new THREE.Line(outlineGeo, outlineMat.clone());
+        outline.rotation.x = -Math.PI / 2;
+        outline.position.copy(mesh.position);
+        three.selectionGroup.add(outline);
       } else {
         const cellW = boardWidth / map.cols;
         const cellH = boardDepth / map.rows;
@@ -89,6 +104,18 @@ export const createSceneBuilder = ({
         mesh = new THREE.Mesh(rect, mat.clone());
         mesh.rotation.x = -Math.PI / 2;
         mesh.position.set(col * cellW + cellW / 2, surfaceY + 0.05, row * cellH + cellH / 2);
+        // Outline
+        const outlineGeo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(-cellW / 2, 0, -cellH / 2),
+          new THREE.Vector3(cellW / 2, 0, -cellH / 2),
+          new THREE.Vector3(cellW / 2, 0, cellH / 2),
+          new THREE.Vector3(-cellW / 2, 0, cellH / 2),
+          new THREE.Vector3(-cellW / 2, 0, -cellH / 2)
+        ]);
+        const outline = new THREE.Line(outlineGeo, outlineMat.clone());
+        outline.rotation.x = -Math.PI / 2;
+        outline.position.copy(mesh.position);
+        three.selectionGroup.add(outline);
       }
       if (mesh) three.selectionGroup.add(mesh);
     });
