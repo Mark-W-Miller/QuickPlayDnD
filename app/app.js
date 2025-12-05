@@ -44,6 +44,7 @@ const selectionText = document.getElementById("selection-text");
 const selectionRoadBtn = document.getElementById("selection-road");
 const selectionRaiseBtn = document.getElementById("selection-raise");
 const selectionLowerBtn = document.getElementById("selection-lower");
+const selectionZeroBtn = document.getElementById("selection-zero");
 const canvasEventShield = document.getElementById("canvas-event-shield");
 
 const { log, logClass } = initLogger();
@@ -328,7 +329,7 @@ document.getElementById("clear-btn").addEventListener("click", () => {
 });
 
 const syncHeatControls = () => {
-  heatHeightValue.textContent = `${state.heightMap.heightScale.toFixed(1)}x`;
+  heatHeightValue.textContent = `${state.heightMap.heightScale.toFixed(2)} units/click`;
 };
 
 const syncMoveSpeedControls = () => {
@@ -537,15 +538,27 @@ const adjustSelectionHeights = (delta, refs) => {
   const map = state.map;
   if (!map || !Array.isArray(refs) || !refs.length) return;
   map.heights = map.heights || {};
+  const step = state.heightMap.heightScale || 1;
   refs.forEach((ref) => {
     const idx = refToIndex(ref);
     if (!idx) return;
     const key = `${idx.col},${idx.row}`;
     const current = Number(map.heights[key]) || 0;
-    const next = Math.max(0, current + delta);
+    const next = Math.max(0, current + delta * step);
     map.heights[key] = next;
   });
-  logClass?.("EDIT", `Adjusted heights by ${delta} for ${refs.length} cell(s)`);
+  logClass?.("EDIT", `Adjusted heights by ${delta * step} for ${refs.length} cell(s)`);
+  updateBoardScene();
+  updateSelectionHighlights();
+  render3d();
+};
+
+const zeroSelectionHeights = () => {
+  const map = state.map;
+  if (!map) return;
+  // Zero the entire map.
+  map.heights = {};
+  logClass?.("EDIT", "Zeroed entire heightmap");
   updateBoardScene();
   updateSelectionHighlights();
   render3d();
@@ -561,7 +574,9 @@ const selectionWindowApi =
     roadBtn: selectionRoadBtn,
     raiseBtn: selectionRaiseBtn,
     lowerBtn: selectionLowerBtn,
+    zeroBtn: selectionZeroBtn,
     onAdjustHeight: adjustSelectionHeights,
+    onZeroHeight: zeroSelectionHeights,
     getSelectionRefs: () => Array.from(state.selectionCells || [])
   }) || { setContent: () => {}, bringToFront: () => {} };
 

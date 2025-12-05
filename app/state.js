@@ -42,8 +42,7 @@ const state = {
     showMesh: true,
     heightScale: 3,
     grid: [],
-    maxThreat: 1,
-    maxSupport: 1
+    maxHeight: 1
   },
   overlayCenters: new Map(),
   selectedTokenIds: new Set(),

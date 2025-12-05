@@ -15,8 +15,10 @@ export function initSelectionWindow({
   roadBtn,
   raiseBtn,
   lowerBtn,
+  zeroBtn,
   getSelectionRefs,
-  onAdjustHeight
+  onAdjustHeight,
+  onZeroHeight
 }) {
   if (!openBtn || !windowEl || !textarea) return null;
   const header = windowEl.querySelector(".selection-window-header");
@@ -215,6 +217,15 @@ export function initSelectionWindow({
     lowerBtn.addEventListener("click", (e) => {
       e.preventDefault();
       handleAdjust(-1);
+    });
+  }
+
+  if (zeroBtn) {
+    zeroBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (typeof onZeroHeight === "function") {
+        onZeroHeight();
+      }
     });
   }
 

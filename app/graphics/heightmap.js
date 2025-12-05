@@ -9,23 +9,19 @@ export const updateHeightMapFromHeights = (state, map) => {
   const cols = Math.max(1, map.cols || 1);
   const rows = Math.max(1, map.rows || 1);
   const grid = Array.from({ length: rows }, () =>
-    Array.from({ length: cols }, () => ({ threat: 0, support: 0 }))
+    Array.from({ length: cols }, () => ({ h: 0 }))
   );
+  let maxHeight = 0;
   Object.entries(map.heights || {}).forEach(([key, val]) => {
     const [col, row] = key.split(",").map(Number);
     if (Number.isNaN(col) || Number.isNaN(row)) return;
     const gx = clamp(col, 0, cols - 1);
     const gz = clamp(row, 0, rows - 1);
-    const threat = Math.max(0, val);
-    const support = Math.max(0, -val);
-    grid[gz][gx].threat = Math.max(grid[gz][gx].threat, threat);
-    grid[gz][gx].support = Math.max(grid[gz][gx].support, support);
+    const h = Number(val) || 0;
+    grid[gz][gx].h = h;
+    if (h > maxHeight) maxHeight = h;
   });
-
-  const allThreat = grid.flat().map((c) => c.threat);
-  const allSupport = grid.flat().map((c) => c.support);
-  state.heightMap.maxThreat = Math.max(0.001, ...allThreat, 0.001);
-  state.heightMap.maxSupport = Math.max(0.001, ...allSupport, 0.001);
+  state.heightMap.maxHeight = Math.max(0.001, maxHeight);
   state.heightMap.grid = grid;
 };
 
@@ -53,17 +49,12 @@ export const sampleHeightMap = (state, u, v) => {
   const z1 = clamp(z0 + 1, 0, rows - 1);
   const fx = smoothstep(x - x0);
   const fz = smoothstep(z - z0);
-  const h00 = getGridCell(grid, z0, x0);
-  const h10 = getGridCell(grid, z0, x1);
-  const h01 = getGridCell(grid, z1, x0);
-  const h11 = getGridCell(grid, z1, x1);
-  const heightVal = (cell) =>
-    Math.max(
-      cell.threat / (state.heightMap.maxThreat || 1),
-      cell.support / (state.heightMap.maxSupport || 1)
-    );
-  const hx0 = lerp(heightVal(h00), heightVal(h10), fx);
-  const hx1 = lerp(heightVal(h01), heightVal(h11), fx);
+  const h00 = getGridCell(grid, z0, x0).h || 0;
+  const h10 = getGridCell(grid, z0, x1).h || 0;
+  const h01 = getGridCell(grid, z1, x0).h || 0;
+  const h11 = getGridCell(grid, z1, x1).h || 0;
+  const hx0 = lerp(h00, h10, fx);
+  const hx1 = lerp(h01, h11, fx);
   return lerp(hx0, hx1, fz);
 };
 
@@ -89,9 +80,7 @@ export const rebuildHeightMesh = (three, state, boardWidth, boardDepth, surfaceY
     // sample procedural height
     const height = sampleHeightMap(state, x, z);
     // displace vertex up
-    const baseLift = 0;
-    const scale = cellUnit * 0.6; // larger vertical influence
-    position.setY(i, surfaceY + baseLift + height * state.heightMap.heightScale * scale);
+    position.setY(i, surfaceY + height);
   }
   // fix lighting after displacement
   geometry.computeVertexNormals();

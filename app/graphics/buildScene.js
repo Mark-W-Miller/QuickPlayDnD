@@ -58,7 +58,6 @@ export const createSceneBuilder = ({
     }
     const { boardWidth, boardDepth, surfaceY, cellUnit } = state.lastBoard;
     const map = state.map || {};
-    const heightScale = state.heightMap?.heightScale || 1;
     const mat = new THREE.MeshBasicMaterial({
       color: 0x1e3a8a, // darker blue fill
       transparent: true,
@@ -72,9 +71,8 @@ export const createSceneBuilder = ({
     const sampleY = (x, z) => {
       const u = THREE.MathUtils.clamp(x / Math.max(1, boardWidth), 0, 1);
       const v = THREE.MathUtils.clamp(z / Math.max(1, boardDepth), 0, 1);
-      const hNorm = sampleHeightMap(state, u, v);
-      const scale = cellUnit * 0.6;
-      return surfaceY + hNorm * heightScale * scale;
+      const hVal = sampleHeightMap(state, u, v);
+      return surfaceY + hVal;
     };
 
     state.selectionCells.forEach((ref) => {
@@ -261,10 +259,8 @@ export const createSceneBuilder = ({
     const u = THREE.MathUtils.clamp(placement.x / Math.max(1, boardWidth), 0, 1);
     const v = THREE.MathUtils.clamp(placement.z / Math.max(1, boardDepth), 0, 1);
     const surfaceHeightAt = (ux, vz) => {
-      const hNorm = sampleHeightMap(state, ux, vz);
-      const baseLift = 0;
-      const scale = cellUnit * 0.6;
-      return surfaceY + baseLift + hNorm * state.heightMap.heightScale * scale;
+      const hVal = sampleHeightMap(state, ux, vz);
+      return surfaceY + hVal;
     };
     const hCenter = surfaceHeightAt(u, v);
     const deltaU = 1 / Math.max(8 * state.map.cols, boardWidth || 1);
@@ -450,10 +446,8 @@ export const createSceneBuilder = ({
     const surfaceHeightAt = (x, z) => {
       const u = THREE.MathUtils.clamp(x / Math.max(1, boardWidth), 0, 1);
       const v = THREE.MathUtils.clamp(z / Math.max(1, boardDepth), 0, 1);
-      const hNorm = sampleHeightMap(state, u, v);
-    const baseLift = 0;
-      const scale = cellUnit * 0.6;
-      return surfaceY + baseLift + hNorm * state.heightMap.heightScale * scale;
+      const hVal = sampleHeightMap(state, u, v);
+      return surfaceY + hVal;
     };
 
     (state.activeEffects || []).forEach((fx) => {
