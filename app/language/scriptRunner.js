@@ -211,10 +211,11 @@ export const createScriptRunner = ({
           const token = working.tokens.find((t) => t.id === instr.id || t.id.startsWith(`${instr.id}-`));
           if (token) {
             if (Number.isFinite(instr.remainingHp)) {
-              token.remainingHp = instr.remainingHp;
-              token.hp = token.hp ?? instr.remainingHp;
+              token.hp = instr.remainingHp;
+            } else if (Number.isFinite(instr.hp)) {
+              token.hp = instr.hp;
             }
-            logClass?.("INFO", `STATE applied to ${token.id}: hp=${token.remainingHp ?? "?"}`);
+            logClass?.("INFO", `STATE applied to ${token.id}: hp=${token.hp ?? "?"}`);
             if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
             if (typeof state.refreshTokenHighlights === "function") state.refreshTokenHighlights();
           } else {
@@ -311,28 +312,20 @@ export const createScriptRunner = ({
           const faction = (instr.kv.faction || instr.kv.side || instr.kv.team || def.faction || "").toLowerCase();
           const size = Number(instr.kv.size) || def.baseSize || 1;
           const level = instr.kv.level || instr.kv.lvl;
-          const hp = instr.kv.hp || instr.kv.hitpoints;
-          const hpMax = instr.kv.total || instr.kv.hpmax || instr.kv.maxhp;
+          const hpCurRaw = instr.kv.hp || instr.kv.hitpoints;
+          const hpMaxRaw = instr.kv.total || instr.kv.hpmax || instr.kv.maxhp || hpCurRaw;
           let info = instr.kv.info;
           if (!info) {
             const parts = [];
             if (level !== undefined) parts.push(`Lvl ${level}`);
-            if (hpMax !== undefined) parts.push(`HP ${hp ?? "?"}/${hpMax}`);
-            else if (hp !== undefined) parts.push(`HP ${hp}`);
+            if (hpMaxRaw !== undefined) parts.push(`HP ${hpCurRaw ?? "?"}/${hpMaxRaw}`);
+            else if (hpCurRaw !== undefined) parts.push(`HP ${hpCurRaw}`);
             info = parts.join(" ").trim();
           }
-          const hpNum = Number(hp);
-          const hpMaxNum = Number(hpMax);
-          const resolvedHpMax = Number.isFinite(hpMaxNum)
-            ? hpMaxNum
-            : Number.isFinite(hpNum)
-              ? hpNum
-              : 0;
-          const resolvedHp = Number.isFinite(hpNum)
-            ? hpNum
-            : Number.isFinite(resolvedHpMax)
-              ? resolvedHpMax
-              : 0;
+          const hpMaxNum = Number(hpMaxRaw);
+          const resolvedHpMax = Number.isFinite(hpMaxNum) ? hpMaxNum : 0;
+          const hpNum = Number(hpCurRaw);
+          const resolvedHp = Number.isFinite(hpNum) ? hpNum : resolvedHpMax;
           const coords =
             instr.allCoords && map
               ? Array.from({ length: map.rows }, (_, r) =>
@@ -357,7 +350,6 @@ export const createScriptRunner = ({
               size,
               info,
               hp: resolvedHp,
-              remainingHp: resolvedHp,
               hpMax: resolvedHpMax
             });
           });

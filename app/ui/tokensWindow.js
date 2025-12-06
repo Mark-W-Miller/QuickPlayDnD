@@ -103,8 +103,12 @@ export function initTokensWindow({
       const colLetter = Number.isFinite(colIdx) ? String.fromCharCode(65 + colIdx) : colIdx;
       const row = Number.isFinite(t.row) ? Math.round(t.row) : t.row;
       const gridRef = colLetter !== undefined && row !== undefined ? `${colLetter}${row}` : "";
-      const hpMax = Number.isFinite(t.hpMax) ? t.hpMax : Number.isFinite(t.hp) ? t.hp : null;
-      const hpCur = Number.isFinite(t.remainingHp) ? t.remainingHp : Number.isFinite(t.hp) ? t.hp : hpMax;
+      const hpMax = Number.isFinite(t.hpMax)
+        ? t.hpMax
+        : Number.isFinite(t.hp)
+          ? t.hp
+          : null;
+      const hpCur = Number.isFinite(t.hp) ? t.hp : hpMax;
       const damage = hpMax != null && hpCur != null ? Math.max(0, hpMax - hpCur) : null;
       const infoFull = t.info || "";
       const infoPreview = infoFull.split(";")[0];
