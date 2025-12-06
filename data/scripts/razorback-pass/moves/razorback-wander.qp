@@ -1,0 +1,21 @@
+# Razorback Pass – Random Wander (test moves)
+# Use after loading map-razorback-pass.qp and razorback_pass_pop.qp
+
+# PCs wander
+MOVE PC-SAR TO L12
+MOVE PC-DEC TO O12
+MOVE PC-MEA TO K13
+MOVE PC-MOL TO N12
+
+# Allies shift around camp
+MOVE ALY-BREN TO K10
+MOVE ALY-TALL TO L9
+MOVE ALY-ORIN TO M8
+
+# Enemies roam
+MOVE EN-WGT-N TO I6
+MOVE EN-WGT-N2 TO K4
+MOVE EN-WGT-N3 TO M5
+MOVE EN-WGT-S TO I14
+MOVE EN-WGT-S2 TO K17
+MOVE EN-WGT-S3 TO M18

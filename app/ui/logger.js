@@ -77,7 +77,8 @@ export const initLogger = ({
 
   loadHistory();
   loadEnabled();
-  const bootstrapClasses = ["INFO", "DIM", "BUILD", "PARSE", "CAMERA", "3DLOAD", "EDIT", "ERROR"];
+  // Fixed list of known classes; do not pull from storage for initialization.
+  const bootstrapClasses = ["INFO", "BUILD", "CAMERA", "3DLOAD", "SELECTION", "MOVE", "ERROR"];
   bootstrapClasses.forEach((c) => state.classes.add(c));
   // Respect saved enabled classes; if none saved, enable defaults.
   if (!state.enabledClasses.size) {

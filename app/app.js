@@ -31,6 +31,7 @@ const overlayLabelToggle = document.getElementById("show-overlay-labels");
 const modelsToggle = document.getElementById("show-models");
 const tokensOpenBtn = document.getElementById("tokens-open");
 const tokensCloseBtn = document.getElementById("tokens-close");
+const tokensCopyBtn = document.getElementById("tokens-copy");
 const tokensWindow = document.getElementById("tokens-window");
 const tokensBody = document.getElementById("tokens-body");
 const paramsOpenBtn = document.getElementById("params-open");
@@ -89,6 +90,8 @@ const langOpenBtn = document.getElementById("lang-open");
 const langCloseBtn = document.getElementById("lang-close");
 const langWindow = document.getElementById("lang-window");
 const viewToggleBtn = document.getElementById("view-toggle");
+const scriptsRunSelectedBtn = document.getElementById("scripts-run-selected");
+const scriptsRunEditorBtn = document.getElementById("scripts-run-editor");
 let memHud = null;
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -366,6 +369,7 @@ const refreshTokenHighlights = () => {
   if (updateTokens3d) updateTokens3d(boardWidth, boardDepth, surfaceY, cellUnit);
   if (render3d) render3d();
 };
+state.refreshTokenHighlights = refreshTokenHighlights;
 
 heatHeightSlider.addEventListener("input", (e) => {
   state.heightMap.heightScale = parseFloat(e.target.value) || 1;
@@ -513,6 +517,7 @@ initParamsWindow({ paramsOpenBtn, paramsCloseBtn, paramsWindow });
 initTokensWindow({
   tokensOpenBtn,
   tokensCloseBtn,
+  tokensCopyBtn,
   tokensWindow,
   tokensBody,
   state,
@@ -632,6 +637,18 @@ if (viewToggleBtn) {
   viewToggleBtn.addEventListener("click", toggleMode);
 }
 
+if (scriptsRunSelectedBtn) {
+  scriptsRunSelectedBtn.addEventListener("click", () => {
+    runSelectedScripts({ runIfNoneFallback: false });
+  });
+}
+
+if (scriptsRunEditorBtn) {
+  scriptsRunEditorBtn.addEventListener("click", () => {
+    runCurrentScript();
+  });
+}
+
 // Keyboard shortcuts: V for view, E for edit (or toggle if already in that state)
 window.addEventListener("keydown", (e) => {
   if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
@@ -660,7 +677,14 @@ const editSelect = createEditSelectionHandlers({
   updateSelectionHighlights,
   render3d
 });
-const viewSelect = createViewSelectionHandlers({ three });
+const viewSelect = createViewSelectionHandlers({
+  three,
+  state,
+  raycaster,
+  pointer,
+  logClass,
+  refreshTokenHighlights
+});
 interactionManager.setHandlers({ edit: editSelect, view: viewSelect });
 // Ensure shield state matches initial mode
 updateCanvasShield();
@@ -670,9 +694,9 @@ webglCanvas.addEventListener("mousedown", (e) => {
   const handled = interactionManager.handleDown(e.button, e.shiftKey, e);
   if (handled) {
     e.preventDefault();
-    if (mode === "edit" && e.button === 0) e.stopPropagation();
+    if (e.button === 0) e.stopPropagation();
   }
-});
+}, true);
 
 webglCanvas.addEventListener("mouseup", (e) => {
   const handled = interactionManager.handleUp(e.button, e.shiftKey, e);
@@ -680,7 +704,7 @@ webglCanvas.addEventListener("mouseup", (e) => {
     e.preventDefault();
     if (interactionMode === "edit" && e.button === 0) e.stopPropagation();
   }
-});
+}, true);
 
 webglCanvas.addEventListener("mousemove", (e) => {
   const handled = interactionManager.handleMove(e);
@@ -688,7 +712,7 @@ webglCanvas.addEventListener("mousemove", (e) => {
     e.preventDefault();
     if (interactionMode === "edit" && e.buttons === 1) e.stopPropagation();
   }
-});
+}, true);
 
 // Ensure shield state matches initial mode
 updateCanvasShield();

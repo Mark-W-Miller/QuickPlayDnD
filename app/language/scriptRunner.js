@@ -18,6 +18,8 @@ export const createScriptRunner = ({
     let working = JSON.parse(JSON.stringify(state));
     let mapChanged = false;
 
+    const pendingInitiatives = new Map();
+
     const ensureMap = () => {
       if (working.map) return working.map;
       working.map = {
@@ -49,6 +51,10 @@ export const createScriptRunner = ({
       const idx = working.tokens.findIndex((t) => t.id === token.id);
       if (idx >= 0) working.tokens[idx] = token;
       else working.tokens.push(token);
+      // Apply any pending initiative for this token id.
+      pendingInitiatives.forEach((val, key) => {
+        if (token.id === key || token.id.startsWith(`${key}-`)) token.initiative = val;
+      });
     };
 
     const removeToken = (tokenId) => {
@@ -140,30 +146,33 @@ export const createScriptRunner = ({
           break;
         }
         case "move": {
-          const token = working.tokens.find((t) => t.id.startsWith(instr.tokenId));
+          const token = working.tokens.find((t) => t.id === instr.tokenId || t.id.startsWith(`${instr.tokenId}-`));
           if (!token) {
+            logClass?.("MOVE", `Token ${instr.tokenId} not found for move`);
             log(`Token ${instr.tokenId} not found`);
             return;
           }
-  state.activeMoves = state.activeMoves.filter((m) => !m.tokenId.startsWith(instr.tokenId));
-  state.activeMoves.push({
-    tokenId: token.id,
-    from: { col: token.col, row: token.row },
-    to: { col: instr.coord.col, row: instr.coord.row },
-    speed: token.speed || 12,
-    progress: 0
-  });
-  logClass?.(
-    "MOVE",
-    `Queued move ${token.id} from (${token.col},${token.row}) to (${instr.coord.col},${instr.coord.row}) speed=${
-      token.speed || 12
-    }`
-  );
-  if (typeof state.renderTokensWindow === "function") {
-    state.renderTokensWindow();
-  }
-  break;
-}
+          state.activeMoves = state.activeMoves.filter(
+            (m) => m.tokenId !== token.id && !m.tokenId.startsWith(`${instr.tokenId}-`)
+          );
+          state.activeMoves.push({
+            tokenId: token.id,
+            from: { col: token.col, row: token.row },
+            to: { col: instr.coord.col, row: instr.coord.row },
+            speed: token.speed || 12,
+            progress: 0
+          });
+          logClass?.(
+            "MOVE",
+            `Queued move ${token.id} from (${token.col},${token.row}) to (${instr.coord.col},${instr.coord.row}) speed=${
+              token.speed || 12
+            }`
+          );
+          if (typeof state.renderTokensWindow === "function") {
+            state.renderTokensWindow();
+          }
+          break;
+        }
         case "attack": {
           const attacker = working.tokens.find((t) => t.id.startsWith(instr.attackerId));
           const target = working.tokens.find((t) => t.id.startsWith(instr.targetId));
@@ -196,6 +205,21 @@ export const createScriptRunner = ({
         }
         case "remove": {
           removeToken(instr.tokenId);
+          break;
+        }
+        case "state": {
+          const token = working.tokens.find((t) => t.id === instr.id || t.id.startsWith(`${instr.id}-`));
+          if (token) {
+            if (Number.isFinite(instr.remainingHp)) {
+              token.remainingHp = instr.remainingHp;
+              token.hp = token.hp ?? instr.remainingHp;
+            }
+            logClass?.("INFO", `STATE applied to ${token.id}: hp=${token.remainingHp ?? "?"}`);
+            if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
+            if (typeof state.refreshTokenHighlights === "function") state.refreshTokenHighlights();
+          } else {
+            logClass?.("INFO", `STATE ignored; token ${instr.id} not found`);
+          }
           break;
         }
         case "clear": {
@@ -254,11 +278,25 @@ export const createScriptRunner = ({
               d.code?.toLowerCase?.() === templateKeyLower
           );
           if (!def) {
-            def = ensureTemplateDef(working, templateKeyLower || templateKey, addDef);
+            // Try built-in token template fallback.
+            def = ensureTemplateDef(working, svgTemplate || templateKeyLower || templateKey, addDef);
           }
           if (!def) {
-            log(`Unknown template ${templateKey}`);
-            return;
+            // Last-resort generic def so placement still works.
+            def = {
+              id: templateKeyLower || templateKey,
+              code: (templateKey || "T").toUpperCase(),
+              name: templateKey,
+              category: "Object",
+              baseSize: 1,
+              svgUrl: buildTemplateSvg(svgTemplate || "token-small", {
+                bg: instr.kv.bg,
+                fg: instr.kv.fg,
+                initials
+              })
+            };
+            addDef(def);
+            logClass?.("PARSE", `Created generic def for ${templateKey}`);
           }
           const map = ensureMap();
           const baseId = instr.kv.id || def.code;
@@ -272,16 +310,40 @@ export const createScriptRunner = ({
           const type = instr.kv.type || def.category || "Object";
           const faction = (instr.kv.faction || instr.kv.side || instr.kv.team || def.faction || "").toLowerCase();
           const size = Number(instr.kv.size) || def.baseSize || 1;
+          const level = instr.kv.level || instr.kv.lvl;
+          const hp = instr.kv.hp || instr.kv.hitpoints;
+          const hpMax = instr.kv.total || instr.kv.hpmax || instr.kv.maxhp;
+          let info = instr.kv.info;
+          if (!info) {
+            const parts = [];
+            if (level !== undefined) parts.push(`Lvl ${level}`);
+            if (hpMax !== undefined) parts.push(`HP ${hp ?? "?"}/${hpMax}`);
+            else if (hp !== undefined) parts.push(`HP ${hp}`);
+            info = parts.join(" ").trim();
+          }
+          const hpNum = Number(hp);
+          const hpMaxNum = Number(hpMax);
+          const resolvedHpMax = Number.isFinite(hpMaxNum)
+            ? hpMaxNum
+            : Number.isFinite(hpNum)
+              ? hpNum
+              : 0;
+          const resolvedHp = Number.isFinite(hpNum)
+            ? hpNum
+            : Number.isFinite(resolvedHpMax)
+              ? resolvedHpMax
+              : 0;
           const coords =
             instr.allCoords && map
               ? Array.from({ length: map.rows }, (_, r) =>
                   Array.from({ length: map.cols }, (_, c) => ({ col: c, row: r }))
                 ).flat()
               : instr.coords;
-          const existingCount = working.tokens.filter((t) => t.id.startsWith(baseId)).length;
+          const existingCount = working.tokens.filter((t) => t.id === baseId || t.id.startsWith(`${baseId}-`)).length;
           coords.forEach((coord, idx) => {
+            const suffix = existingCount + idx === 0 ? "" : `-${existingCount + idx}`;
             upsertToken({
-              id: `${baseId}-${existingCount + idx + 1}`,
+              id: `${baseId}${suffix}`,
               defId: def.id,
               mapId: map.id,
               col: coord.col,
@@ -292,7 +354,11 @@ export const createScriptRunner = ({
               speed: Number(instr.kv.speed) || def.speed || 12,
               type,
               faction,
-              size
+              size,
+              info,
+              hp: resolvedHp,
+              remainingHp: resolvedHp,
+              hpMax: resolvedHpMax
             });
           });
           break;
@@ -319,6 +385,26 @@ export const createScriptRunner = ({
         case "roads": {
           // Informational only for now.
           logClass?.("PARSE", `Skipping ROADS (${(instr.refs || []).length} refs)`);
+          break;
+        }
+        case "initiative": {
+          const val = instr.value;
+          const ids = instr.ids || [];
+          ids.forEach((id) => {
+            const token = working.tokens.find((t) => t.id === id || t.id.startsWith(`${id}-`));
+            if (token) token.initiative = val;
+            pendingInitiatives.set(id, val);
+          });
+          if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
+          break;
+        }
+        case "initiative-set": {
+          (instr.pairs || []).forEach(({ id, value }) => {
+            const token = working.tokens.find((t) => t.id === id || t.id.startsWith(`${id}-`));
+            if (token) token.initiative = value;
+            pendingInitiatives.set(id, value);
+          });
+          if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
           break;
         }
           break;
@@ -391,7 +477,7 @@ export const createScriptRunner = ({
           continue;
         }
         applyInstructions(instructions);
-        logClass?.("INFO", `Ran ${item.type} script ${item.file}`);
+        logClass?.("INFO", `Ran ${item.type} script ${item.file} (${instructions.length} instr)`);
       } catch (err) {
         log(`Failed to run ${item.file}: ${err.message}`);
       }

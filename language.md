@@ -1,13 +1,15 @@
 # Tactical Battle Board Language
 
-Plain text commands, one per line. Lines starting with `#` are comments.
+Plain text commands, one per line. Lines starting with `#` are comments. QuickPlay scripts use the `.qp` extension (e.g., `razorback-pass/map-razorback-pass.qp`), and when referenced inside MAP you can use the relative path (no full URL required).
 
 ## Commands
 - `MAP background=<url> grid=<square|hex> size=<px> board=<cols>x<rows>` — set the background image and grid in one line. Example: `MAP background=images/wight-battle.png grid=hex size=64 board=20x38`.
 - `SPRITE DEF <CODE> name="Name" url="https://..." size=<n> tint=#RRGGBB category=<PC|NPC|Monster|Object> speed=<ft>` — define or update a sprite type; `speed` defaults to 12 if omitted.
 - `PLACE <CODE> @ A1,B2,...` — place sprite instances of the given code at coordinates. Instances auto-name `<CODE>-N`.
-- `CREATE template=<TemplateId[,SvgTemplateId]> id=<TokenId> initials=<XX> name=<Label> faction=<pc|ally|npc|enemy|team> bg=#RRGGBB fg=#RRGGBB speed=<ft> type=<structure|creature|object> size=<cells> @ A1,B2,...` — spawn tokens from templates (first template id drives the 3D model; optional second drives the SVG cap). `id` expands per placement; `initials` defaults to the first letters of the id; `name` renders on the token’s side band; `faction` (aliases: side/team) tints the cylinder green for pc/ally, red for npc/enemy; `bg`/`fg` override template colors; `speed` sets move speed (defaults to 12); `type` is a free-form category (e.g., `structure`); `size` is the footprint width on the smallest dimension in cells.
+- `CREATE template=<TemplateId[,SvgTemplateId]> id=<TokenId> initials=<XX> name=<Label> faction=<pc|ally|npc|enemy|team> bg=#RRGGBB fg=#RRGGBB speed=<ft> type=<structure|creature|object> size=<cells> level=<n> hp=<n> total=<n> info="<free text>" @ A1,B2,...` — spawn tokens from templates (first template id drives the 3D model; optional second drives the SVG cap). `id` expands per placement; `initials` defaults to the first letters of the id; `name` renders on the token’s side band; `faction` (aliases: side/team) tints the cylinder green for pc/ally, red for npc/enemy; `bg`/`fg` override template colors; `speed` sets move speed (defaults to 12); `type` is a free-form category (e.g., `structure`); `size` is the footprint width on the smallest dimension in cells. If `info` is omitted, but `level`/`hp`/`total` are provided, the band shows e.g. `Lvl 5 HP 12/18`. Tokens start at full HP (current = total).
 - `MOVE <tokenId> TO C3` — animate the first token whose id starts with `tokenId` toward the destination using its speed.
+- `STATE id=<tokenId> remainingHP=<n>` — update a token’s current HP (for mid-battle adjustments).
+- `INITIATIVE <n> <id1,id2,...>` or `INITIATIVE id=<n> order=id1,id2` — assign an initiative number to listed tokens (shown in the tokens window).
 - `ATTACK <attackerId> -> <targetId> TYPE physical|magic [SPEED <n>] [DUR <ms>]` — play a transient effect from attacker to target.
 - `EFFECT <magic|physical> AT A1 [SPEED <n>] [DUR <ms>]` — spawn a transient ground effect at a coordinate.
 - `REMOVE <tokenId>` — remove the first token whose id starts with `tokenId`.
@@ -88,3 +90,18 @@ MOVE DR TO I8
 ATTACK VC -> DR TYPE physical SPEED 18 DUR 800
 EFFECT magic AT H7 DUR 1200
 ```
+
+## 3D Model Catalog (in `data/models`)
+- `Castle.glb`
+- `Cleric.glb`
+- `Cleric_Staff.glb`
+- `Monk.glb`
+- `Ranger.glb`
+- `Ranger_Arrow.glb`
+- `Ranger_Bow.glb`
+- `Rogue.glb`
+- `Rogue_Dagger.glb`
+- `Warrior.glb`
+- `Warrior_Sword.glb`
+- `WizardX.glb`
+- `Wizard_Staff.glb`

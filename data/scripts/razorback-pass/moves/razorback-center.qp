@@ -1,0 +1,27 @@
+# Razorback Pass – Reset Positions (return everyone to starting spots)
+# Use after map-razorback-pass.qp and razorback_pass_pop.qp are loaded.
+
+# PCs
+MOVE PC-SAR TO M10
+MOVE PC-DEC TO N10
+MOVE PC-MEA TO L11
+MOVE PC-MOL TO N11
+
+# Allies
+MOVE ALY-BREN TO L9
+MOVE ALY-TALL TO M9
+MOVE ALY-ORIN TO N9
+
+# Objects (wagon, fire, horses)
+MOVE OBJ-WAGON TO M10
+MOVE OBJ-FIRE TO M11
+MOVE OBJ-HORSE TO K10
+MOVE OBJ-HORSE2 TO O10
+
+# Enemies
+MOVE EN-WGT-N TO H4
+MOVE EN-WGT-N2 TO J5
+MOVE EN-WGT-N3 TO L4
+MOVE EN-WGT-S TO H16
+MOVE EN-WGT-S2 TO J15
+MOVE EN-WGT-S3 TO L16

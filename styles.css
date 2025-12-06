@@ -311,12 +311,11 @@ body {
 
 .scripts-window .tree-scroll {
   flex: 1;
-  min-height: 160px;
-  max-height: 320px;
+  min-height: 0;
+  max-height: none;
   height: auto;
   margin: 6px 0 0 0;
   overflow: auto;
-  min-height: 0;
 }
 
 .scripts-window-body {
@@ -326,6 +325,13 @@ body {
   padding: 6px 8px 10px 8px;
   flex: 1;
   min-height: 0;
+}
+
+.scripts-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .scripts-window-resize {
@@ -636,6 +642,12 @@ button:active {
   cursor: move;
 }
 
+.token-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .tokens-body {
   flex: 1;
   padding: 10px;
@@ -718,8 +730,8 @@ button:active {
 .token-table {
   width: 100%;
   border-collapse: collapse;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.9rem;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 0.95rem;
 }
 .token-table th,
 .token-table td {
@@ -732,8 +744,24 @@ button:active {
   cursor: pointer;
 }
 .token-table tbody tr.selected {
-  background: rgba(89, 145, 255, 0.18);
-  outline: 1px solid rgba(89, 145, 255, 0.6);
+  background: radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.35), rgba(59, 130, 246, 0.15));
+  outline: 2px solid rgba(59, 130, 246, 0.8);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2), 0 4px 12px rgba(0, 0, 0, 0.25);
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.token-table tbody tr.faction-pc {
+  background: rgba(34, 197, 94, 0.15);
+}
+.token-table tbody tr.faction-ally {
+  background: rgba(234, 179, 8, 0.15);
+}
+.token-table tbody tr.faction-enemy {
+  background: rgba(239, 68, 68, 0.15);
+}
+.token-table tbody tr.faction-obj {
+  background: rgba(56, 189, 248, 0.15);
 }
 
 #mem-hud {

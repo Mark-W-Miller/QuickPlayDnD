@@ -22,6 +22,7 @@ export const parseScript = (script, { logClass } = {}) => {
   let pendingHeight = "";
   let inHeightBlock = false;
   let heightRows = [];
+  let pendingLine = "";
 
   const flushHeight = () => {
     if (!pendingHeight.trim()) return;
@@ -30,7 +31,15 @@ export const parseScript = (script, { logClass } = {}) => {
   };
 
   for (const raw of lines) {
-    const line = raw.trim();
+    let working = pendingLine + raw;
+    // Handle line continuations with trailing backslash.
+    if (/\\\s*$/.test(working)) {
+      pendingLine = working.replace(/\\\s*$/, "");
+      continue;
+    }
+    pendingLine = "";
+
+    const line = working.trim();
     if (!line || line.startsWith("#")) continue;
     logClass?.("PARSE", `Line: "${raw}"`);
 
@@ -64,6 +73,42 @@ export const parseScript = (script, { logClass } = {}) => {
         type: "map",
         kv
       });
+      continue;
+    }
+    if ((match = /^INITIATIVE\s+(.+)$/i.exec(line))) {
+      const body = match[1];
+      const kv = parseKeyValues(body);
+      const looksLikePairs = body.includes("=");
+      if (looksLikePairs && !kv.id) {
+        const pairs = body
+          .split(",")
+          .map((p) => p.trim())
+          .map((p) => {
+            const m = /^([^=]+)=(\d+)/.exec(p);
+            if (!m) return null;
+            return { id: m[1].trim(), value: Number(m[2]) };
+          })
+          .filter(Boolean);
+        if (pairs.length) {
+          instructions.push({ type: "initiative-set", pairs });
+          continue;
+        }
+      }
+      let value = null;
+      let listPart = null;
+      const parts = body.split(/\s+/);
+      if (!kv.id && parts.length >= 2 && /^\d+$/.test(parts[0])) {
+        value = Number(parts[0]);
+        listPart = parts.slice(1).join(" ");
+      } else {
+        value = kv.id ? Number(kv.id) : null;
+        listPart = kv.order || kv.list || body;
+      }
+      const ids = (listPart || "")
+        .split(/[, ]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (value != null && ids.length) instructions.push({ type: "initiative", value, ids });
       continue;
     }
     if ((match = /^GRID\s+(square|hex)\s+SIZE\s+(\d+)$/i.exec(line))) {
@@ -182,7 +227,19 @@ export const parseScript = (script, { logClass } = {}) => {
     // On any other instruction, flush accumulated HEIGHT data first.
     flushHeight();
     // Debug log for every instruction line we recognized so far.
-    if ((match = /^MOVE\s+(\w+)\s+TO\s+([A-Z]\d+)$/i.exec(line))) {
+    if ((match = /^STATE\s+(.+)$/i.exec(line))) {
+      const kv = parseKeyValues(match[1]);
+      const id = kv.id || kv.token || kv.name;
+      if (id && kv.remaininghp !== undefined) {
+        instructions.push({
+          type: "state",
+          id,
+          remainingHp: Number(kv.remaininghp)
+        });
+      }
+      continue;
+    }
+    if ((match = /^MOVE\s+([A-Z0-9_-]+)\s+TO\s+([A-Z]\d+)$/i.exec(line))) {
       const coord = coordToIndex(match[2]);
       if (coord) instructions.push({ type: "move", tokenId: match[1], coord });
       continue;

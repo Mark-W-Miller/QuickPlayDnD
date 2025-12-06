@@ -59,15 +59,20 @@ export const createSceneBuilder = ({
     const { boardWidth, boardDepth, surfaceY, cellUnit } = state.lastBoard;
     const map = state.map || {};
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x1e3a8a, // darker blue fill
+      color: 0x3b82f6, // bright blue fill
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.7,
       side: THREE.DoubleSide,
       depthTest: false,
       depthWrite: false
     });
-    const outlineMat = new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 2, depthTest: false, depthWrite: false });
-    const lift = Math.max(0.05, (cellUnit || 1) * 0.05);
+    const outlineMat = new THREE.LineBasicMaterial({
+      color: 0xef4444,
+      linewidth: 2,
+      depthTest: false,
+      depthWrite: false
+    });
+    const lift = Math.max(0.1, (cellUnit || 1) * 0.1);
     const sampleY = (x, z) => {
       const u = THREE.MathUtils.clamp(x / Math.max(1, boardWidth), 0, 1);
       const v = THREE.MathUtils.clamp(z / Math.max(1, boardDepth), 0, 1);
@@ -99,7 +104,9 @@ export const createSceneBuilder = ({
         const hexGeom = new THREE.ShapeGeometry(hexShape);
         mesh = new THREE.Mesh(hexGeom, mat.clone());
         mesh.rotation.x = -Math.PI / 2;
+        mesh.scale.set(1.04, 1, 1.04);
         mesh.position.set(placement.x, yBase, placement.z);
+        mesh.renderOrder = 4;
 
         // Outline
         const outlineGeo = new THREE.BufferGeometry().setFromPoints([...outlinePts, outlinePts[0]]);
@@ -117,6 +124,7 @@ export const createSceneBuilder = ({
         const rect = new THREE.PlaneGeometry(cellW, cellH);
         mesh = new THREE.Mesh(rect, mat.clone());
         mesh.rotation.x = -Math.PI / 2;
+        mesh.scale.set(1.04, 1, 1.04);
         mesh.position.set(xCenter, yBase, zCenter);
         // Outline
         const outlineGeo = new THREE.BufferGeometry().setFromPoints([
@@ -240,7 +248,7 @@ export const createSceneBuilder = ({
     return { x, z, cellW, cellH };
   };
 
-  const buildTokenMesh = (token, boardWidth, boardDepth, surfaceY, cellUnit) => {
+  const buildTokenMesh = (token, boardWidth, boardDepth, surfaceY, cellUnit, stackIndex = 0, stackTotal = 1) => {
     logClass(
       "3DLOAD",
       `Build Token: ${formatTokenLabel(token)} board=${boardWidth.toFixed(2)}x${boardDepth.toFixed(
@@ -289,7 +297,7 @@ export const createSceneBuilder = ({
     // Build base disk (skip for structures).
     const faceTexture = getTokenTexture(token.svgUrl || def.svgUrl);
     const radius = Math.max(0.2, tokenSize * cellUnit * 0.35);
-    const height = Math.max(0.2, cellUnit * 0.3); // 1.5x taller base
+    const height = Math.max(0.25, cellUnit * 0.4); // slightly taller base to host info band
     const geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
     const color = new THREE.Color(def.colorTint || "#ffffff");
     const topBottomMat = new THREE.MeshStandardMaterial({
@@ -300,8 +308,22 @@ export const createSceneBuilder = ({
       roughness: 0.4,
       map: faceTexture || null
     });
-    const sideColor =
-      (token.faction === "npc" || token.faction === "enemy" || token.faction === "hostile") ? "#b91c1c" : "#166534";
+    const tokenType = (token.type || "").toLowerCase();
+    const faction = (token.faction || "").toLowerCase();
+    const isObject =
+      token.id?.startsWith("OBJ-") ||
+      tokenType === "object" ||
+      tokenType === "structure";
+    let sideColor = "#166534"; // default PC/party green
+    if (isObject) {
+      sideColor = "#38bdf8"; // light blue for objects/structures
+    } else if (faction === "ally") {
+      sideColor = "#eab308"; // yellow
+    } else if (faction === "enemy" || faction === "npc" || faction === "hostile") {
+      sideColor = "#ef4444"; // red
+    } else if (faction === "pc") {
+      sideColor = "#166534"; // green
+    }
     const sideMat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(sideColor),
       emissive: new THREE.Color(sideColor),
@@ -320,22 +342,30 @@ export const createSceneBuilder = ({
     baseMesh.castShadow = true;
 
     const baseGroup = new THREE.Group();
-    if (!isStructure) baseGroup.add(baseMesh);
+    const includeBase = !isStructure || !def.modelUrl; // show base if non-structure or structure without its own model
+    if (includeBase) baseGroup.add(baseMesh);
 
     // Add name wrapped around the side of the cylinder.
     if (!isStructure && token.name) {
       const labelCanvas = document.createElement("canvas");
       labelCanvas.width = 512;
-      labelCanvas.height = 128;
+      labelCanvas.height = 220;
       const lctx = labelCanvas.getContext("2d");
       lctx.clearRect(0, 0, labelCanvas.width, labelCanvas.height);
       lctx.fillStyle = "rgba(0,0,0,0.25)"; // lighter band
       lctx.fillRect(0, 0, labelCanvas.width, labelCanvas.height);
       lctx.fillStyle = "#f8fafc";
-      lctx.font = "32px sans-serif";
       lctx.textAlign = "center";
       lctx.textBaseline = "middle";
-      lctx.fillText(token.name, labelCanvas.width / 2, labelCanvas.height / 2);
+      if (token.info) {
+        lctx.font = "48px sans-serif";
+        lctx.fillText(token.name, labelCanvas.width / 2, labelCanvas.height / 2 - 30);
+        lctx.font = "32px sans-serif";
+        lctx.fillText(token.info, labelCanvas.width / 2, labelCanvas.height / 2 + 30);
+      } else {
+        lctx.font = "48px sans-serif";
+        lctx.fillText(token.name, labelCanvas.width / 2, labelCanvas.height / 2);
+      }
       const tex = new THREE.CanvasTexture(labelCanvas);
       tex.wrapS = THREE.ClampToEdgeWrapping;
       tex.wrapT = THREE.ClampToEdgeWrapping;
@@ -409,14 +439,15 @@ export const createSceneBuilder = ({
       baseGroup.add(clone);
     }
 
+    const stackLift = stackIndex > 0 ? stackIndex * (height + 0.1 * cellUnit) : 0;
     if (isStructure) {
       // Structures sit flat at center height.
       baseGroup.quaternion.identity();
-      baseGroup.position.set(placement.x, hCenter, placement.z);
+      baseGroup.position.set(placement.x, hCenter + stackLift, placement.z);
     } else {
       baseGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
       const yOffset = 0;
-      baseGroup.position.set(placement.x, hCenter + yOffset + height / 2, placement.z);
+      baseGroup.position.set(placement.x, hCenter + yOffset + height / 2 + stackLift, placement.z);
     }
     baseGroup.userData.tokenId = token.id;
     return baseGroup;
@@ -425,9 +456,24 @@ export const createSceneBuilder = ({
   const updateTokens3d = (boardWidth, boardDepth, surfaceY, cellUnit) => {
     if (!three.tokenGroup) return;
     clearGroup(three.tokenGroup);
-    state.tokens.forEach((token) => {
-      const mesh = buildTokenMesh(token, boardWidth, boardDepth, surfaceY, cellUnit);
-      if (mesh) three.tokenGroup.add(mesh);
+    const stacks = new Map();
+    state.tokens.forEach((t) => {
+      const key = `${t.col},${t.row}`;
+      if (!stacks.has(key)) stacks.set(key, []);
+      stacks.get(key).push(t);
+    });
+    stacks.forEach((arr) => {
+      // Ensure objects (IDs starting with OBJ-) stay at the bottom of the stack.
+      arr.sort((a, b) => {
+        const aObj = typeof a.id === "string" && a.id.startsWith("OBJ-");
+        const bObj = typeof b.id === "string" && b.id.startsWith("OBJ-");
+        if (aObj === bObj) return 0;
+        return aObj ? -1 : 1;
+      });
+      arr.forEach((token, idx) => {
+        const mesh = buildTokenMesh(token, boardWidth, boardDepth, surfaceY, cellUnit, idx, arr.length);
+        if (mesh) three.tokenGroup.add(mesh);
+      });
     });
   };
   updateTokensRef = updateTokens3d;

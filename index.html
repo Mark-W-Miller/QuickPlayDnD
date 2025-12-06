@@ -72,6 +72,9 @@
     <div id="tokens-window" class="tokens-window">
       <div class="tokens-window-header">
         <span>Active Tokens</span>
+        <div class="token-actions">
+          <button id="tokens-copy">Copy IDs</button>
+        </div>
         <button id="tokens-close">Close</button>
       </div>
       <div id="tokens-body" class="tokens-body"></div>
@@ -84,7 +87,11 @@
         <button id="scripts-close">Close</button>
       </div>
       <div class="scripts-window-body">
-        <label class="test-toggle"><input type="checkbox" id="show-test-dirs" /> Test Dirs</label>
+        <div class="scripts-actions">
+          <label class="test-toggle"><input type="checkbox" id="show-test-dirs" /> Test Dirs</label>
+          <button id="scripts-run-selected">Run Selected</button>
+          <button id="scripts-run-editor">Run Editor Script</button>
+        </div>
         <div id="script-tree-scroll" class="tree-scroll">
           <div id="script-tree" class="script-tree" aria-label="Script list"></div>
         </div>

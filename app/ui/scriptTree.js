@@ -63,6 +63,13 @@ export function createScriptTreeManager({
     const savedTreeState = safeJsonParse(localStorage.getItem("script-tree-state") || "{}", {});
     const openSet = new Set(savedTreeState.open || []);
     const checkedSet = new Set(savedTreeState.checked || []);
+    // Support legacy .txt saved entries by mapping them to .qp if present.
+    const normalizedChecked = new Set(checkedSet);
+    checkedSet.forEach((file) => {
+      if (file.endsWith(".txt")) {
+        normalizedChecked.add(file.replace(/\.txt$/, ".qp"));
+      }
+    });
     scriptManifest.clear();
     const includeTests = showTestToggle ? showTestToggle.checked : false;
     const dirMeta = new Map();
@@ -120,7 +127,7 @@ export function createScriptTreeManager({
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.className = "script-check";
-        checkbox.checked = checkedSet.has(entry.file);
+        checkbox.checked = normalizedChecked.has(entry.file);
         checkbox.addEventListener("click", (e) => {
           e.stopPropagation();
           persistTreeState();

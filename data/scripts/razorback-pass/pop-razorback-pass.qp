@@ -1,0 +1,96 @@
+# ============================================
+# TOKEN SETUP – PARTY, ALLIES, OBJECTS, ENEMIES
+# Using CREATE with 3D templates from data/models
+# ============================================
+
+# --- Player Characters (PC faction = green) ----------------------------
+
+# Sarsu – Paladin/Cleric front-liner
+CREATE template=token-medium id=PC-SAR initials=SA name="Sarsu" faction=pc \
+  bg=#4a90e2 fg=#ffffff speed=20 type=creature size=1 level=5 hp=32 total=32 \
+  info="Lvl 5 Paladin-Cleric; front-line support, healing & radiant damage" @ M10
+
+# Decharn – Fighter/Ranger skirmisher
+CREATE template=token-medium id=PC-DEC initials=DE name="Decharn" faction=pc \
+  bg=#7fbf3f fg=#ffffff speed=30 type=creature size=1 level=5 hp=38 total=38 \
+  info="Lvl 5 Fighter/Ranger; bow & blade; battlefield control on the flanks" @ N10
+
+# Meat – Barbarian bruiser
+CREATE template=token-medium id=PC-MEA initials=ME name="Meat" faction=pc \
+  bg=#cc6644 fg=#ffffff speed=30 type=creature size=1 level=5 hp=45 total=45 \
+  info="Lvl 5 Barbarian; heavy melee striker; soaks damage at the front" @ L11
+
+# Molly – Rogue scout
+CREATE template=token-medium id=PC-MOL initials=MO name="Molly" faction=pc \
+  bg=#f2c94c fg=#000000 speed=35 type=creature size=1 level=5 hp=30 total=30 \
+  info="Lvl 5 Rogue; agile skirmisher, excels at flanking and finishing blows" @ N11
+
+
+# --- Extra Low-Level Fighters (Allies) ---------------------------------
+
+# Bren – young fighter with spear
+CREATE template=token-small id=ALY-BREN initials=BR name="Bren" faction=ally \
+  bg=#6b7280 fg=#ffffff speed=25 type=creature size=1 level=2 hp=18 total=18 \
+  info="Lvl 2 Fighter; spear & shield; holds the line near the wagon" @ L9
+
+# Talla – determined sword & buckler fighter
+CREATE template=token-small id=ALY-TALL initials=TA name="Talla" faction=ally \
+  bg=#6b7280 fg=#ffffff speed=25 type=creature size=1 level=2 hp=16 total=16 \
+  info="Lvl 2 Fighter; quick-footed, defends the camp perimeter" @ M9
+
+# Orin – bow-armed camp guard
+CREATE template=token-small id=ALY-ORIN initials=OR name="Orin" faction=ally \
+  bg=#6b7280 fg=#ffffff speed=25 type=creature size=1 level=2 hp=17 total=17 \
+  info="Lvl 2 Fighter; shortbow and handaxe; keeps watch beyond the firelight" @ N9
+
+
+# --- Camp Objects (Wagon, Campfire, generic horses) --------------------
+
+# Wagon – 2-hex footprint; central camp anchor
+CREATE template=token-large id=OBJ-WAGON initials=WG name="Wagon" faction=ally \
+  bg=#8b5a2b fg=#ffffff speed=0 type=structure size=2 level=0 hp=40 total=40 \
+  info="Heavy supply wagon; cover, obstacle, and focus of the camp" @ M10
+
+# Campfire – light source
+CREATE template=token-small id=OBJ-FIRE initials=CF name="Campfire" faction=ally \
+  bg=#ff8800 fg=#000000 speed=0 type=object size=1 level=0 hp=1 total=1 \
+  info="Bright campfire; bright light ~20 ft, dim beyond; focal point of camp" @ M11
+
+# Horses – generic beasts of burden near the wagon
+CREATE template=token-small id=OBJ-HORSE initials=H1 name="Horse" faction=ally \
+  bg=#d9c28b fg=#000000 speed=40 type=object size=1 level=0 hp=11 total=11 \
+  info="Riding or pack horse; may panic when combat starts" @ K10
+
+CREATE template=token-small id=OBJ-HORSE2 initials=H2 name="Horse" faction=ally \
+  bg=#d9c28b fg=#000000 speed=40 type=object size=1 level=0 hp=11 total=11 \
+  info="Second horse; tethered opposite the wagon" @ O10
+
+
+# --- Enemies – Wights emerging from ridges (faction=enemy) -------------
+
+# Northern ridge wights – approaching from the dark heights
+CREATE template=token-medium id=EN-WGT-N initials=WN name="Razorback Wight" faction=enemy \
+  bg=#2d3748 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=32 total=32 \
+  info="Lvl 4 Wight; chill touch, draining strikes; hunts from the northern ridge" @ H4
+
+CREATE template=token-medium id=EN-WGT-N2 initials=WN name="Razorback Wight" faction=enemy \
+  bg=#2d3748 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=30 total=30 \
+  info="Lvl 4 Wight; flanks and looks for isolated targets beyond the fire" @ J5
+
+CREATE template=token-medium id=EN-WGT-N3 initials=WN name="Razorback Wight" faction=enemy \
+  bg=#2d3748 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=30 total=30 \
+  info="Lvl 4 Wight; uses elevation and rocks for cover on the north ridge" @ L4
+
+
+# Southern ridge wights – creeping up from below the road
+CREATE template=token-medium id=EN-WGT-S initials=WS name="Razorback Wight" faction=enemy \
+  bg=#1f2933 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=32 total=32 \
+  info="Lvl 4 Wight; pushes from the southern slope, trying to encircle the camp" @ H16
+
+CREATE template=token-medium id=EN-WGT-S2 initials=WS name="Razorback Wight" faction=enemy \
+  bg=#1f2933 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=30 total=30 \
+  info="Lvl 4 Wight; works with packmates to cut off retreat along the road" @ J15
+
+CREATE template=token-medium id=EN-WGT-S3 initials=WS name="Razorback Wight" faction=enemy \
+  bg=#1f2933 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=30 total=30 \
+  info="Lvl 4 Wight; lurks at the southern ridge edge, ready to rush the wagon" @ L16
