@@ -1,9 +1,11 @@
 [
   { "dir": "wight-battle"},
+  { "dir": "Bronamesk" },
   { "dir": "moves", "testOnly": true },
   { "dir": "razorback-pass" },
   { "dir": "3dTest", "testOnly": true },
   { "dir": "test", "testOnly": true },
+  { "file": "Bronamesk/map-bronamesk.qp", "type": "map", "name": "Bronamesk (100-yard Hex)" },
   { "file": "razorback-pass/map-razorback-pass.qp", "type": "map", "name": "Razorback Pass" },
   { "file": "test/map-hex.qp", "type": "map", "name": "Hex Board" },
   { "file": "test/map-grid.qp", "type": "map", "name": "Grid Board" },

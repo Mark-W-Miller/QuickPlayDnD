@@ -3,6 +3,8 @@ export function overlayGridOnTexture(map, { textureCanvas, textureCtx, overlayGr
   if (overlayGridToggle && !overlayGridToggle.checked) return;
   const cols = Math.max(1, map.cols || 1);
   const rows = Math.max(1, map.rows || 1);
+  const fontScale = Math.min(3, Math.max(0.25, state.gridRefFontScale || 1));
+  const baseFontPx = 12 * fontScale;
   state.overlayBounds = null;
   state.overlayCenters?.clear();
   textureCtx.save();
@@ -17,6 +19,7 @@ export function overlayGridOnTexture(map, { textureCanvas, textureCtx, overlayGr
     const s = Math.max(1, Math.min(sFromW, sFromH));
     const hexW = sqrt3 * s;
     const hexH = 2 * s;
+    const fontPx = Math.max(6, Math.min(hexH * 0.9, baseFontPx));
     const rowStep = hexH * 0.75;
     let minX = Infinity;
     let minY = Infinity;
@@ -43,7 +46,7 @@ export function overlayGridOnTexture(map, { textureCanvas, textureCtx, overlayGr
         textureCtx.stroke();
         if (!overlayLabelToggle || overlayLabelToggle.checked) {
           textureCtx.fillStyle = "rgba(240,240,240,0.7)";
-          textureCtx.font = "12px monospace";
+          textureCtx.font = `${fontPx.toFixed(2)}px monospace`;
           textureCtx.textAlign = "center";
           textureCtx.textBaseline = "middle";
           const label = `${String.fromCharCode(65 + c)}${r}`;
@@ -69,6 +72,7 @@ export function overlayGridOnTexture(map, { textureCanvas, textureCtx, overlayGr
     }
   } else {
     const cell = Math.min(textureCanvas.width / cols, textureCanvas.height / rows);
+    const fontPx = Math.max(6, Math.min(cell * 0.9, baseFontPx));
     for (let x = 0; x <= textureCanvas.width + cell; x += cell) {
       textureCtx.beginPath();
       textureCtx.moveTo(x, 0);
@@ -83,7 +87,7 @@ export function overlayGridOnTexture(map, { textureCanvas, textureCtx, overlayGr
     }
     if (!overlayLabelToggle || overlayLabelToggle.checked) {
       textureCtx.fillStyle = "rgba(240,240,240,0.7)";
-      textureCtx.font = "12px monospace";
+      textureCtx.font = `${fontPx.toFixed(2)}px monospace`;
       textureCtx.textAlign = "center";
       textureCtx.textBaseline = "middle";
       for (let r = 0; r < rows; r++) {

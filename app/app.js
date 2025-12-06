@@ -69,6 +69,11 @@ const savedOverlayLabels = (() => {
 const savedModels = (() => {
   return safeJsonParse(localStorage.getItem("show-models") || "true", true);
 })();
+const defaultGridFontScale = 0.9;
+const savedGridFontScale = (() => {
+  const raw = parseFloat(localStorage.getItem("grid-font-scale"));
+  return Number.isFinite(raw) ? raw : defaultGridFontScale;
+})();
 const fallbackScript = `
 # Provide your own script here
 `;
@@ -76,6 +81,8 @@ const heatHeightSlider = document.getElementById("heat-height");
 const heatHeightValue = document.getElementById("heat-height-value");
 const moveSpeedSlider = document.getElementById("move-speed-scale");
 const moveSpeedValue = document.getElementById("move-speed-scale-value");
+const gridFontSlider = document.getElementById("grid-font-scale");
+const gridFontValue = document.getElementById("grid-font-scale-value");
 const mapPanel = document.querySelector(".map-panel");
 const appEl = document.querySelector(".app");
 const resizer = document.getElementById("sidebar-resizer");
@@ -115,6 +122,7 @@ mapPanel.appendChild(webglCanvas);
 
 state.heightMap.showMesh = savedHeight;
 state.showModels = savedModels;
+state.gridRefFontScale = Math.min(3, Math.max(0.25, savedGridFontScale));
 
 const coercePx = (val, fallback, min) => {
   const n = parseFloat(val);
@@ -340,6 +348,12 @@ const syncMoveSpeedControls = () => {
   moveSpeedValue.textContent = `${state.moveSpeedScale.toFixed(2)}x`;
 };
 
+const syncGridFontControls = () => {
+  if (!gridFontValue) return;
+  const pct = Math.round((state.gridRefFontScale || defaultGridFontScale) * 100);
+  gridFontValue.textContent = `${pct}%`;
+};
+
 
 // Build script runner once dependencies are available.
 scriptRunner = createScriptRunner({
@@ -382,6 +396,21 @@ moveSpeedSlider.addEventListener("input", (e) => {
   state.moveSpeedScale = parseFloat(e.target.value) || 1;
   syncMoveSpeedControls();
 });
+
+if (gridFontSlider) {
+  gridFontSlider.value = state.gridRefFontScale;
+  syncGridFontControls();
+  gridFontSlider.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    const clamped = Math.min(3, Math.max(0.25, Number.isFinite(val) ? val : defaultGridFontScale));
+    state.gridRefFontScale = clamped;
+    localStorage.setItem("grid-font-scale", clamped.toString());
+    syncGridFontControls();
+    if (state.map?.backgroundUrl) setBackground(state.map.backgroundUrl);
+    updateBoardScene();
+    render();
+  });
+}
 
 const setCameraPreset = (preset) => {
   cameraManager.setCameraPreset(preset, render3d);

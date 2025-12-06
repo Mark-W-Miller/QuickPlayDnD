@@ -44,6 +44,7 @@ const state = {
     grid: [],
     maxHeight: 1
   },
+  gridRefFontScale: 0.9,
   overlayCenters: new Map(),
   selectedTokenIds: new Set(),
   activeMoves: [],
