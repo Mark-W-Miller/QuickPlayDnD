@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node server/index.mjs",
+    "dev": "nodemon --watch server --ext mjs,js --signal SIGINT server/index.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -25,5 +26,8 @@
   "dependencies": {
     "canvas": "^3.2.0",
     "obj2gltf": "^3.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
   }
 }
