@@ -16,6 +16,18 @@ export function initTokensWindow({
   const MIN_W = 320;
   const MIN_H = 240;
   let lastSelectIndex = null;
+  const roleSuffix = (() => {
+    try {
+      const url = new URL(window.location.href);
+      const roleParam = (url.searchParams.get("role") || "").toLowerCase();
+      const path = url.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
+      if (roleParam === "player" || url.searchParams.has("cl") || path === "player") return "player";
+      return "dm";
+    } catch {
+      return "dm";
+    }
+  })();
+  const STORAGE_KEY = `token-window-state-${roleSuffix}`;
 
   const bringToFront = () => {
     const next = (window.__winZCounter || 9000) + 1;
@@ -151,8 +163,8 @@ export function initTokensWindow({
   };
 
   const persistTokenWinState = (winState) => {
-    const saved = safeJsonParse(localStorage.getItem("token-window-state") || "{}", {});
-    localStorage.setItem("token-window-state", JSON.stringify({ ...saved, ...winState }));
+    const saved = safeJsonParse(localStorage.getItem(STORAGE_KEY) || "{}", {});
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...saved, ...winState }));
   };
 
   const onMove = (e) => {

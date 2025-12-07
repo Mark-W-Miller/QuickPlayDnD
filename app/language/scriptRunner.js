@@ -7,6 +7,7 @@ const SCRIPTS_BASE = "data/scripts";
 export const createScriptRunner = ({
   parseScript,
   fetchInstructions,
+  pushInstructions,
   setBackground,
   updateBoardScene,
   render,
@@ -457,6 +458,13 @@ export const createScriptRunner = ({
       return;
     }
     applyInstructions(instructions);
+    if (typeof pushInstructions === "function") {
+      try {
+        pushInstructions(instructions);
+      } catch {
+        /* ignore push errors */
+      }
+    }
   };
 
   const runSelectedScripts = async ({ runIfNoneFallback = true } = {}) => {

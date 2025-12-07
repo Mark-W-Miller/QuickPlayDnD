@@ -113,6 +113,16 @@ const readBody = (req) =>
     req.on("error", reject);
   });
 
+let latestState = { version: 0, instructions: [], updatedAt: Date.now() };
+
+const updateLatestState = (instructions = []) => {
+  latestState = {
+    version: latestState.version + 1,
+    instructions: Array.isArray(instructions) ? instructions : [],
+    updatedAt: Date.now()
+  };
+};
+
 const handleRunScript = async (req, res) => {
   if (req.method !== "POST") {
     res.writeHead(405, { "Content-Type": "text/plain" });
@@ -150,6 +160,7 @@ const handleRunScript = async (req, res) => {
     logClass("COMMS", "Received /api/run-script", logPayload);
 
     const instructions = parseScript(String(scriptText), {});
+    updateLatestState(instructions);
     const payload = { instructions };
     logClass("COMMS", "Responding /api/run-script", payload);
     sendJson(res, 200, payload);
@@ -229,6 +240,29 @@ const enqueueStaticLog = (path) => {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+  if (url.pathname === "/api/state" && req.method === "POST") {
+    try {
+      const raw = await readBody(req);
+      const payload = JSON.parse(raw || "{}");
+      if (Array.isArray(payload.instructions)) {
+        updateLatestState(payload.instructions);
+        sendJson(res, 200, { ok: true, version: latestState.version });
+      } else {
+        sendJson(res, 400, { error: "Missing instructions" });
+      }
+    } catch (err) {
+      sendJson(res, 400, { error: "Invalid body" });
+    }
+    return;
+  }
+  if (url.pathname === "/api/state") {
+    sendJson(res, 200, {
+      version: latestState.version,
+      updatedAt: latestState.updatedAt,
+      instructions: latestState.instructions
+    });
+    return;
+  }
   if (url.pathname === "/api/run-script") {
     flushStaticLog();
     await handleRunScript(req, res);

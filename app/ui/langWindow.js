@@ -1,9 +1,59 @@
-const STORAGE_KEY = "lang-window-state";
+const roleSuffix = (() => {
+  try {
+    const url = new URL(window.location.href);
+    const roleParam = (url.searchParams.get("role") || "").toLowerCase();
+    const path = url.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
+    if (roleParam === "player" || url.searchParams.has("cl") || path === "player") return "player";
+    return "dm";
+  } catch {
+    return "dm";
+  }
+})();
+
+const STORAGE_KEY = `lang-window-state-${roleSuffix}`;
+
+const loadWinState = () => {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {};
+  } catch {
+    return {};
+  }
+};
+
+const saveWinState = (winState) => {
+  try {
+    const prev = loadWinState();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...prev, ...winState }));
+  } catch {
+    /* ignore */
+  }
+};
 
 const coercePx = (val, fallback, min) => {
   const n = parseFloat(val);
   if (!Number.isFinite(n) || n <= 0) return fallback;
   return `${Math.max(n, min)}px`;
+};
+
+const parseSize = (raw, fallback) => {
+  const n = parseFloat(raw);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
+const deriveGeom = (saved, { minW, minH }) => {
+  const width = parseSize(saved?.width, minW);
+  const height = parseSize(saved?.height, minH);
+  const left = typeof saved?.left === "number" ? saved.left : 20;
+  const top = typeof saved?.top === "number" ? saved.top : 20;
+  return { left, top, width, height };
+};
+
+const clampGeom = (geom) => {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const clampedLeft = Math.min(Math.max(geom.left, 0), Math.max(0, vw - geom.width));
+  const clampedTop = Math.min(Math.max(geom.top, 0), Math.max(0, vh - geom.height));
+  return { ...geom, left: clampedLeft, top: clampedTop };
 };
 
 export function initLangWindow({ langOpenBtn, langCloseBtn, langWindow }) {
@@ -36,12 +86,7 @@ export function initLangWindow({ langOpenBtn, langCloseBtn, langWindow }) {
   };
 
   const persistState = (winState) => {
-    try {
-      const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...prev, ...winState }));
-    } catch {
-      /* ignore */
-    }
+    saveWinState(winState);
   };
 
   const onMove = (e) => {
@@ -134,17 +179,35 @@ export function initLangWindow({ langOpenBtn, langCloseBtn, langWindow }) {
       langWindow.classList.remove("open");
       return;
     }
-    const saved = (() => {
-      try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-      } catch {
-        return {};
-      }
-    })();
+    const saved = loadWinState();
     applyState(saved);
+    const rect = langWindow.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const savedW = saved?.width ? parseFloat(saved.width) || rect.width : rect.width;
+    const savedH = saved?.height ? parseFloat(saved.height) || rect.height : rect.height;
+    const baseLeft = saved?.left ?? rect.left;
+    const baseTop = saved?.top ?? rect.top;
+    const width = savedW || MIN_W;
+    const height = savedH || MIN_H;
+    const clampedLeft = Math.min(Math.max(baseLeft, 0), Math.max(0, vw - width));
+    const clampedTop = Math.min(Math.max(baseTop, 0), Math.max(0, vh - height));
+    const finalLeft = baseLeft < 0 || baseLeft + width > vw ? clampedLeft : baseLeft;
+    const finalTop = baseTop < 0 || baseTop + height > vh ? clampedTop : baseTop;
+    langWindow.style.left = `${finalLeft}px`;
+    langWindow.style.top = `${finalTop}px`;
     langWindow.classList.add("open");
+    langWindow.style.display = "flex";
+    langWindow.style.flexDirection = "column";
     bringToFront();
-    persistState({ open: true, z: Number(langWindow.style.zIndex) || undefined });
+    persistState({
+      left: finalLeft,
+      top: finalTop,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
+      open: true,
+      z: Number(langWindow.style.zIndex) || undefined
+    });
   });
 
   if (langCloseBtn) {
@@ -160,18 +223,38 @@ export function initLangWindow({ langOpenBtn, langCloseBtn, langWindow }) {
         z: Number(langWindow.style.zIndex) || undefined
       });
       langWindow.classList.remove("open");
+      langWindow.style.display = "none";
     });
   }
 
-  const saved = (() => {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    } catch {
-      return {};
-    }
-  })();
+  const saved = loadWinState();
   if (saved.open) {
     applyState(saved);
+    const rect = langWindow.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const savedW = saved?.width ? parseFloat(saved.width) || rect.width : rect.width;
+    const savedH = saved?.height ? parseFloat(saved.height) || rect.height : rect.height;
+    const baseLeft = saved?.left ?? rect.left;
+    const baseTop = saved?.top ?? rect.top;
+    const width = savedW || MIN_W;
+    const height = savedH || MIN_H;
+    const clampedLeft = Math.min(Math.max(baseLeft, 0), Math.max(0, vw - width));
+    const clampedTop = Math.min(Math.max(baseTop, 0), Math.max(0, vh - height));
+    const finalLeft = baseLeft < 0 || baseLeft + width > vw ? clampedLeft : baseLeft;
+    const finalTop = baseTop < 0 || baseTop + height > vh ? clampedTop : baseTop;
+    langWindow.style.left = `${finalLeft}px`;
+    langWindow.style.top = `${finalTop}px`;
     langWindow.classList.add("open");
+    langWindow.style.display = "flex";
+    langWindow.style.flexDirection = "column";
+    persistState({
+      left: clampedLeft,
+      top: clampedTop,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
+      open: true,
+      z: Number(langWindow.style.zIndex) || undefined
+    });
   }
 }

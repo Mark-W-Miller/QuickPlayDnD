@@ -1,9 +1,59 @@
-const STORAGE_KEY = "scripts-window-state";
+const roleSuffix = (() => {
+  try {
+    const url = new URL(window.location.href);
+    const roleParam = (url.searchParams.get("role") || "").toLowerCase();
+    const path = url.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
+    if (roleParam === "player" || url.searchParams.has("cl") || path === "player") return "player";
+    return "dm";
+  } catch {
+    return "dm";
+  }
+})();
+
+const STORAGE_KEY = `scripts-window-state-${roleSuffix}`;
+
+const loadWinState = () => {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {};
+  } catch {
+    return {};
+  }
+};
+
+const saveWinState = (winState) => {
+  try {
+    const prev = loadWinState();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...prev, ...winState }));
+  } catch {
+    /* ignore */
+  }
+};
 
 const coercePx = (val, fallback, min) => {
   const n = parseFloat(val);
   if (!Number.isFinite(n) || n <= 0) return fallback;
   return `${Math.max(n, min)}px`;
+};
+
+const parseSize = (raw, fallback) => {
+  const n = parseFloat(raw);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
+const deriveGeom = (saved, { minW, minH }) => {
+  const width = parseSize(saved?.width, minW);
+  const height = parseSize(saved?.height, minH);
+  const left = typeof saved?.left === "number" ? saved.left : 20;
+  const top = typeof saved?.top === "number" ? saved.top : 20;
+  return { left, top, width, height };
+};
+
+const clampGeom = (geom) => {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const clampedLeft = Math.min(Math.max(geom.left, 0), Math.max(0, vw - geom.width));
+  const clampedTop = Math.min(Math.max(geom.top, 0), Math.max(0, vh - geom.height));
+  return { ...geom, left: clampedLeft, top: clampedTop };
 };
 
 export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWindow }) {
@@ -16,6 +66,17 @@ export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWind
   let resizeStart = { x: 0, y: 0, w: 0, h: 0 };
   const MIN_W = 360;
   const MIN_H = 300;
+  const persistFromRect = () => {
+    const rect = scriptsWindow.getBoundingClientRect();
+    persistState({
+      left: rect.left,
+      top: rect.top,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
+      open: scriptsWindow.classList.contains("open"),
+      z: Number(scriptsWindow.style.zIndex) || undefined
+    });
+  };
   const bringToFront = () => {
     const next = (window.__winZCounter || 9000) + 1;
     window.__winZCounter = next;
@@ -36,12 +97,7 @@ export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWind
   };
 
   const persistState = (winState) => {
-    try {
-      const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...prev, ...winState }));
-    } catch {
-      /* ignore */
-    }
+    saveWinState(winState);
   };
 
   const onMove = (e) => {
@@ -58,14 +114,7 @@ export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWind
     dragging = false;
     window.removeEventListener("mousemove", onMove);
     window.removeEventListener("mouseup", endDrag);
-    const rect = scriptsWindow.getBoundingClientRect();
-    persistState({
-      left: rect.left,
-      top: rect.top,
-      width: `${rect.width}px`,
-      height: `${rect.height}px`,
-      z: Number(scriptsWindow.style.zIndex) || undefined
-    });
+    persistFromRect();
   };
 
   if (header) {
@@ -105,14 +154,7 @@ export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWind
     resizing = false;
     window.removeEventListener("mousemove", onResizeMove);
     window.removeEventListener("mouseup", endResize);
-    const rect = scriptsWindow.getBoundingClientRect();
-    persistState({
-      left: rect.left,
-      top: rect.top,
-      width: `${rect.width}px`,
-      height: `${rect.height}px`,
-      z: Number(scriptsWindow.style.zIndex) || undefined
-    });
+    persistFromRect();
   };
 
   if (resizeHandle) {
@@ -136,22 +178,30 @@ export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWind
         top: rect.top,
         width: `${rect.width}px`,
         height: `${rect.height}px`,
-        open: false
+        open: false,
+        z: Number(scriptsWindow.style.zIndex) || undefined
       });
       scriptsWindow.classList.remove("open");
+      scriptsWindow.style.display = "none";
       return;
     }
-    const saved = (() => {
-      try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-      } catch {
-        return {};
-      }
-    })();
-    applyState(saved);
+    const saved = loadWinState();
+    const geom = deriveGeom(saved, { minW: MIN_W, minH: MIN_H });
+    scriptsWindow.style.width = `${geom.width}px`;
+    scriptsWindow.style.height = `${geom.height}px`;
+    scriptsWindow.style.left = `${geom.left}px`;
+    scriptsWindow.style.top = `${geom.top}px`;
     scriptsWindow.classList.add("open");
+    scriptsWindow.style.display = "flex";
+    scriptsWindow.style.flexDirection = "column";
     bringToFront();
-    persistState({ open: true, z: Number(scriptsWindow.style.zIndex) || undefined });
+    persistState({
+      ...geom,
+      width: `${geom.width}px`,
+      height: `${geom.height}px`,
+      open: true,
+      z: Number(scriptsWindow.style.zIndex) || undefined
+    });
   });
 
   if (scriptsCloseBtn) {
@@ -163,21 +213,30 @@ export function initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWind
         top: rect.top,
         width: `${rect.width}px`,
         height: `${rect.height}px`,
-        open: false
+        open: false,
+        z: Number(scriptsWindow.style.zIndex) || undefined
       });
       scriptsWindow.classList.remove("open");
+      scriptsWindow.style.display = "none";
     });
   }
 
-    const saved = (() => {
-      try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-      } catch {
-        return {};
-      }
-    })();
-    if (saved.open) {
-      applyState(saved);
-      scriptsWindow.classList.add("open");
-    }
+  const saved = loadWinState();
+  if (saved.open) {
+    const geom = deriveGeom(saved, { minW: MIN_W, minH: MIN_H });
+    scriptsWindow.style.width = `${geom.width}px`;
+    scriptsWindow.style.height = `${geom.height}px`;
+    scriptsWindow.style.left = `${geom.left}px`;
+    scriptsWindow.style.top = `${geom.top}px`;
+    scriptsWindow.classList.add("open");
+    scriptsWindow.style.display = "flex";
+    scriptsWindow.style.flexDirection = "column";
+    persistState({
+      ...geom,
+      width: `${geom.width}px`,
+      height: `${geom.height}px`,
+      open: true,
+      z: Number(scriptsWindow.style.zIndex) || undefined
+    });
+  }
 }

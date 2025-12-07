@@ -1,4 +1,16 @@
-const STORAGE_KEY = "params-window-state";
+const roleSuffix = (() => {
+  try {
+    const url = new URL(window.location.href);
+    const roleParam = (url.searchParams.get("role") || "").toLowerCase();
+    const path = url.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
+    if (roleParam === "player" || url.searchParams.has("cl") || path === "player") return "player";
+    return "dm";
+  } catch {
+    return "dm";
+  }
+})();
+
+const STORAGE_KEY = `params-window-state-${roleSuffix}`;
 
 const coercePx = (val, fallback, min) => {
   const n = parseFloat(val);

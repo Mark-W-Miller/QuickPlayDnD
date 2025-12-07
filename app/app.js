@@ -101,6 +101,8 @@ const scriptsRunSelectedBtn = document.getElementById("scripts-run-selected");
 const scriptsRunEditorBtn = document.getElementById("scripts-run-editor");
 const dbOpenBtn = document.getElementById("db-open");
 const dbWindow = document.getElementById("db-window");
+const camSlotButtons = document.querySelectorAll("[data-cam-slot]");
+const clearCamViewsBtn = document.getElementById("clear-cam-views");
 let memHud = null;
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -111,23 +113,27 @@ const getClientRole = () => {
   const url = new URL(window.location.href);
   const path = url.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
   const roleParam = (url.searchParams.get("role") || "").toLowerCase();
-  if (roleParam === "dm") return "dm";
   if (roleParam === "player") return "player";
-  if (path === "dm") return "dm";
+  if (roleParam === "dm") return "dm";
+  if (url.searchParams.has("cl")) return "player";
   if (path === "player") return "player";
-  if (path.startsWith("cl")) return "player";
+  if (path === "dm") return "dm";
   return "dm";
 };
 
 const clientRole = getClientRole();
 const isDM = clientRole === "dm";
+let lastSyncedVersion = -1;
 const hideForPlayer = (el) => {
   if (el) el.style.display = "none";
 };
+const showForDM = (el) => {
+  if (el && isDM) el.style.display = "";
+};
 
 if (!isDM) {
-  hideForPlayer(scriptsOpenBtn);
-  hideForPlayer(langOpenBtn);
+  camSlotButtons.forEach((btn) => (btn.style.display = "none"));
+  if (clearCamViewsBtn) clearCamViewsBtn.style.display = "none";
   hideForPlayer(dbOpenBtn);
   hideForPlayer(paramsOpenBtn);
   hideForPlayer(selectionOpenBtn);
@@ -137,18 +143,57 @@ if (!isDM) {
   dbWindow?.classList?.remove("open");
   paramsWindow?.classList?.remove("open");
   selectionWindow?.classList?.remove("open");
+} else {
+  showForDM(scriptsOpenBtn);
+  showForDM(langOpenBtn);
+  showForDM(dbOpenBtn);
+  showForDM(paramsOpenBtn);
+  showForDM(selectionOpenBtn);
+  camSlotButtons.forEach((btn) => showForDM(btn));
+  showForDM(clearCamViewsBtn);
 }
 
 if (roleBadge) {
   roleBadge.textContent = `Role: ${isDM ? "DM" : "Player"}`;
 }
+if (isDM) {
+  if (scriptsOpenBtn) scriptsOpenBtn.style.display = "";
+  if (langOpenBtn) langOpenBtn.style.display = "";
+}
+
+const fetchAndApplyLatestState = async () => {
+  if (isDM || !scriptRunner) return;
+  try {
+    const res = await fetch("/api/state");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.version !== undefined && data.version !== lastSyncedVersion && Array.isArray(data.instructions)) {
+      lastSyncedVersion = data.version;
+      if (data.instructions.length) {
+        scriptRunner.applyInstructions([{ type: "reset" }]);
+        scriptRunner.applyInstructions(data.instructions);
+        logClass?.("INFO", `Synced state version ${data.version} (${data.instructions.length} instructions)`);
+      }
+    }
+  } catch (err) {
+    logClass?.("WARN", `State sync failed: ${err.message}`);
+  }
+};
+
+const startPlayerSync = () => {
+  if (isDM) return;
+  const runSync = () => {
+    if (!scriptRunner) return;
+    fetchAndApplyLatestState();
+  };
+  runSync();
+  setInterval(runSync, 2000);
+};
 
 const initMemHud = () => {
   memHud = runtimeStats || null;
   if (memHud) memHud.textContent = "heap -- | tex -- | geo --";
 };
-const camSlotButtons = document.querySelectorAll("[data-cam-slot]");
-const clearCamViewsBtn = document.getElementById("clear-cam-views");
 const currentMapLabel = document.getElementById("current-map-label");
 
 const textureCanvas = document.createElement("canvas");
@@ -416,10 +461,24 @@ const requestServerInstructions = async (scriptText) => {
 };
 
 
+const pushServerState = async (instructions) => {
+  if (!isDM || !Array.isArray(instructions) || !instructions.length) return;
+  try {
+    await fetch("/api/state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instructions })
+    });
+  } catch (err) {
+    logClass?.("WARN", `Push state failed: ${err.message}`);
+  }
+};
+
 // Build script runner once dependencies are available.
 scriptRunner = createScriptRunner({
   parseScript,
   fetchInstructions: requestServerInstructions,
+  pushInstructions: pushServerState,
   setBackground,
   updateBoardScene,
   render,
@@ -903,6 +962,7 @@ cameraManager.applySavedCamera();
 cameraManager.attachControlListeners(render3d);
 render();
 scriptTreeManager.loadScriptManifest(() => runSelectedScripts({ runIfNoneFallback: false }));
+startPlayerSync();
 
 // Apply saved UI sizing defaults
 const savedTopHeight = safeStorageGet("ui-top-height", null);
