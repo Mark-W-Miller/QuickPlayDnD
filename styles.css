@@ -50,8 +50,39 @@ body {
   gap: 8px;
 }
 
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
 .header-cams button {
   padding: 6px 10px;
+}
+
+.stats-field {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.stats-label {
+  opacity: 0.7;
+  letter-spacing: 0.3px;
+}
+
+.stats-value {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 .header-actions {

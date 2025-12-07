@@ -167,7 +167,10 @@ const safeResolve = (requestedPath) => {
 };
 
 const serveStatic = async (req, res, url) => {
-  let requestedPath = url.pathname === "/" ? "/index.html" : url.pathname;
+  const pathName = url.pathname;
+  const isRoleAlias =
+    pathName === "/dm" || pathName === "/player" || /^\/cl/i.test(pathName);
+  let requestedPath = pathName === "/" || isRoleAlias ? "/index.html" : pathName;
   let filePath = safeResolve(requestedPath);
 
   if (!filePath) {

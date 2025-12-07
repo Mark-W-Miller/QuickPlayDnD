@@ -17,7 +17,7 @@
     <main class="app">
       <header class="panel header">
         <div class="header-left">
-          <div class="current-map-label">Current map: <span id="current-map-label">None</span></div>
+          <div class="role-badge" id="role-badge">Role: --</div>
           <div class="cam-buttons header-cams">
             <button data-cam-slot="1">View 1</button>
             <button data-cam-slot="2">View 2</button>
@@ -153,6 +153,10 @@
         </div>
         <div class="field">
           <label><input type="checkbox" id="show-models" checked /> Show 3D models on tokens</label>
+        </div>
+        <div class="field stats-field">
+          <div class="stats-label">Runtime stats</div>
+          <div id="runtime-stats" class="stats-value">heap -- | tex -- | geo --</div>
         </div>
       </div>
       <div class="params-window-resize" aria-label="Resize"></div>

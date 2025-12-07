@@ -99,15 +99,53 @@ const langWindow = document.getElementById("lang-window");
 const viewToggleBtn = document.getElementById("view-toggle");
 const scriptsRunSelectedBtn = document.getElementById("scripts-run-selected");
 const scriptsRunEditorBtn = document.getElementById("scripts-run-editor");
+const dbOpenBtn = document.getElementById("db-open");
+const dbWindow = document.getElementById("db-window");
 let memHud = null;
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
+const roleBadge = document.getElementById("role-badge");
+const runtimeStats = document.getElementById("runtime-stats");
+
+const getClientRole = () => {
+  const url = new URL(window.location.href);
+  const path = url.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
+  const roleParam = (url.searchParams.get("role") || "").toLowerCase();
+  if (roleParam === "dm") return "dm";
+  if (roleParam === "player") return "player";
+  if (path === "dm") return "dm";
+  if (path === "player") return "player";
+  if (path.startsWith("cl")) return "player";
+  return "dm";
+};
+
+const clientRole = getClientRole();
+const isDM = clientRole === "dm";
+const hideForPlayer = (el) => {
+  if (el) el.style.display = "none";
+};
+
+if (!isDM) {
+  hideForPlayer(scriptsOpenBtn);
+  hideForPlayer(langOpenBtn);
+  hideForPlayer(dbOpenBtn);
+  hideForPlayer(paramsOpenBtn);
+  hideForPlayer(selectionOpenBtn);
+  hideForPlayer(viewToggleBtn);
+  scriptsWindow?.classList?.remove("open");
+  langWindow?.classList?.remove("open");
+  dbWindow?.classList?.remove("open");
+  paramsWindow?.classList?.remove("open");
+  selectionWindow?.classList?.remove("open");
+}
+
+if (roleBadge) {
+  roleBadge.textContent = `Role: ${isDM ? "DM" : "Player"}`;
+}
 
 const initMemHud = () => {
-  memHud = document.createElement("div");
-  memHud.id = "mem-hud";
-  memHud.textContent = "mem: --";
-  document.body.appendChild(memHud);
+  memHud = runtimeStats || null;
+  if (memHud) memHud.textContent = "heap -- | tex -- | geo --";
 };
 const camSlotButtons = document.querySelectorAll("[data-cam-slot]");
 const clearCamViewsBtn = document.getElementById("clear-cam-views");
@@ -282,6 +320,7 @@ const scriptTreeManager = createScriptTreeManager({
 });
 
 const runSelectedScripts = async ({ runIfNoneFallback = true } = {}) => {
+  if (!isDM) return;
   if (!scriptRunner) return;
   try {
     await scriptRunner.runSelectedScripts({ runIfNoneFallback });
@@ -291,6 +330,7 @@ const runSelectedScripts = async ({ runIfNoneFallback = true } = {}) => {
 };
 
 const runCurrentScript = () => {
+  if (!isDM) return;
   if (!scriptRunner) return;
   scriptRunner.runScriptText(inputEl.value).catch((err) => {
     log(`Failed to run script: ${err.message}`);
@@ -305,7 +345,7 @@ const loadExampleScript = async (path, fallback, autoRun = false, meta = {}) => 
     inputEl.value = text.trim();
     log(`Loaded script: ${path}`);
     if (meta.type === "map" && currentMapLabel) currentMapLabel.textContent = path;
-    if (autoRun) runCurrentScript();
+    if (autoRun && isDM) runCurrentScript();
   } catch (err) {
     if (fallback) {
       inputEl.value = fallback.trim();
@@ -314,7 +354,7 @@ const loadExampleScript = async (path, fallback, autoRun = false, meta = {}) => 
         if (currentMapLabel) currentMapLabel.textContent = "Fallback map";
         logClass?.("INFO", "Applied fallback map as last-map-script");
       }
-      if (autoRun) runCurrentScript();
+      if (autoRun && isDM) runCurrentScript();
     } else {
       log(`Failed to load example ${path}: ${err.message}`);
     }
@@ -322,19 +362,20 @@ const loadExampleScript = async (path, fallback, autoRun = false, meta = {}) => 
 };
 
 document.getElementById("run-btn").addEventListener("click", () => {
-  runCurrentScript();
+  if (isDM) runCurrentScript();
 });
 
 const runSelectedBtn = document.getElementById("run-selected-btn");
 if (runSelectedBtn) {
   runSelectedBtn.addEventListener("click", () => {
-    runSelectedScripts({ runIfNoneFallback: false });
+    if (isDM) runSelectedScripts({ runIfNoneFallback: false });
   });
 }
 
 // Run script on Ctrl+Enter when the textarea is focused.
 if (inputEl) {
   inputEl.addEventListener("keydown", (e) => {
+    if (!isDM) return;
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       runCurrentScript();
@@ -655,6 +696,7 @@ const selectionWindowApi =
   }) || { setContent: () => {}, bringToFront: () => {} };
 
 const setInteractionMode = (mode) => {
+  if (!isDM && mode !== "view") return interactionMode;
   const next = interactionManager.setMode(mode);
   interactionMode = next;
   if (viewToggleBtn) viewToggleBtn.textContent = next === "view" ? "View" : "Edit";
@@ -684,33 +726,44 @@ const toggleMode = () => setInteractionMode(interactionMode === "view" ? "edit" 
 
 if (viewToggleBtn) {
   viewToggleBtn.textContent = "View";
-  viewToggleBtn.addEventListener("click", toggleMode);
+  if (isDM) viewToggleBtn.addEventListener("click", toggleMode);
+  else viewToggleBtn.style.display = "none";
 }
 
 if (scriptsRunSelectedBtn) {
-  scriptsRunSelectedBtn.addEventListener("click", () => {
-    runSelectedScripts({ runIfNoneFallback: false });
-  });
+  if (isDM) {
+    scriptsRunSelectedBtn.addEventListener("click", () => {
+      runSelectedScripts({ runIfNoneFallback: false });
+    });
+  } else {
+    scriptsRunSelectedBtn.style.display = "none";
+  }
 }
 
 if (scriptsRunEditorBtn) {
-  scriptsRunEditorBtn.addEventListener("click", () => {
-    runCurrentScript();
-  });
+  if (isDM) {
+    scriptsRunEditorBtn.addEventListener("click", () => {
+      runCurrentScript();
+    });
+  } else {
+    scriptsRunEditorBtn.style.display = "none";
+  }
 }
 
 // Keyboard shortcuts: V for view, E for edit (or toggle if already in that state)
-window.addEventListener("keydown", (e) => {
-  if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
-  if (e.key.toLowerCase() === "v") setInteractionMode("view");
-  if (e.key.toLowerCase() === "e") setInteractionMode("edit");
-  if (e.key === "Escape") {
-    state.selectionCells = new Set();
-    selectionWindowApi.setContent("");
-    updateSelectionHighlights();
-    render3d();
-  }
-});
+if (isDM) {
+  window.addEventListener("keydown", (e) => {
+    if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+    if (e.key.toLowerCase() === "v") setInteractionMode("view");
+    if (e.key.toLowerCase() === "e") setInteractionMode("edit");
+    if (e.key === "Escape") {
+      state.selectionCells = new Set();
+      selectionWindowApi.setContent("");
+      updateSelectionHighlights();
+      render3d();
+    }
+  });
+}
 
 // Initialize controls for the default mode
 applyControlMode(interactionMode);
