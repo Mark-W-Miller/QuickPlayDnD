@@ -2,11 +2,13 @@
   "name": "quickplaydnd",
   "version": "1.0.0",
   "description": "- Script: `tools/generate-maps.js` (uses `canvas`). - Install deps: `npm install canvas`. - Run: `node tools/generate-maps.js`. - Outputs: `images/grid-default-map.png` (20x16 square, 5ft cells) and `images/hex-default-map.png` (20x14 pointy-top hex, 10-yard cells).",
+  "type": "module",
   "main": "app.js",
   "directories": {
     "example": "examples"
   },
   "scripts": {
+    "start": "node server/index.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

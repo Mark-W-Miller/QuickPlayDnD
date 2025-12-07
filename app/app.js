@@ -283,12 +283,18 @@ const scriptTreeManager = createScriptTreeManager({
 
 const runSelectedScripts = async ({ runIfNoneFallback = true } = {}) => {
   if (!scriptRunner) return;
-  await scriptRunner.runSelectedScripts({ runIfNoneFallback });
+  try {
+    await scriptRunner.runSelectedScripts({ runIfNoneFallback });
+  } catch (err) {
+    log(`Failed to run selected scripts: ${err.message}`);
+  }
 };
 
 const runCurrentScript = () => {
   if (!scriptRunner) return;
-  scriptRunner.runScriptText(inputEl.value);
+  scriptRunner.runScriptText(inputEl.value).catch((err) => {
+    log(`Failed to run script: ${err.message}`);
+  });
 };
 
 const loadExampleScript = async (path, fallback, autoRun = false, meta = {}) => {
@@ -354,10 +360,25 @@ const syncGridFontControls = () => {
   gridFontValue.textContent = `${pct}%`;
 };
 
+const requestServerInstructions = async (scriptText) => {
+  const res = await fetch("/api/run-script", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ script: scriptText || "" })
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data || !Array.isArray(data.instructions)) {
+    throw new Error("Invalid response payload");
+  }
+  return data.instructions;
+};
+
 
 // Build script runner once dependencies are available.
 scriptRunner = createScriptRunner({
   parseScript,
+  fetchInstructions: requestServerInstructions,
   setBackground,
   updateBoardScene,
   render,

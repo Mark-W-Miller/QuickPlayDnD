@@ -6,6 +6,7 @@ const SCRIPTS_BASE = "data/scripts";
 
 export const createScriptRunner = ({
   parseScript,
+  fetchInstructions,
   setBackground,
   updateBoardScene,
   render,
@@ -14,6 +15,18 @@ export const createScriptRunner = ({
   logClass,
   scriptTreeManager
 }) => {
+  const resolveInstructions = async (text) => {
+    if (typeof fetchInstructions === "function") {
+      try {
+        const remote = await fetchInstructions(text);
+        if (Array.isArray(remote)) return remote;
+      } catch (err) {
+        logClass?.("WARN", `Remote script execution failed: ${err.message}`);
+      }
+    }
+    return parseScript(text, { logClass });
+  };
+
   const applyInstructions = (instructions) => {
     let working = JSON.parse(JSON.stringify(state));
     let mapChanged = false;
@@ -437,8 +450,8 @@ export const createScriptRunner = ({
     log(`Applied ${instructions.length} instruction(s)`);
   };
 
-  const runScriptText = (text) => {
-    const instructions = parseScript(text, { logClass });
+  const runScriptText = async (text) => {
+    const instructions = await resolveInstructions(text);
     if (!instructions.length) {
       log("No instructions parsed");
       return;
@@ -448,12 +461,12 @@ export const createScriptRunner = ({
 
   const runSelectedScripts = async ({ runIfNoneFallback = true } = {}) => {
     if (!scriptTreeManager) {
-      if (runIfNoneFallback) runScriptText("");
+      if (runIfNoneFallback) await runScriptText("");
       return;
     }
     const checked = scriptTreeManager.getCheckedScripts();
     if (!checked.length) {
-      if (runIfNoneFallback) runScriptText("");
+      if (runIfNoneFallback) await runScriptText("");
       return;
     }
     const priority = { map: 0, pop: 1, move: 2, script: 3 };
@@ -463,7 +476,7 @@ export const createScriptRunner = ({
         const res = await fetch(`${SCRIPTS_BASE}/${item.file}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
-        const instructions = parseScript(text, { logClass });
+        const instructions = await resolveInstructions(text);
         if (!instructions.length) {
           log(`No instructions in ${item.file}`);
           continue;
