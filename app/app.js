@@ -137,6 +137,8 @@ if (!isDM) {
   hideForPlayer(dbOpenBtn);
   hideForPlayer(paramsOpenBtn);
   hideForPlayer(selectionOpenBtn);
+  hideForPlayer(scriptsOpenBtn);
+  hideForPlayer(langOpenBtn);
   hideForPlayer(viewToggleBtn);
   scriptsWindow?.classList?.remove("open");
   langWindow?.classList?.remove("open");

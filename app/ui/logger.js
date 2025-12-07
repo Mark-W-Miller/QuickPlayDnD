@@ -178,7 +178,7 @@ export const initLogger = ({
 
   const log = (msg) => logClass("INFO", msg);
 
-  const classFilterContainer = document.createElement("div");
+ const classFilterContainer = document.createElement("div");
   classFilterContainer.className = "log-filters";
 
   const buildClassFilters = () => {
@@ -206,7 +206,8 @@ export const initLogger = ({
       classFilterContainer.appendChild(label);
     });
     if (logWindow) {
-      logWindow.querySelector(".log-window-header")?.appendChild(classFilterContainer);
+      const target = logWindow.querySelector(".log-window-header-bottom") || logWindow.querySelector(".log-window-header");
+      target?.appendChild(classFilterContainer);
     }
   };
 

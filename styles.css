@@ -834,13 +834,26 @@ button:active {
 
 .log-window-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 6px;
   padding: 8px 10px;
   background: rgba(255, 255, 255, 0.06);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   font-weight: 600;
   cursor: move;
+}
+
+.log-window-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-window-header-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .log-body {

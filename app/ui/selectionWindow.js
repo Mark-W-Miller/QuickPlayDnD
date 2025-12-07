@@ -1,22 +1,4 @@
-const roleSuffix = (() => {
-  try {
-    const url = new URL(window.location.href);
-    const roleParam = (url.searchParams.get("role") || "").toLowerCase();
-    const path = url.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
-    if (roleParam === "player" || url.searchParams.has("cl") || path === "player") return "player";
-    return "dm";
-  } catch {
-    return "dm";
-  }
-})();
-
-const STORAGE_KEY = `selection-window-state-${roleSuffix}`;
-
-const coercePx = (val, fallback, min) => {
-  const n = parseFloat(val);
-  if (!Number.isFinite(n) || n <= 0) return fallback;
-  return `${Math.max(n, min)}px`;
-};
+import { createWindowFrame } from "./windowFrame.js";
 
 export function initSelectionWindow({
   openBtn,
@@ -29,247 +11,61 @@ export function initSelectionWindow({
   lowerBtn,
   zeroBtn,
   exportBtn,
-  getSelectionRefs,
   onExportHeight,
   onAdjustHeight,
-  onZeroHeight
+  onZeroHeight,
+  getSelectionRefs
 }) {
-  if (!openBtn || !windowEl || !textarea) return null;
-  const header = windowEl.querySelector(".selection-window-header");
-  let dragging = false;
-  let dragOffset = { x: 0, y: 0 };
-  const MIN_W = 260;
-  const MIN_H = 180;
-  let resizeHandle = windowEl.querySelector(".selection-window-resize");
-  if (!resizeHandle) {
-    resizeHandle = document.createElement("div");
-    resizeHandle.className = "selection-window-resize";
-    resizeHandle.setAttribute("aria-label", "Resize selection window");
-    windowEl.appendChild(resizeHandle);
-  }
-  let resizing = false;
-  let resizeStart = { x: 0, y: 0, w: 0, h: 0 };
+  if (!openBtn || !windowEl) return null;
 
-  const applyState = (saved = {}) => {
-    if (saved.left !== undefined && saved.top !== undefined) {
-      windowEl.style.left = `${saved.left}px`;
-      windowEl.style.top = `${saved.top}px`;
-      windowEl.style.right = "auto";
-      windowEl.style.bottom = "auto";
-    }
-    windowEl.style.width = saved.width ? coercePx(saved.width, `${MIN_W}px`, MIN_W) : `${MIN_W}px`;
-    windowEl.style.height = saved.height ? coercePx(saved.height, `${MIN_H}px`, MIN_H) : `${MIN_H}px`;
-    if (saved.z) windowEl.style.zIndex = String(saved.z);
-    if (saved.content !== undefined) textarea.value = saved.content;
-  };
-
-  const persistState = (winState) => {
-    try {
-      const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...prev, ...winState }));
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const bringToFront = () => {
-    const next = (window.__winZCounter || 9000) + 1;
-    window.__winZCounter = next;
-    windowEl.style.zIndex = String(next);
-    persistState({ z: next });
-  };
-
-  const onMove = (e) => {
-    if (!dragging) return;
-    const x = e.clientX - dragOffset.x;
-    const y = e.clientY - dragOffset.y;
-    windowEl.style.left = `${x}px`;
-    windowEl.style.top = `${y}px`;
-    windowEl.style.right = "auto";
-    windowEl.style.bottom = "auto";
-  };
-
-  const endDrag = () => {
-    if (!dragging) return;
-    dragging = false;
-    window.removeEventListener("mousemove", onMove);
-    window.removeEventListener("mouseup", endDrag);
-    const rect = windowEl.getBoundingClientRect();
-    persistState({
-      left: rect.left,
-      top: rect.top,
-      width: `${rect.width}px`,
-      height: `${rect.height}px`
-    });
-  };
-
-  if (header) {
-    header.addEventListener("mousedown", (e) => {
-      if (e.target.tagName === "BUTTON") return;
-      bringToFront();
-      dragging = true;
-      const rect = windowEl.getBoundingClientRect();
-      dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", endDrag);
-    });
-  }
-
-  windowEl.addEventListener("focusin", bringToFront);
-
-  const onResizeMove = (e) => {
-    if (!resizing) return;
-    const dx = e.clientX - resizeStart.x;
-    const dy = e.clientY - resizeStart.y;
-    const newW = Math.max(MIN_W, resizeStart.w + dx);
-    const newH = Math.max(MIN_H, resizeStart.h + dy);
-    windowEl.style.width = `${newW}px`;
-    windowEl.style.height = `${newH}px`;
-  };
-
-  const endResize = () => {
-    if (!resizing) return;
-    resizing = false;
-    window.removeEventListener("mousemove", onResizeMove);
-    window.removeEventListener("mouseup", endResize);
-    const rect = windowEl.getBoundingClientRect();
-    persistState({
-      left: rect.left,
-      top: rect.top,
-      width: `${rect.width}px`,
-      height: `${rect.height}px`
-    });
-  };
-
-  if (resizeHandle) {
-    resizeHandle.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      resizing = true;
-      const rect = windowEl.getBoundingClientRect();
-      resizeStart = { x: e.clientX, y: e.clientY, w: rect.width, h: rect.height };
-      window.addEventListener("mousemove", onResizeMove);
-      window.addEventListener("mouseup", endResize);
-    });
-  }
-
-  openBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (windowEl.classList.contains("open")) {
-      const rect = windowEl.getBoundingClientRect();
-      persistState({
-        left: rect.left,
-        top: rect.top,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
-        open: false,
-        content: textarea.value
-      });
-      windowEl.classList.remove("open");
-    } else {
-      const saved = (() => {
-        try {
-          return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-        } catch {
-          return {};
-        }
-      })();
-      applyState(saved);
-      windowEl.classList.add("open");
-      persistState({ open: true, content: textarea.value });
-    }
+  createWindowFrame({
+    rootEl: windowEl,
+    openBtn,
+    closeBtn,
+    resizeHandle: windowEl.querySelector(".selection-window-resize"),
+    header: windowEl.querySelector(".selection-window-header"),
+    storageKey: "selection-window-state",
+    minWidth: 360,
+    minHeight: 320,
+    defaultLeft: 120,
+    defaultTop: 160,
+    roleAware: true
   });
 
-  if (closeBtn) {
-    closeBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      const rect = windowEl.getBoundingClientRect();
-      persistState({
-        left: rect.left,
-        top: rect.top,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
-        open: false,
-        content: textarea.value
-      });
-      windowEl.classList.remove("open");
-    });
-  }
-
-  if (clearBtn) {
-    clearBtn.addEventListener("click", (e) => {
-      e.preventDefault();
+  if (clearBtn && textarea) {
+    clearBtn.addEventListener("click", () => {
       textarea.value = "";
-      persistState({ content: "" });
+    });
+  }
+  if (roadBtn && getSelectionRefs && onAdjustHeight) {
+    roadBtn.addEventListener("click", () => {
+      const refs = getSelectionRefs();
+      if (refs && refs.length) onAdjustHeight(0, refs);
+    });
+  }
+  if (raiseBtn && getSelectionRefs && onAdjustHeight) {
+    raiseBtn.addEventListener("click", () => {
+      const refs = getSelectionRefs();
+      if (refs && refs.length) onAdjustHeight(1, refs);
+    });
+  }
+  if (lowerBtn && getSelectionRefs && onAdjustHeight) {
+    lowerBtn.addEventListener("click", () => {
+      const refs = getSelectionRefs();
+      if (refs && refs.length) onAdjustHeight(-1, refs);
+    });
+  }
+  if (zeroBtn && getSelectionRefs && onZeroHeight) {
+    zeroBtn.addEventListener("click", () => {
+      const refs = getSelectionRefs();
+      if (refs && refs.length) onZeroHeight(refs);
+    });
+  }
+  if (exportBtn && onExportHeight && getSelectionRefs) {
+    exportBtn.addEventListener("click", () => {
+      onExportHeight(getSelectionRefs());
     });
   }
 
-  if (roadBtn) {
-    roadBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      const refs = (getSelectionRefs && getSelectionRefs()) || [];
-      const cmd = refs.length ? `ROADS ${refs.join(", ")}` : "ROADS";
-      textarea.value = cmd;
-      persistState({ content: cmd });
-    });
-  }
-
-  const handleAdjust = (delta) => {
-    if (typeof onAdjustHeight !== "function") return;
-    const refs = (getSelectionRefs && getSelectionRefs()) || [];
-    onAdjustHeight(delta, refs);
-  };
-
-  if (raiseBtn) {
-    raiseBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      handleAdjust(1);
-    });
-  }
-
-  if (lowerBtn) {
-    lowerBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      handleAdjust(-1);
-    });
-  }
-
-  if (zeroBtn) {
-    zeroBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (typeof onZeroHeight === "function") {
-        onZeroHeight();
-      }
-    });
-  }
-
-  if (exportBtn) {
-    exportBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (typeof onExportHeight === "function") {
-        const text = onExportHeight();
-        if (typeof text === "string") {
-          textarea.value = text;
-          persistState({ content: text });
-        }
-      }
-    });
-  }
-
-  const saved = (() => {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    } catch {
-      return {};
-    }
-  })();
-  applyState(saved);
-  if (saved.open) windowEl.classList.add("open");
-
-  const setContent = (text) => {
-    textarea.value = text;
-    persistState({ content: text });
-  };
-
-  return { setContent, bringToFront };
+  return windowEl;
 }
