@@ -332,7 +332,11 @@ export const createScriptRunner = ({
           }
           const map = ensureMap();
           const baseId = instr.kv.id || def.code;
-          const initials = (instr.kv.initials || baseId.slice(0, 2)).toUpperCase().slice(0, 3);
+          const faction = (instr.kv.faction || instr.kv.side || instr.kv.team || def.faction || "").toLowerCase();
+          const name = instr.kv.name || def.name || baseId;
+          const clean = (str) => (str || "").toString().replace(/\s+/g, "");
+          const initialsRaw = faction === "pc" ? clean(name) : clean(instr.kv.initials || baseId);
+          const initials = initialsRaw.slice(0, 6).toUpperCase();
           const svgKey = svgTemplate?.toLowerCase();
           const tplKey = templateKeyLower;
           const bg = instr.kv.bg || tokenTemplates[svgKey]?.bg || tokenTemplates[tplKey]?.bg;
@@ -340,7 +344,6 @@ export const createScriptRunner = ({
           const svgSource = tokenTemplates[svgKey] ? svgKey : tplKey || templateKey;
           const svgUrl = buildTemplateSvg(svgSource, { bg, fg, initials });
           const type = instr.kv.type || def.category || "Object";
-          const faction = (instr.kv.faction || instr.kv.side || instr.kv.team || def.faction || "").toLowerCase();
           const size = Number(instr.kv.size) || def.baseSize || 1;
           const level = instr.kv.level || instr.kv.lvl;
           const hpCurRaw = instr.kv.hp || instr.kv.hitpoints;
@@ -432,7 +435,8 @@ export const createScriptRunner = ({
         }
         case "selection": {
           const ids = Array.isArray(instr.ids) ? instr.ids : [];
-          state.selectedTokenIds = new Set(ids);
+          const id = ids[0];
+          state.selectedTokenIds = id ? new Set([id]) : new Set();
           if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
           if (typeof state.refreshTokenHighlights === "function") state.refreshTokenHighlights();
           break;

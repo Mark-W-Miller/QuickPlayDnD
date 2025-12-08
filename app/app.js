@@ -84,6 +84,8 @@ const moveSpeedSlider = document.getElementById("move-speed-scale");
 const moveSpeedValue = document.getElementById("move-speed-scale-value");
 const gridFontSlider = document.getElementById("grid-font-scale");
 const gridFontValue = document.getElementById("grid-font-scale-value");
+const tokenScaleSlider = document.getElementById("token-scale");
+const tokenScaleValue = document.getElementById("token-scale-value");
 const mapPanel = document.querySelector(".map-panel");
 const appEl = document.querySelector(".app");
 const resizer = document.getElementById("sidebar-resizer");
@@ -218,6 +220,7 @@ mapPanel.appendChild(webglCanvas);
 state.heightMap.showMesh = savedHeight;
 state.showModels = savedModels;
 state.gridRefFontScale = Math.min(3, Math.max(0.25, savedGridFontScale));
+state.tokenScale = parseFloat(localStorage.getItem("token-scale") || "1") || 1;
 
 const coercePx = (val, fallback, min) => {
   const n = parseFloat(val);
@@ -229,6 +232,57 @@ const updateCanvasShield = () => {
   if (canvasEventShield) {
     canvasEventShield.style.pointerEvents = interactionMode === "edit" ? "auto" : "none";
   }
+};
+
+// Token hover tooltip
+const tokenTooltip = document.createElement("div");
+tokenTooltip.className = "token-tooltip";
+tokenTooltip.style.display = "none";
+document.body.appendChild(tokenTooltip);
+let hoverTokenId = null;
+let hoverTimer = null;
+let lastHoverEvent = null;
+const hideTokenTooltip = () => {
+  tokenTooltip.style.display = "none";
+  hoverTokenId = null;
+  if (hoverTimer) {
+    clearTimeout(hoverTimer);
+    hoverTimer = null;
+  }
+};
+const showTokenTooltip = (token, x, y) => {
+  if (!token) return hideTokenTooltip();
+  const infoLines = [];
+  if (token.info) infoLines.push(token.info);
+  if (token.type) infoLines.push(`Type: ${token.type}`);
+  if (token.faction) infoLines.push(`Faction: ${token.faction}`);
+  if (Number.isFinite(token.hp)) {
+    const hpLine = token.hpMax ? `HP: ${token.hp}/${token.hpMax}` : `HP: ${token.hp}`;
+    infoLines.push(hpLine);
+  }
+  if (token.speed) infoLines.push(`Speed: ${token.speed}`);
+  tokenTooltip.innerHTML = `
+    <div class="token-tooltip-name">${token.name || token.id || "?"}</div>
+    ${infoLines.map((l) => `<div class="token-tooltip-line">${l}</div>`).join("")}
+  `;
+  tokenTooltip.style.left = `${x + 12}px`;
+  tokenTooltip.style.top = `${y + 12}px`;
+  tokenTooltip.style.display = "block";
+};
+const scheduleTokenTooltip = (tokenId, event) => {
+  if (hoverTokenId === tokenId) return;
+  hoverTokenId = tokenId;
+  if (hoverTimer) clearTimeout(hoverTimer);
+  if (!tokenId) {
+    hideTokenTooltip();
+    return;
+  }
+  lastHoverEvent = event;
+  hoverTimer = setTimeout(() => {
+    const token = (state.tokens || []).find((t) => t.id === tokenId);
+    if (!token || !lastHoverEvent) return hideTokenTooltip();
+    showTokenTooltip(token, lastHoverEvent.clientX, lastHoverEvent.clientY);
+  }, 3000);
 };
 
 const three = {
@@ -456,6 +510,11 @@ const syncGridFontControls = () => {
   gridFontValue.textContent = `${pct}%`;
 };
 
+const syncTokenScaleControls = () => {
+  if (!tokenScaleValue) return;
+  tokenScaleValue.textContent = `${(state.tokenScale || 1).toFixed(2)}x`;
+};
+
 const requestServerInstructions = async (scriptText) => {
   const res = await fetch("/api/run-script", {
     method: "POST",
@@ -574,6 +633,20 @@ if (gridFontSlider) {
     localStorage.setItem("grid-font-scale", clamped.toString());
     syncGridFontControls();
     if (state.map?.backgroundUrl) setBackground(state.map.backgroundUrl);
+    updateBoardScene();
+    render();
+  });
+}
+
+if (tokenScaleSlider) {
+  tokenScaleSlider.value = state.tokenScale;
+  syncTokenScaleControls();
+  tokenScaleSlider.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    const clamped = Math.min(2.5, Math.max(0.4, Number.isFinite(val) ? val : 1));
+    state.tokenScale = clamped;
+    localStorage.setItem("token-scale", clamped.toString());
+    syncTokenScaleControls();
     updateBoardScene();
     render();
   });
@@ -939,6 +1012,27 @@ webglCanvas.addEventListener("mousemove", (e) => {
 
 // Ensure shield state matches initial mode
 updateCanvasShield();
+
+// Hover detection for tokens (view-only; no click)
+webglCanvas.addEventListener("pointermove", (e) => {
+  if (!three?.tokenGroup || !three?.camera || !raycaster) return;
+  const rect = three.renderer?.domElement?.getBoundingClientRect();
+  if (!rect) return;
+  pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, three.camera);
+  const tokenHits = three.tokenGroup ? raycaster.intersectObjects(three.tokenGroup.children, true) : [];
+  if (tokenHits.length) {
+    const tokenObj = tokenHits[0].object;
+    const tokenId = tokenObj.userData.tokenId || tokenObj.parent?.userData?.tokenId;
+    if (tokenId) {
+      scheduleTokenTooltip(tokenId, e);
+      return;
+    }
+  }
+  scheduleTokenTooltip(null, e);
+});
+webglCanvas.addEventListener("pointerleave", () => hideTokenTooltip());
 
 if (selectionClearBtn) {
   selectionClearBtn.addEventListener("click", () => {

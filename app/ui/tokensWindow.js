@@ -64,8 +64,8 @@ export function initTokensWindow({
         <th>ID</th>
         <th>Name</th>
         <th>Pos</th>
-        <th>Init</th>
         <th>HP</th>
+        <th>Init</th>
       </tr>
     `;
     const tbody = document.createElement("tbody");
@@ -88,32 +88,15 @@ export function initTokensWindow({
         <td class="token-id">${t.id || ""}</td>
         <td class="token-name">${t.name || t.id || ""}</td>
         <td class="token-pos">${pos}</td>
-        <td class="token-init">${initVal === "" ? "" : initVal}</td>
         <td class="token-hp">${t.hp ?? "?"}${t.hpMax ? `/` + t.hpMax : ""}</td>
+        <td class="token-init">${initVal === "" ? "" : initVal}</td>
       `;
-      row.addEventListener("click", (e) => {
-        const current = new Set(state.selectedTokenIds || []);
-        const id = t.id;
-        if (e.shiftKey && lastSelectIndex !== null && currentTokens[lastSelectIndex]) {
-          const start = Math.min(lastSelectIndex, idx);
-          const end = Math.max(lastSelectIndex, idx);
-          current.clear();
-          for (let i = start; i <= end; i++) {
-            const tok = currentTokens[i];
-            if (tok?.id) current.add(tok.id);
-          }
-        } else if (e.metaKey || e.ctrlKey) {
-          if (current.has(id)) current.delete(id);
-          else current.add(id);
-          lastSelectIndex = idx;
-        } else {
-          current.clear();
-          current.add(id);
-          lastSelectIndex = idx;
-        }
-        if (onSelectionChange) onSelectionChange(Array.from(current));
+      row.addEventListener("click", () => {
+        const selectedIds = [t.id];
+        lastSelectIndex = idx;
+        if (onSelectionChange) onSelectionChange(selectedIds);
         else {
-          state.selectedTokenIds = current;
+          state.selectedTokenIds = new Set(selectedIds);
           if (typeof state.refreshTokenHighlights === "function") state.refreshTokenHighlights();
           renderList();
         }

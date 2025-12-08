@@ -8,11 +8,9 @@ export const tokenTemplates = {
     bg: "#0b1220",
     fg: "#3b82f6",
     template: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-      <circle cx="60" cy="60" r="56" fill="$BG" stroke="$FG" stroke-width="8"/>
-      <circle cx="60" cy="60" r="40" fill="#152540" stroke="$FG" stroke-width="6"/>
-      <path d="M60 30 L78 60 L60 90 L42 60 Z" fill="$FG" opacity="0.9"/>
-      <circle cx="60" cy="60" r="6" fill="$BG"/>
-      <text x="60" y="64" text-anchor="middle" font-size="38" font-family="monospace" font-weight="bold" fill="#ffffff" stroke="#000000" stroke-width="3" paint-order="stroke">$INIT</text>
+      <circle cx="60" cy="60" r="52" fill="$BG" stroke="$FG" stroke-width="8"/>
+      <rect x="10" y="50" width="100" height="28" rx="6" fill="rgba(0,0,0,0.55)" />
+      <text x="60" y="70" text-anchor="middle" font-size="34" font-family="monospace" font-weight="bold" fill="#ffffff" stroke="#000000" stroke-width="2" paint-order="stroke">$INIT</text>
     </svg>`
   },
   "token-medium": {
@@ -23,11 +21,9 @@ export const tokenTemplates = {
     bg: "#0b1220",
     fg: "#f97316",
     template: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-      <circle cx="60" cy="60" r="56" fill="$BG" stroke="$FG" stroke-width="8"/>
-      <circle cx="60" cy="60" r="42" fill="#28160d" stroke="$FG" stroke-width="5"/>
-      <path d="M60 24 L84 48 L72 48 L72 88 L48 88 L48 48 L36 48 Z" fill="$FG" opacity="0.9"/>
-      <circle cx="60" cy="48" r="6" fill="$BG"/>
-      <text x="60" y="72" text-anchor="middle" font-size="36" font-family="monospace" font-weight="bold" fill="#ffffff" stroke="#000000" stroke-width="3" paint-order="stroke">$INIT</text>
+      <circle cx="60" cy="60" r="52" fill="$BG" stroke="$FG" stroke-width="8"/>
+      <rect x="10" y="50" width="100" height="28" rx="6" fill="rgba(0,0,0,0.55)" />
+      <text x="60" y="70" text-anchor="middle" font-size="34" font-family="monospace" font-weight="bold" fill="#ffffff" stroke="#000000" stroke-width="2" paint-order="stroke">$INIT</text>
     </svg>`
   },
   "token-large": {
@@ -38,12 +34,9 @@ export const tokenTemplates = {
     bg: "#0b1220",
     fg: "#22c55e",
     template: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
-      <circle cx="80" cy="80" r="74" fill="$BG" stroke="$FG" stroke-width="10"/>
-      <circle cx="80" cy="80" r="60" fill="#0f1f16" stroke="$FG" stroke-width="6"/>
-      <rect x="54" y="40" width="52" height="80" rx="14" fill="$FG" opacity="0.9"/>
-      <rect x="72" y="54" width="16" height="52" fill="$BG"/>
-      <circle cx="80" cy="60" r="8" fill="$BG"/>
-      <text x="80" y="92" text-anchor="middle" font-size="40" font-family="monospace" font-weight="bold" fill="#ffffff" stroke="#000000" stroke-width="4" paint-order="stroke">$INIT</text>
+      <circle cx="80" cy="80" r="70" fill="$BG" stroke="$FG" stroke-width="10"/>
+      <rect x="18" y="68" width="124" height="32" rx="8" fill="rgba(0,0,0,0.55)" />
+      <text x="80" y="96" text-anchor="middle" font-size="40" font-family="monospace" font-weight="bold" fill="#ffffff" stroke="#000000" stroke-width="3" paint-order="stroke">$INIT</text>
     </svg>`
   }
 };
@@ -54,7 +47,7 @@ export const buildTemplateSvg = (templateId, { bg, fg, initials }) => {
   const svg = tpl.template
     .replace(/\$BG/g, bg || tpl.bg || "#0b1220")
     .replace(/\$FG/g, fg || tpl.fg || "#ffffff")
-    .replace(/\$INIT/g, (initials || "??").slice(0, 3));
+    .replace(/\$INIT/g, (initials || "??").slice(0, 6));
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 };
 

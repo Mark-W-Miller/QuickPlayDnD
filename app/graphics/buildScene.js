@@ -290,22 +290,23 @@ export const createSceneBuilder = ({
     const dx = (hR - hL) / (2 * deltaU * Math.max(1, boardWidth));
     const dz = (hU - hD) / (2 * deltaV * Math.max(1, boardDepth));
     const normal = new THREE.Vector3(-dx, 1, -dz).normalize();
-    const tokenSize = token.size || def.baseSize || 1;
+    const tokenScale = state.tokenScale || 1;
+    const tokenSize = (token.size || def.baseSize || 1) * tokenScale;
     const isStructure = (token.type || def.category || "").toString().toLowerCase() === "structure";
     const isSelected = state.selectedTokenIds?.has(token.id);
 
     // Build base disk (skip for structures).
     const faceTexture = getTokenTexture(token.svgUrl || def.svgUrl);
     const radius = Math.max(0.2, tokenSize * cellUnit * 0.35);
-    const height = Math.max(0.25, cellUnit * 0.4); // slightly taller base to host info band
+    const height = Math.max(0.25, cellUnit * 0.4 * tokenScale); // scale height with token size
     const geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
     const color = new THREE.Color(def.colorTint || "#ffffff");
     const topBottomMat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0xffffff), // keep caps neutral so SVG colors stay true
       emissive: new THREE.Color(0x000000),
-      emissiveIntensity: 0.25,
-      metalness: 0.1,
-      roughness: 0.4,
+      emissiveIntensity: 0.15,
+      metalness: 0,
+      roughness: 0.95,
       map: faceTexture || null
     });
     const tokenType = (token.type || "").toLowerCase();
@@ -327,23 +328,32 @@ export const createSceneBuilder = ({
     const sideMat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(sideColor),
       emissive: new THREE.Color(sideColor),
-      emissiveIntensity: 0.9,
-      metalness: 0.05,
-      roughness: 0.8
+      emissiveIntensity: 0.5,
+      metalness: 0,
+      roughness: 1
     });
-    if (isSelected) {
-      const glow = new THREE.Color("#4da3ff");
-      topBottomMat.emissive = glow;
-      topBottomMat.emissiveIntensity = 1.4;
-      sideMat.emissive = glow;
-      sideMat.emissiveIntensity = 1.4;
-    }
     const baseMesh = new THREE.Mesh(geometry, [sideMat, topBottomMat, topBottomMat]);
     baseMesh.castShadow = true;
 
     const baseGroup = new THREE.Group();
     const includeBase = !isStructure || !def.modelUrl; // show base if non-structure or structure without its own model
     if (includeBase) baseGroup.add(baseMesh);
+
+    // Selection halo
+    if (isSelected) {
+      const haloGeom = new THREE.RingGeometry(radius * 1.15, radius * 1.35, 48);
+      const haloMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.7,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const halo = new THREE.Mesh(haloGeom, haloMat);
+      halo.rotation.x = -Math.PI / 2;
+      halo.position.y = includeBase ? height / 2 + 0.02 : 0.02;
+      baseGroup.add(halo);
+    }
 
     // Add name wrapped around the side of the cylinder.
     if (!isStructure && token.name) {

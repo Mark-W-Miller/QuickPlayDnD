@@ -92,16 +92,8 @@ export function createEditSelectionHandlers({
       if (tokenId) {
         logClass?.("EDIT", `Clicked token ${tokenId}`);
         dragSelecting = false;
-        // Update token selection set (single-select; ctrl/cmd toggles)
-        const selected = new Set(state.selectedTokenIds || []);
-        if (event?.metaKey || event?.ctrlKey) {
-          if (selected.has(tokenId)) selected.delete(tokenId);
-          else selected.add(tokenId);
-        } else {
-          selected.clear();
-          selected.add(tokenId);
-        }
-        if (onSelectionChange) onSelectionChange(Array.from(selected));
+        const selected = new Set([tokenId]);
+        if (onSelectionChange) onSelectionChange([tokenId]);
         else {
           state.selectedTokenIds = selected;
           if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();

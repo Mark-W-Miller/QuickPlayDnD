@@ -58,15 +58,8 @@ export function createViewSelectionHandlers({
       const tokenId = tokenObj.userData.tokenId || tokenObj.parent?.userData?.tokenId;
       if (tokenId) {
         logClass?.("SELECTION", `View clicked token ${tokenId}`);
-        const selected = new Set(state.selectedTokenIds || []);
-        if (event?.metaKey || event?.ctrlKey) {
-          if (selected.has(tokenId)) selected.delete(tokenId);
-          else selected.add(tokenId);
-        } else {
-          selected.clear();
-          selected.add(tokenId);
-        }
-        if (onSelectionChange) onSelectionChange(Array.from(selected));
+        const selected = new Set([tokenId]);
+        if (onSelectionChange) onSelectionChange([tokenId]);
         else {
           state.selectedTokenIds = selected;
           if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
