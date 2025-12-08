@@ -20,6 +20,7 @@ import { createEditSelectionHandlers } from "./selection/selectionEdit.js";
 import { createViewSelectionHandlers } from "./selection/selectionView.js";
 import { createInteractionManager } from "./selection/interactionManager.js";
 import { initLangWindow } from "./ui/langWindow.js";
+import { initDmWindow } from "./ui/dmWindow.js";
 
 const canvas = document.getElementById("map-canvas");
 const inputEl = document.getElementById("script-input");
@@ -103,6 +104,10 @@ const dbOpenBtn = document.getElementById("db-open");
 const dbWindow = document.getElementById("db-window");
 const camSlotButtons = document.querySelectorAll("[data-cam-slot]");
 const clearCamViewsBtn = document.getElementById("clear-cam-views");
+const dmOpenBtn = document.getElementById("dm-open");
+const dmCloseBtn = document.getElementById("dm-close");
+const dmWindow = document.getElementById("dm-window");
+const dmRollInitBtn = document.getElementById("dm-roll-init");
 let memHud = null;
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -139,6 +144,7 @@ if (!isDM) {
   hideForPlayer(selectionOpenBtn);
   hideForPlayer(scriptsOpenBtn);
   hideForPlayer(langOpenBtn);
+  hideForPlayer(dmOpenBtn);
   hideForPlayer(viewToggleBtn);
   scriptsWindow?.classList?.remove("open");
   langWindow?.classList?.remove("open");
@@ -151,6 +157,7 @@ if (!isDM) {
   showForDM(dbOpenBtn);
   showForDM(paramsOpenBtn);
   showForDM(selectionOpenBtn);
+  showForDM(dmOpenBtn);
   camSlotButtons.forEach((btn) => showForDM(btn));
   showForDM(clearCamViewsBtn);
 }
@@ -173,6 +180,7 @@ const fetchAndApplyLatestState = async () => {
     const nextVersion = Number.isFinite(data.version) ? data.version : lastSyncedVersion;
     if (Array.isArray(data.instructions) && data.instructions.length) {
       scriptRunner.applyInstructions(data.instructions);
+      if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
       logClass?.(
         "UPDATE",
         `Synced state version ${nextVersion} (${data.instructions.length} instructions)`
@@ -498,6 +506,23 @@ scriptRunner = createScriptRunner({
   logClass,
   scriptTreeManager
 });
+
+// DM controls window (DM only)
+if (isDM) {
+  initDmWindow({
+    dmOpenBtn,
+    dmCloseBtn,
+    dmWindow,
+    rollInitBtn: dmRollInitBtn,
+    state,
+    scriptRunner,
+    pushServerState,
+    logClass
+  });
+} else {
+  if (dmWindow) dmWindow.classList.remove("open");
+  hideForPlayer(dmWindow);
+}
 
 createAnimationLoop({
   state,

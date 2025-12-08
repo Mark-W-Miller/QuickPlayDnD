@@ -36,6 +36,13 @@ export function initTokensWindow({
 
   const renderList = () => {
     const base = [...(state.tokens || [])].sort((a, b) => {
+      const initA = Number.isFinite(a.initiative) ? a.initiative : Number.isFinite(a.init) ? a.init : null;
+      const initB = Number.isFinite(b.initiative) ? b.initiative : Number.isFinite(b.init) ? b.init : null;
+      if (initA !== null && initB !== null && initA !== initB) {
+        return initB - initA; // higher first
+      }
+      if (initA !== null && initB === null) return -1;
+      if (initA === null && initB !== null) return 1;
       const weight = (t) => {
         const f = (t.faction || "").toLowerCase();
         if (f === "pc") return 0;
