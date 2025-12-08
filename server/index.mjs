@@ -113,13 +113,37 @@ const readBody = (req) =>
     req.on("error", reject);
   });
 
-let latestState = { version: 0, instructions: [], updatedAt: Date.now() };
+const MAX_HISTORY = 500;
+let stateHistory = [];
+let latestVersion = 0;
 
-const updateLatestState = (instructions = []) => {
-  latestState = {
-    version: latestState.version + 1,
+const appendInstructions = (instructions = []) => {
+  const entry = {
+    version: ++latestVersion,
     instructions: Array.isArray(instructions) ? instructions : [],
     updatedAt: Date.now()
+  };
+  stateHistory.push(entry);
+  if (stateHistory.length > MAX_HISTORY) {
+    stateHistory = stateHistory.slice(-MAX_HISTORY);
+  }
+  return entry;
+};
+
+const instructionsSince = (sinceVersion = -1) => {
+  const since = Number.isFinite(sinceVersion) ? sinceVersion : -1;
+  if (since < 0) {
+    return {
+      version: latestVersion,
+      fromVersion: 0,
+      instructions: stateHistory.flatMap((h) => h.instructions)
+    };
+  }
+  const newer = stateHistory.filter((h) => h.version > since);
+  return {
+    version: latestVersion,
+    fromVersion: since,
+    instructions: newer.flatMap((h) => h.instructions)
   };
 };
 
@@ -160,10 +184,10 @@ const handleRunScript = async (req, res) => {
     logClass("COMMS", "Received /api/run-script", logPayload);
 
     const instructions = parseScript(String(scriptText), {});
-    updateLatestState(instructions);
+    const entry = appendInstructions(instructions);
     const payload = { instructions };
-    logClass("COMMS", "Responding /api/run-script", payload);
-    sendJson(res, 200, payload);
+    logClass("COMMS", "Responding /api/run-script", { version: entry.version, ...payload });
+    sendJson(res, 200, { version: entry.version, ...payload });
   } catch (err) {
     console.error("Failed to run script:", err);
     sendJson(res, 500, { error: "Failed to process script" });
@@ -244,9 +268,9 @@ const server = http.createServer(async (req, res) => {
     try {
       const raw = await readBody(req);
       const payload = JSON.parse(raw || "{}");
-      if (Array.isArray(payload.instructions)) {
-        updateLatestState(payload.instructions);
-        sendJson(res, 200, { ok: true, version: latestState.version });
+      if (Array.isArray(payload.instructions) && payload.instructions.length) {
+        const entry = appendInstructions(payload.instructions);
+        sendJson(res, 200, { ok: true, version: entry.version });
       } else {
         sendJson(res, 400, { error: "Missing instructions" });
       }
@@ -256,10 +280,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (url.pathname === "/api/state") {
+    const since = Number(url.searchParams.get("since"));
+    const snapshot = instructionsSince(since);
     sendJson(res, 200, {
-      version: latestState.version,
-      updatedAt: latestState.updatedAt,
-      instructions: latestState.instructions
+      version: snapshot.version,
+      fromVersion: snapshot.fromVersion,
+      instructions: snapshot.instructions
     });
     return;
   }

@@ -42,7 +42,8 @@ export function createWindowFrame({
   minHeight,
   defaultLeft = 20,
   defaultTop = 20,
-  roleAware = true
+  roleAware = true,
+  watchResize = true
 }) {
   if (!rootEl) return null;
   const roleSuffix = roleAware ? getRoleSuffix() : "";
@@ -218,6 +219,18 @@ export function createWindowFrame({
 
   const saved = loadState();
   if (saved.open) openWindow();
+
+  if (watchResize && typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(() => {
+      if (!rootEl.classList.contains("open")) return;
+      const rect = rootEl.getBoundingClientRect();
+      saveState({
+        width: `${rect.width}px`,
+        height: `${rect.height}px`
+      });
+    });
+    ro.observe(rootEl);
+  }
 
   return {
     bringToFront,

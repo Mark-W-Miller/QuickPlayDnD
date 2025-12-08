@@ -4,7 +4,8 @@ export function createViewSelectionHandlers({
   raycaster,
   pointer,
   logClass,
-  refreshTokenHighlights
+  refreshTokenHighlights,
+  onSelectionChange
 }) {
   const pickCellFromPoint = (x, z) => {
     const { boardWidth, boardDepth } = state.lastBoard || {};
@@ -65,9 +66,12 @@ export function createViewSelectionHandlers({
           selected.clear();
           selected.add(tokenId);
         }
-        state.selectedTokenIds = selected;
-        if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
-        if (typeof refreshTokenHighlights === "function") refreshTokenHighlights();
+        if (onSelectionChange) onSelectionChange(Array.from(selected));
+        else {
+          state.selectedTokenIds = selected;
+          if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
+          if (typeof refreshTokenHighlights === "function") refreshTokenHighlights();
+        }
         return true;
       }
     }

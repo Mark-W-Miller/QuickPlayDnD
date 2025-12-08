@@ -9,7 +9,8 @@ export function createEditSelectionHandlers({
   logClass,
   selectionWindowApi,
   updateSelectionHighlights,
-  render3d
+  render3d,
+  onSelectionChange
 }) {
   let dragSelecting = false;
   let dragShift = false;
@@ -100,9 +101,12 @@ export function createEditSelectionHandlers({
           selected.clear();
           selected.add(tokenId);
         }
-        state.selectedTokenIds = selected;
-        if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
-        if (typeof render3d === "function") render3d();
+        if (onSelectionChange) onSelectionChange(Array.from(selected));
+        else {
+          state.selectedTokenIds = selected;
+          if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
+          if (typeof render3d === "function") render3d();
+        }
         return true;
       }
     }

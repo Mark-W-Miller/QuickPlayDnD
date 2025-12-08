@@ -9,6 +9,7 @@ export const createScriptRunner = ({
   fetchInstructions,
   pushInstructions,
   setBackground,
+  setCameraState,
   updateBoardScene,
   render,
   clearGroup,
@@ -16,15 +17,24 @@ export const createScriptRunner = ({
   logClass,
   scriptTreeManager
 }) => {
+  let lastResolvedFromServer = false;
   const resolveInstructions = async (text) => {
     if (typeof fetchInstructions === "function") {
       try {
         const remote = await fetchInstructions(text);
-        if (Array.isArray(remote)) return remote;
+        if (Array.isArray(remote)) {
+          lastResolvedFromServer = true;
+          return remote;
+        }
+        if (remote && Array.isArray(remote.instructions)) {
+          lastResolvedFromServer = !!remote.fromServer;
+          return remote.instructions;
+        }
       } catch (err) {
         logClass?.("WARN", `Remote script execution failed: ${err.message}`);
       }
     }
+    lastResolvedFromServer = false;
     return parseScript(text, { logClass });
   };
 
@@ -99,6 +109,13 @@ export const createScriptRunner = ({
             "BUILD",
             `app.js:182 Height map parsed: ${keys.length} entries. Sample: ${preview.join(", ")}`
           );
+          break;
+        }
+        case "camera-state": {
+          if (typeof setCameraState === "function" && instr.camera) {
+            setCameraState(instr.camera);
+            logClass?.("CAMERA", "Applied camera state");
+          }
           break;
         }
         case "background": {
@@ -413,10 +430,18 @@ export const createScriptRunner = ({
           if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
           break;
         }
+        case "selection": {
+          const ids = Array.isArray(instr.ids) ? instr.ids : [];
+          state.selectedTokenIds = new Set(ids);
+          if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
+          if (typeof state.refreshTokenHighlights === "function") state.refreshTokenHighlights();
+          break;
+        }
           break;
       }
     });
 
+  if (!working.map) working.map = ensureMap();
   if (!working.map.heights || !Object.keys(working.map.heights).length) {
     working.map.heights = {};
     for (let r = 0; r < working.map.rows; r++) {
@@ -458,7 +483,7 @@ export const createScriptRunner = ({
       return;
     }
     applyInstructions(instructions);
-    if (typeof pushInstructions === "function") {
+    if (!lastResolvedFromServer && typeof pushInstructions === "function") {
       try {
         pushInstructions(instructions);
       } catch {
@@ -490,6 +515,13 @@ export const createScriptRunner = ({
           continue;
         }
         applyInstructions(instructions);
+        if (!lastResolvedFromServer && typeof pushInstructions === "function") {
+          try {
+            pushInstructions(instructions);
+          } catch {
+            /* ignore push errors */
+          }
+        }
         logClass?.("INFO", `Ran ${item.type} script ${item.file} (${instructions.length} instr)`);
       } catch (err) {
         log(`Failed to run ${item.file}: ${err.message}`);

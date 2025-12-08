@@ -166,17 +166,19 @@ if (isDM) {
 const fetchAndApplyLatestState = async () => {
   if (isDM || !scriptRunner) return;
   try {
-    const res = await fetch("/api/state");
+    const since = Number.isFinite(lastSyncedVersion) ? lastSyncedVersion : -1;
+    const res = await fetch(`/api/state?since=${since}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    if (data.version !== undefined && data.version !== lastSyncedVersion && Array.isArray(data.instructions)) {
-      lastSyncedVersion = data.version;
-      if (data.instructions.length) {
-        scriptRunner.applyInstructions([{ type: "reset" }]);
-        scriptRunner.applyInstructions(data.instructions);
-        logClass?.("INFO", `Synced state version ${data.version} (${data.instructions.length} instructions)`);
-      }
+    const nextVersion = Number.isFinite(data.version) ? data.version : lastSyncedVersion;
+    if (Array.isArray(data.instructions) && data.instructions.length) {
+      scriptRunner.applyInstructions(data.instructions);
+      logClass?.(
+        "UPDATE",
+        `Synced state version ${nextVersion} (${data.instructions.length} instructions)`
+      );
     }
+    if (Number.isFinite(nextVersion)) lastSyncedVersion = Math.max(lastSyncedVersion, nextVersion);
   } catch (err) {
     logClass?.("WARN", `State sync failed: ${err.message}`);
   }
@@ -189,7 +191,7 @@ const startPlayerSync = () => {
     fetchAndApplyLatestState();
   };
   runSync();
-  setInterval(runSync, 2000);
+  setInterval(runSync, 250);
 };
 
 const initMemHud = () => {
@@ -430,9 +432,7 @@ if (inputEl) {
   });
 }
 
-document.getElementById("clear-btn").addEventListener("click", () => {
-  scriptRunner.applyInstructions([{ type: "clear", scope: "tokens" }]);
-});
+const clearBtn = document.getElementById("clear-btn");
 
 const syncHeatControls = () => {
   heatHeightValue.textContent = `${state.heightMap.heightScale.toFixed(2)} units/click`;
@@ -459,7 +459,7 @@ const requestServerInstructions = async (scriptText) => {
   if (!data || !Array.isArray(data.instructions)) {
     throw new Error("Invalid response payload");
   }
-  return data.instructions;
+  return { instructions: data.instructions, fromServer: true };
 };
 
 
@@ -476,12 +476,21 @@ const pushServerState = async (instructions) => {
   }
 };
 
+if (clearBtn) {
+  clearBtn.addEventListener("click", () => {
+    const instr = [{ type: "clear", scope: "tokens" }];
+    scriptRunner.applyInstructions(instr);
+    pushServerState(instr);
+  });
+}
+
 // Build script runner once dependencies are available.
 scriptRunner = createScriptRunner({
   parseScript,
   fetchInstructions: requestServerInstructions,
   pushInstructions: pushServerState,
   setBackground,
+  setCameraState: (camera) => cameraManager.transitionToCamera(camera, render3d),
   updateBoardScene,
   render,
   clearGroup,
@@ -507,6 +516,16 @@ const refreshTokenHighlights = () => {
   if (render3d) render3d();
 };
 state.refreshTokenHighlights = refreshTokenHighlights;
+
+const applySelection = (ids, { broadcast = true } = {}) => {
+  const next = new Set(Array.isArray(ids) ? ids : []);
+  state.selectedTokenIds = next;
+  if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
+  refreshTokenHighlights();
+  if (broadcast && isDM && typeof pushServerState === "function") {
+    pushServerState([{ type: "selection", ids: Array.from(next) }]);
+  }
+};
 
 heatHeightSlider.addEventListener("input", (e) => {
   state.heightMap.heightScale = parseFloat(e.target.value) || 1;
@@ -535,8 +554,15 @@ if (gridFontSlider) {
   });
 }
 
+const broadcastCameraState = (camera) => {
+  if (!isDM || !camera || typeof pushServerState !== "function") return;
+  pushServerState([{ type: "camera-state", camera }]);
+};
+
 const setCameraPreset = (preset) => {
   cameraManager.setCameraPreset(preset, render3d);
+  const cam = cameraManager.getCurrentCamera();
+  broadcastCameraState(cam);
 };
 
 const refreshCamSlotIndicators = () => {
@@ -566,7 +592,12 @@ const applyCamSlot = (slot) => {
       target: scaleVec(payload.target || [0, 0, 0])
     };
   }
-  cameraManager.transitionToCamera(payload, render3d);
+  if (isDM && scriptRunner) {
+    scriptRunner.applyInstructions([{ type: "camera-state", camera: payload }]);
+    broadcastCameraState(payload);
+  } else {
+    cameraManager.transitionToCamera(payload, render3d);
+  }
 };
 
 const saveCamSlot = (slot) => {
@@ -580,7 +611,7 @@ const saveCamSlot = (slot) => {
       : null;
     localStorage.setItem(`camera-slot-${slot}`, JSON.stringify({ camera: payload, board }));
     refreshCamSlotIndicators();
-    if (logClass) logClass("CAMERA", `Saved view slot ${slot}`, payload);
+  if (logClass) logClass("CAMERA", `Saved view slot ${slot}`, payload);
   } catch {
     /* ignore */
   }
@@ -675,7 +706,8 @@ initTokensWindow({
   state,
   coercePx,
   safeJsonParse,
-  refreshTokenHighlights
+  refreshTokenHighlights,
+  onSelectionChange: (ids) => applySelection(ids, { broadcast: true })
 });
 initScriptsWindow({ scriptsOpenBtn, scriptsCloseBtn, scriptsWindow });
 initLangWindow({ langOpenBtn, langCloseBtn, langWindow });
@@ -839,7 +871,8 @@ const editSelect = createEditSelectionHandlers({
   logClass,
   selectionWindowApi,
   updateSelectionHighlights,
-  render3d
+  render3d,
+  onSelectionChange: (ids) => applySelection(ids, { broadcast: true })
 });
 const viewSelect = createViewSelectionHandlers({
   three,
@@ -847,7 +880,8 @@ const viewSelect = createViewSelectionHandlers({
   raycaster,
   pointer,
   logClass,
-  refreshTokenHighlights
+  refreshTokenHighlights,
+  onSelectionChange: (ids) => applySelection(ids, { broadcast: true })
 });
 interactionManager.setHandlers({ edit: editSelect, view: viewSelect });
 // Ensure shield state matches initial mode
@@ -962,6 +996,32 @@ initThree();
 updateBoardScene();
 cameraManager.applySavedCamera();
 cameraManager.attachControlListeners(render3d);
+
+let lastCamBroadcast = 0;
+let pendingCamBroadcast = false;
+const broadcastCurrentCamera = () => {
+  if (!isDM) return;
+  const cam = cameraManager.getCurrentCamera();
+  broadcastCameraState(cam);
+};
+if (isDM && three.controls) {
+  const scheduleBroadcast = () => {
+    const now = Date.now();
+    if (now - lastCamBroadcast > 300) {
+      lastCamBroadcast = now;
+      broadcastCurrentCamera();
+    } else if (!pendingCamBroadcast) {
+      pendingCamBroadcast = true;
+      setTimeout(() => {
+        pendingCamBroadcast = false;
+        lastCamBroadcast = Date.now();
+        broadcastCurrentCamera();
+      }, 300);
+    }
+  };
+  three.controls.addEventListener("change", scheduleBroadcast);
+  three.controls.addEventListener("end", scheduleBroadcast);
+}
 render();
 scriptTreeManager.loadScriptManifest(() => runSelectedScripts({ runIfNoneFallback: false }));
 startPlayerSync();
