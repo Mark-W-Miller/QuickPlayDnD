@@ -8,21 +8,25 @@
 # Sarsu – Paladin/Cleric front-liner
 CREATE template=token-medium id=PC-SAR initials=SA name="Sarsu" faction=pc \
   bg=#4a90e2 fg=#ffffff speed=20 type=creature size=1 level=5 hp=32 hpMax=32 \
+  attacks="Longsword|melee|+6|1d8+3 slashing|reach5|; Sacred Flame|ranged spell|+6|1d8 radiant|range60|save" \
   info="Lvl 5 Paladin-Cleric; front-line support, healing & radiant damage" @ M10
 
 # Decharn – Fighter/Ranger skirmisher
 CREATE template=token-medium id=PC-DEC initials=DE name="Decharn" faction=pc \
   bg=#7fbf3f fg=#ffffff speed=30 type=creature size=1 level=5 hp=38 hpMax=38 \
+  attacks="Longsword|melee|+6|1d8+4 slashing|reach5|; Longbow|ranged|+5|1d8+3 piercing|range150/600|" \
   info="Lvl 5 Fighter/Ranger; bow & blade; battlefield control on the flanks" @ N10
 
 # Meat – Barbarian bruiser
 CREATE template=token-medium id=PC-MEA initials=ME name="Meat" faction=pc \
   bg=#cc6644 fg=#ffffff speed=30 type=creature size=1 level=5 hp=45 hpMax=45 \
+  attacks="Greatsword|melee|+6|2d6+4 slashing|reach5|" \
   info="Lvl 5 Barbarian; heavy melee striker; soaks damage at the front" @ L11
 
 # Molly – Rogue scout
 CREATE template=token-medium id=PC-MOL initials=MO name="Molly" faction=pc \
   bg=#f2c94c fg=#000000 speed=35 type=creature size=1 level=5 hp=30 hpMax=30 \
+  attacks="Rapier|melee|+7|1d8+4 piercing|reach5|; Shortbow|ranged|+6|1d6+4 piercing|range80/320|" \
   info="Lvl 5 Rogue; agile skirmisher, excels at flanking and finishing blows" @ N11
 
 
@@ -31,16 +35,19 @@ CREATE template=token-medium id=PC-MOL initials=MO name="Molly" faction=pc \
 # Bren – young fighter with spear
 CREATE template=token-small id=ALY-BREN initials=BR name="Bren" faction=ally \
   bg=#6b7280 fg=#ffffff speed=25 type=creature size=1 level=2 hp=18 hpMax=18 \
+  attacks="Spear|melee|+4|1d6+2 piercing|reach5|; Spear (thrown)|ranged|+4|1d6+2 piercing|range20/60|" \
   info="Lvl 2 Fighter; spear & shield; holds the line near the wagon" @ L9
 
 # Talla – determined sword & buckler fighter
 CREATE template=token-small id=ALY-TALL initials=TA name="Talla" faction=ally \
   bg=#6b7280 fg=#ffffff speed=25 type=creature size=1 level=2 hp=16 hpMax=16 \
+  attacks="Shortsword|melee|+4|1d6+2 slashing|reach5|" \
   info="Lvl 2 Fighter; quick-footed, defends the camp perimeter" @ M9
 
 # Orin – bow-armed camp guard
 CREATE template=token-small id=ALY-ORIN initials=OR name="Orin" faction=ally \
   bg=#6b7280 fg=#ffffff speed=25 type=creature size=1 level=2 hp=17 hpMax=17 \
+  attacks="Shortbow|ranged|+4|1d6+2 piercing|range80/320|; Handaxe|melee|+4|1d6+2 slashing|reach5|" \
   info="Lvl 2 Fighter; shortbow and handaxe; keeps watch beyond the firelight" @ N9
 
 
@@ -71,26 +78,32 @@ CREATE template=token-small id=OBJ-HORSE2 initials=H2 name="Horse" faction=ally 
 # Northern ridge wights – approaching from the dark heights
 CREATE template=token-medium id=EN-WGT-N initials=WN name="Razorback Wight" faction=enemy \
   bg=#2d3748 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=32 hpMax=32 \
+  attacks="Life Drain|melee|+5|1d6+3 necrotic|reach5|lifedrain,reducesmaxhp; Grave Bolt|ranged|+5|1d8 necrotic|range60|necrotic" \
   info="Lvl 4 Wight; chill touch, draining strikes; hunts from the northern ridge" @ H4
 
 CREATE template=token-medium id=EN-WGT-N2 initials=WN name="Razorback Wight" faction=enemy \
   bg=#2d3748 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=30 hpMax=30 \
+  attacks="Life Drain|melee|+5|1d6+3 necrotic|reach5|lifedrain,reducesmaxhp; Grave Bolt|ranged|+5|1d8 necrotic|range60|necrotic" \
   info="Lvl 4 Wight; flanks and looks for isolated targets beyond the fire" @ J5
 
 CREATE template=token-medium id=EN-WGT-N3 initials=WN name="Razorback Wight" faction=enemy \
   bg=#2d3748 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=30 hpMax=30 \
+  attacks="Life Drain|melee|+5|1d6+3 necrotic|reach5|lifedrain,reducesmaxhp; Grave Bolt|ranged|+5|1d8 necrotic|range60|necrotic" \
   info="Lvl 4 Wight; uses elevation and rocks for cover on the north ridge" @ L4
 
 
 # Southern ridge wights – creeping up from below the road
 CREATE template=token-medium id=EN-WGT-S initials=WS name="Razorback Wight" faction=enemy \
   bg=#1f2933 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=32 hpMax=32 \
+  attacks="Life Drain|melee|+5|1d6+3 necrotic|reach5|lifedrain,reducesmaxhp; Grave Bolt|ranged|+5|1d8 necrotic|range60|necrotic" \
   info="Lvl 4 Wight; pushes from the southern slope, trying to encircle the camp" @ H16
 
 CREATE template=token-medium id=EN-WGT-S2 initials=WS name="Razorback Wight" faction=enemy \
   bg=#1f2933 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=30 hpMax=30 \
+  attacks="Life Drain|melee|+5|1d6+3 necrotic|reach5|lifedrain,reducesmaxhp; Grave Bolt|ranged|+5|1d8 necrotic|range60|necrotic" \
   info="Lvl 4 Wight; works with packmates to cut off retreat along the road" @ J15
 
 CREATE template=token-medium id=EN-WGT-S3 initials=WS name="Razorback Wight" faction=enemy \
   bg=#1f2933 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=30 hpMax=30 \
+  attacks="Life Drain|melee|+5|1d6+3 necrotic|reach5|lifedrain,reducesmaxhp; Grave Bolt|ranged|+5|1d8 necrotic|range60|necrotic" \
   info="Lvl 4 Wight; lurks at the southern ridge edge, ready to rush the wagon" @ L16

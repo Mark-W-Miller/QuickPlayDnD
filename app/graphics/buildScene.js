@@ -339,13 +339,14 @@ export const createSceneBuilder = ({
     const includeBase = !isStructure || !def.modelUrl; // show base if non-structure or structure without its own model
     if (includeBase) baseGroup.add(baseMesh);
 
-    // Selection halo
+    // Selection halo (normal and active-turn variant)
     if (isSelected) {
+      const isActiveTurn = state.activeTurnIds?.has?.(token.id);
       const haloGeom = new THREE.RingGeometry(radius * 1.15, radius * 1.35, 48);
       const haloMat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
+        color: isActiveTurn ? 0xff4444 : 0xffffff,
         transparent: true,
-        opacity: 0.7,
+        opacity: isActiveTurn ? 0.9 : 0.7,
         side: THREE.DoubleSide,
         depthWrite: false
       });

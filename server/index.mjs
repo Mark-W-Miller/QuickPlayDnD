@@ -3,9 +3,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseScript } from "../app/language/parser.js";
+import { combat, translateIntentToInstructions } from "./combat.js";
 
 // Toggle logging classes by editing this set. COMMS logs request/response payloads.
-const ENABLED_LOG_CLASSES = new Set(["COMMS"]);
+const ENABLED_LOG_CLASSES = new Set(["COMMS", "COMBAT"]);
 // Optionally suppress script body logging to cut noise.
 const LOG_SCRIPT_LINES = false;
 const SCRIPT_PREVIEW_LINES = 3;
@@ -184,6 +185,7 @@ const handleRunScript = async (req, res) => {
     logClass("COMMS", "Received /api/run-script", logPayload);
 
     const instructions = parseScript(String(scriptText), {});
+    combat.applyInstructions(instructions);
     const entry = appendInstructions(instructions);
     const payload = { instructions };
     logClass("COMMS", "Responding /api/run-script", { version: entry.version, ...payload });
@@ -269,11 +271,47 @@ const server = http.createServer(async (req, res) => {
       const raw = await readBody(req);
       const payload = JSON.parse(raw || "{}");
       if (Array.isArray(payload.instructions) && payload.instructions.length) {
+        combat.applyInstructions(payload.instructions);
         const entry = appendInstructions(payload.instructions);
         sendJson(res, 200, { ok: true, version: entry.version });
       } else {
         sendJson(res, 400, { error: "Missing instructions" });
       }
+    } catch (err) {
+      sendJson(res, 400, { error: "Invalid body" });
+    }
+    return;
+  }
+  if (url.pathname === "/api/turn-suggestions") {
+    const data = combat.getSuggestions();
+    logClass("COMMS", "Turn suggestions", data);
+    sendJson(res, 200, data);
+    return;
+  }
+  if (url.pathname === "/api/choose-intent" && req.method === "POST") {
+    try {
+      const raw = await readBody(req);
+      const payload = JSON.parse(raw || "{}");
+      logClass("COMMS", "Choose intent", payload);
+      const intents = Array.isArray(payload.intent) ? payload.intent : [payload.intent];
+      let built = [];
+      intents.forEach((i) => {
+        const instr = translateIntentToInstructions(i);
+        if (Array.isArray(instr) && instr.length) built = built.concat(instr);
+      });
+      if (built.length) {
+        combat.applyInstructions(built);
+        appendInstructions(built);
+        logClass("COMBAT", "Intent applied", { intent: payload.intent, instructions: built });
+      }
+      combat.advanceTurn();
+      sendJson(res, 200, {
+        ok: true,
+        activeToken: combat.getActiveTokenId(),
+        round: combat.state.round,
+        instructions: built
+      });
+      logClass("COMBAT", "Turn advanced", { active: combat.getActiveTokenId(), round: combat.state.round });
     } catch (err) {
       sendJson(res, 400, { error: "Invalid body" });
     }

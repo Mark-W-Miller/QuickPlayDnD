@@ -102,6 +102,10 @@ export function initTokensWindow({
           renderList();
         }
       });
+      row.addEventListener("dblclick", () => {
+        state.logClass?.("INFO", `Focus token ${t.id} from tokens window`);
+        window.dispatchEvent(new CustomEvent("focus-token", { detail: { id: t.id } }));
+      });
       tbody.appendChild(row);
     });
     table.appendChild(thead);

@@ -33,11 +33,11 @@
             <button id="log-open">Open Log</button>
             <button id="db-open">Open DB</button>
             <button id="tokens-open">Open Tokens</button>
-            <button id="dm-open">DM Controls</button>
             <button id="scripts-open">Scripts</button>
             <button id="params-open">View Parameters</button>
             <button id="lang-open">Battle Language</button>
             <button id="selection-open">Selection</button>
+            <button id="turn-open">Turn Actions</button>
             <button id="view-toggle">View</button>
           </div>
         </div>
@@ -85,17 +85,24 @@
       <div class="tokens-window-resize" aria-label="Resize tokens window"></div>
     </div>
 
-    <div id="dm-window" class="dm-window">
-      <div class="dm-window-header">
-        <span>DM Controls</span>
-        <button id="dm-close">Close</button>
+    <div id="turn-window" class="turn-window">
+      <div class="turn-window-header">
+        <span>Turn Actions</span>
+        <button id="turn-close">Close</button>
       </div>
-      <div class="dm-body">
-        <div class="dm-actions">
-          <button id="dm-roll-init">Roll Initiative</button>
+      <div class="turn-body">
+        <div class="turn-meta">
+          <div class="turn-round">Round --</div>
+          <div class="turn-active">Active: --</div>
         </div>
+        <div class="turn-actions">
+          <button id="turn-roll-init">Roll Initiative</button>
+        </div>
+        <textarea class="turn-info" readonly></textarea>
+        <div class="turn-details"></div>
+        <div class="turn-suggestions"></div>
       </div>
-      <div class="dm-window-resize" aria-label="Resize DM controls window"></div>
+      <div class="turn-window-resize" aria-label="Resize turn window"></div>
     </div>
 
     <div id="scripts-window" class="scripts-window">

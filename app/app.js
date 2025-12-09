@@ -20,7 +20,7 @@ import { createEditSelectionHandlers } from "./selection/selectionEdit.js";
 import { createViewSelectionHandlers } from "./selection/selectionView.js";
 import { createInteractionManager } from "./selection/interactionManager.js";
 import { initLangWindow } from "./ui/langWindow.js";
-import { initDmWindow } from "./ui/dmWindow.js";
+import { initTurnWindow } from "./ui/turnWindow.js";
 
 const canvas = document.getElementById("map-canvas");
 const inputEl = document.getElementById("script-input");
@@ -106,10 +106,10 @@ const dbOpenBtn = document.getElementById("db-open");
 const dbWindow = document.getElementById("db-window");
 const camSlotButtons = document.querySelectorAll("[data-cam-slot]");
 const clearCamViewsBtn = document.getElementById("clear-cam-views");
-const dmOpenBtn = document.getElementById("dm-open");
-const dmCloseBtn = document.getElementById("dm-close");
-const dmWindow = document.getElementById("dm-window");
-const dmRollInitBtn = document.getElementById("dm-roll-init");
+const turnOpenBtn = document.getElementById("turn-open");
+const turnCloseBtn = document.getElementById("turn-close");
+const turnWindow = document.getElementById("turn-window");
+const turnRollInitBtn = document.getElementById("turn-roll-init");
 let memHud = null;
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -146,7 +146,7 @@ if (!isDM) {
   hideForPlayer(selectionOpenBtn);
   hideForPlayer(scriptsOpenBtn);
   hideForPlayer(langOpenBtn);
-  hideForPlayer(dmOpenBtn);
+  hideForPlayer(turnOpenBtn);
   hideForPlayer(viewToggleBtn);
   scriptsWindow?.classList?.remove("open");
   langWindow?.classList?.remove("open");
@@ -159,7 +159,7 @@ if (!isDM) {
   showForDM(dbOpenBtn);
   showForDM(paramsOpenBtn);
   showForDM(selectionOpenBtn);
-  showForDM(dmOpenBtn);
+  showForDM(turnOpenBtn);
   camSlotButtons.forEach((btn) => showForDM(btn));
   showForDM(clearCamViewsBtn);
 }
@@ -437,6 +437,7 @@ const runSelectedScripts = async ({ runIfNoneFallback = true } = {}) => {
   if (!scriptRunner) return;
   try {
     await scriptRunner.runSelectedScripts({ runIfNoneFallback });
+    if (turnWindowApi && isDM) turnWindowApi.fetchSuggestions?.();
   } catch (err) {
     log(`Failed to run selected scripts: ${err.message}`);
   }
@@ -445,7 +446,9 @@ const runSelectedScripts = async ({ runIfNoneFallback = true } = {}) => {
 const runCurrentScript = () => {
   if (!isDM) return;
   if (!scriptRunner) return;
-  scriptRunner.runScriptText(inputEl.value).catch((err) => {
+  scriptRunner.runScriptText(inputEl.value).then(() => {
+    if (turnWindowApi && isDM) turnWindowApi.fetchSuggestions?.();
+  }).catch((err) => {
     log(`Failed to run script: ${err.message}`);
   });
 };
@@ -482,6 +485,7 @@ const runSelectedBtn = document.getElementById("run-selected-btn");
 if (runSelectedBtn) {
   runSelectedBtn.addEventListener("click", () => {
     if (isDM) runSelectedScripts({ runIfNoneFallback: false });
+    if (turnWindowApi && isDM) turnWindowApi.fetchSuggestions?.();
   });
 }
 
@@ -631,21 +635,35 @@ scriptRunner = createScriptRunner({
   scriptTreeManager
 });
 
+let turnWindowApi = null;
+
 // DM controls window (DM only)
 if (isDM) {
-  initDmWindow({
-    dmOpenBtn,
-    dmCloseBtn,
-    dmWindow,
-    rollInitBtn: dmRollInitBtn,
-    state,
-    scriptRunner,
-    pushServerState,
+  const rollInitiative = () => {
+    const pairs = (state.tokens || []).map((t) => ({
+      id: t.id,
+      value: Math.floor(Math.random() * 20) + 1
+    }));
+    pairs.sort((a, b) => (b.value || 0) - (a.value || 0));
+    const instructions = [{ type: "initiative-set", pairs }];
+    scriptRunner.applyInstructions(instructions);
+    pushServerState(instructions);
+    const topId = pairs[0]?.id;
+    if (topId) applySelection([topId], { broadcast: true });
+    if (turnWindowApi && isDM) turnWindowApi.fetchSuggestions?.();
+    logClass?.("INFO", `Rolled initiative for ${pairs.length} token(s)`);
+  };
+  turnWindowApi = initTurnWindow({
+    openBtn: turnOpenBtn,
+    closeBtn: turnCloseBtn,
+    windowEl: turnWindow,
+    isDM,
+    rollInitiative,
     logClass
   });
 } else {
-  if (dmWindow) dmWindow.classList.remove("open");
-  hideForPlayer(dmWindow);
+  if (turnWindow) turnWindow.classList.remove("open");
+  hideForPlayer(turnWindow);
 }
 
 createAnimationLoop({
@@ -1218,3 +1236,116 @@ if (arenaGridToggle) {
 refreshCamSlotIndicators();
 
 refreshCamSlotIndicators();
+
+// Listen for DM-selected token events (e.g., from Turn Actions window) without rebroadcasting to players.
+window.addEventListener("dm-set-selection", (e) => {
+  const ids = (e.detail && e.detail.ids) || [];
+  const highlight = e.detail?.highlight || null;
+  if (highlight === "active-turn") state.activeTurnIds = new Set(ids);
+  else state.activeTurnIds = new Set();
+  applySelection(ids, { broadcast: false });
+});
+
+const focusCameraOnToken = (tokenId) => {
+  if (!tokenId) {
+    logClass?.("CAMERA", "Focus token aborted: missing tokenId");
+    return;
+  }
+  if (!state.lastBoard || !three.camera || !three.controls) {
+    logClass?.("CAMERA", `Focus ${tokenId} aborted: missing camera/board`);
+    return;
+  }
+  const token = (state.tokens || []).find((t) => t.id === tokenId || t.id?.startsWith?.(`${tokenId}-`));
+  if (!token) {
+    logClass?.("CAMERA", `Focus ${tokenId} aborted: token not found`);
+    return;
+  }
+  const map = state.map || {};
+  const lb = state.lastBoard;
+  const boardWidth = Math.max(1, lb.cameraWidth || lb.boardWidth || 1);
+  const boardDepth = Math.max(1, lb.cameraDepth || lb.boardDepth || 1);
+  const surfaceY = lb.surfaceY || 0;
+  const colRowMatch = /^([A-Z]+)(\d+)$/.exec(token.position || "");
+  let col = Number.isFinite(token.col) ? token.col : null;
+  let row = Number.isFinite(token.row) ? token.row : null;
+  if (colRowMatch) {
+    const colLetters = colRowMatch[1].toUpperCase();
+    col = 0;
+    for (let i = 0; i < colLetters.length; i++) col = col * 26 + (colLetters.charCodeAt(i) - 64);
+    col -= 1;
+    row = Number(colRowMatch[2]);
+  }
+  if (!Number.isFinite(col) || !Number.isFinite(row)) {
+    logClass?.("CAMERA", `Focus ${tokenId} aborted: no position/col/row`, { token });
+    return;
+  }
+  const computeHex = () => {
+    const ob = state.overlayBounds;
+    if (!ob || !map.cols || !map.rows) {
+      logClass?.("CAMERA", "Hex focus fallback: missing overlay bounds");
+      return null;
+    }
+    const originX = ob.minX;
+    const originY = ob.minY;
+    const spanW = ob.width;
+    const spanH = ob.height;
+    const cellW = spanW / (map.cols + 0.5);
+    const cellH = spanH / (map.rows + 0.5);
+    const rowBase = Math.floor(row);
+    const isOdd = rowBase % 2 !== 1;
+    const rowOffset = isOdd ? 0 : cellW * 0.5;
+    const x = originX + (col + 0.5) * cellW + rowOffset;
+    const z = originY + (row + 0.5) * cellH;
+    return { x, z };
+  };
+  const computeGrid = () => {
+    if (!map.cols || !map.rows) return null;
+    const cellW = boardWidth / map.cols;
+    const cellH = boardDepth / map.rows;
+    const x = (col + 0.5) * cellW;
+    const z = (row + 0.5) * cellH;
+    return { x, z };
+  };
+  const placement = map.gridType === "hex" ? computeHex() || computeGrid() : computeGrid();
+  if (!placement) {
+    logClass?.("CAMERA", `Focus ${tokenId} aborted: no placement`);
+    return;
+  }
+  const u = Math.min(1, Math.max(0, placement.x / Math.max(1, boardWidth)));
+  const v = Math.min(1, Math.max(0, placement.z / Math.max(1, boardDepth)));
+  const h = sampleHeightMap(state, u, v);
+  const target = new THREE.Vector3(placement.x, surfaceY + h, placement.z);
+  const currentTarget = three.controls.target.clone();
+  const currentPos = three.camera.position.clone();
+  let offset = currentPos.clone().sub(currentTarget);
+  if (offset.lengthSq() < 1e-4) offset = new THREE.Vector3(10, 10, 10);
+  const distance = offset.length();
+  const dir = offset.clone().normalize();
+  const newPos = target.clone().add(dir.multiplyScalar(distance));
+  const payload = {
+    position: newPos.toArray(),
+    target: target.toArray(),
+    distance
+  };
+  if (logClass) {
+    logClass("CAMERA", `Focus token ${tokenId}`, {
+      placement,
+      currentPos: currentPos.toArray(),
+      currentTarget: currentTarget.toArray(),
+      position: payload.position,
+      target: payload.target,
+      distance
+    });
+  }
+  cameraManager.transitionToCamera(payload, render3d);
+};
+
+window.addEventListener("focus-token", (e) => {
+  const id = e.detail?.id;
+  if (!id) {
+    logClass?.("CAMERA", "Focus event missing id");
+    return;
+  }
+  logClass?.("CAMERA", `Focus event received for ${id}`);
+  focusCameraOnToken(id);
+});
