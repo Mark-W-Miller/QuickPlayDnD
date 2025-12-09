@@ -36,6 +36,7 @@ const getGridCell = (grid, r, c) => {
 export const sampleHeightMap = (state, u, v) => {
   const grid = state.heightMap?.grid;
   if (!grid) return 0;
+  const scale = state.heightMap?.heightScale || 1;
   const rows = grid.length;
   const cols = grid[0]?.length || 0;
   if (!rows || !cols) return 0;
@@ -49,10 +50,10 @@ export const sampleHeightMap = (state, u, v) => {
   const z1 = clamp(z0 + 1, 0, rows - 1);
   const fx = smoothstep(x - x0);
   const fz = smoothstep(z - z0);
-  const h00 = getGridCell(grid, z0, x0).h || 0;
-  const h10 = getGridCell(grid, z0, x1).h || 0;
-  const h01 = getGridCell(grid, z1, x0).h || 0;
-  const h11 = getGridCell(grid, z1, x1).h || 0;
+  const h00 = (getGridCell(grid, z0, x0).h || 0) * scale;
+  const h10 = (getGridCell(grid, z0, x1).h || 0) * scale;
+  const h01 = (getGridCell(grid, z1, x0).h || 0) * scale;
+  const h11 = (getGridCell(grid, z1, x1).h || 0) * scale;
   const hx0 = lerp(h00, h10, fx);
   const hx1 = lerp(h01, h11, fx);
   return lerp(hx0, hx1, fz);

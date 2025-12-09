@@ -73,6 +73,7 @@ export function initTokensWindow({
     base.forEach((t, idx) => {
       const row = document.createElement("tr");
       row.dataset.index = idx;
+      row.dataset.id = t.id || "";
       const faction = (t.faction || "").toLowerCase();
       const tokenType = (t.type || "").toLowerCase();
       const isObject = t.id?.startsWith("OBJ-") || tokenType === "object" || tokenType === "structure";
@@ -106,6 +107,15 @@ export function initTokensWindow({
     table.appendChild(thead);
     table.appendChild(tbody);
     tokensBody.appendChild(table);
+
+    // Scroll the first selected token into view.
+    const firstSelected = selected.values().next().value;
+    if (firstSelected) {
+      const row = tbody.querySelector(`tr[data-id="${firstSelected}"]`);
+      if (row && typeof row.scrollIntoView === "function") {
+        row.scrollIntoView({ block: "nearest", behavior: "auto" });
+      }
+    }
   };
 
   state.renderTokensWindow = () => renderList();

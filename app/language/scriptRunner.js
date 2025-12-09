@@ -441,6 +441,19 @@ export const createScriptRunner = ({
           if (typeof state.refreshTokenHighlights === "function") state.refreshTokenHighlights();
           break;
         }
+        case "view-params": {
+          const params = instr.params || {};
+          if (params.heightScale !== undefined) {
+            state.heightMap.heightScale = Number(params.heightScale) || 1;
+          }
+          if (params.tokenScale !== undefined) {
+            state.tokenScale = Number(params.tokenScale) || 1;
+          }
+          if (typeof state.applyViewParamsFromRemote === "function") {
+            state.applyViewParamsFromRemote(params);
+          }
+          break;
+        }
           break;
       }
     });

@@ -221,6 +221,7 @@ state.heightMap.showMesh = savedHeight;
 state.showModels = savedModels;
 state.gridRefFontScale = Math.min(3, Math.max(0.25, savedGridFontScale));
 state.tokenScale = parseFloat(localStorage.getItem("token-scale") || "1") || 1;
+state.heightMap.heightScale = parseFloat(localStorage.getItem("height-map-scale") || `${state.heightMap.heightScale || 1}`) || 1;
 
 const coercePx = (val, fallback, min) => {
   const n = parseFloat(val);
@@ -328,6 +329,7 @@ const setBackground = (url) =>
     textureCanvas,
     textureCtx,
     textureToggle,
+    respectTextureToggle: isDM, // Players should honor DM view params, not local toggle defaults.
     updateBoardScene,
     render,
     log,
@@ -515,6 +517,69 @@ const syncTokenScaleControls = () => {
   tokenScaleValue.textContent = `${(state.tokenScale || 1).toFixed(2)}x`;
 };
 
+const applyViewParams = (params = {}, { broadcast = false, persist = true } = {}) => {
+  let needsScene = false;
+  let needsBackground = false;
+  if (params.heightScale !== undefined) {
+    state.heightMap.heightScale = Number(params.heightScale) || 1;
+    if (heatHeightSlider) heatHeightSlider.value = state.heightMap.heightScale;
+    syncHeatControls();
+    if (persist) localStorage.setItem("height-map-scale", state.heightMap.heightScale.toString());
+    needsScene = true;
+  }
+  if (params.tokenScale !== undefined) {
+    state.tokenScale = Number(params.tokenScale) || 1;
+    if (tokenScaleSlider) tokenScaleSlider.value = state.tokenScale;
+    syncTokenScaleControls();
+    if (persist) localStorage.setItem("token-scale", state.tokenScale.toString());
+    needsScene = true;
+  }
+  if (params.arenaGrid !== undefined && arenaGridToggle) {
+    arenaGridToggle.checked = !!params.arenaGrid;
+    if (persist) localStorage.setItem("arena-grid", arenaGridToggle.checked ? "true" : "false");
+    needsScene = true;
+  }
+  if (params.showTexture !== undefined && textureToggle) {
+    textureToggle.checked = !!params.showTexture;
+    if (persist) localStorage.setItem("show-texture", textureToggle.checked ? "true" : "false");
+    needsScene = true;
+    needsBackground = true;
+  }
+  if (params.showHeight !== undefined && heightToggle) {
+    heightToggle.checked = !!params.showHeight;
+    state.heightMap.showMesh = heightToggle.checked;
+    if (persist) localStorage.setItem("show-heightmap", heightToggle.checked ? "true" : "false");
+    needsScene = true;
+  }
+  if (params.showOverlayGrid !== undefined && overlayGridToggle) {
+    overlayGridToggle.checked = !!params.showOverlayGrid;
+    if (persist) localStorage.setItem("show-overlay-grid", overlayGridToggle.checked ? "true" : "false");
+    needsScene = true;
+    needsBackground = true;
+  }
+  if (params.showOverlayLabels !== undefined && overlayLabelToggle) {
+    overlayLabelToggle.checked = !!params.showOverlayLabels;
+    if (persist) localStorage.setItem("show-overlay-labels", overlayLabelToggle.checked ? "true" : "false");
+    needsScene = true;
+    needsBackground = true;
+  }
+  if (params.showModels !== undefined && modelsToggle) {
+    modelsToggle.checked = !!params.showModels;
+    state.showModels = modelsToggle.checked;
+    if (persist) localStorage.setItem("show-models", modelsToggle.checked ? "true" : "false");
+    needsScene = true;
+  }
+  if (needsBackground && state.map?.backgroundUrl) {
+    setBackground(state.map.backgroundUrl);
+  } else if (needsScene) {
+    updateBoardScene();
+    render();
+  }
+  if (broadcast && isDM && typeof pushServerState === "function") {
+    pushServerState([{ type: "view-params", params }]);
+  }
+};
+
 const requestServerInstructions = async (scriptText) => {
   const res = await fetch("/api/run-script", {
     method: "POST",
@@ -600,6 +665,7 @@ const refreshTokenHighlights = () => {
   if (render3d) render3d();
 };
 state.refreshTokenHighlights = refreshTokenHighlights;
+state.applyViewParamsFromRemote = (params) => applyViewParams(params, { broadcast: false, persist: true });
 
 const applySelection = (ids, { broadcast = true } = {}) => {
   const next = new Set(Array.isArray(ids) ? ids : []);
@@ -612,10 +678,8 @@ const applySelection = (ids, { broadcast = true } = {}) => {
 };
 
 heatHeightSlider.addEventListener("input", (e) => {
-  state.heightMap.heightScale = parseFloat(e.target.value) || 1;
-  syncHeatControls();
-  updateBoardScene();
-  render();
+  const val = parseFloat(e.target.value) || 1;
+  applyViewParams({ heightScale: val }, { broadcast: true });
 });
 
 moveSpeedSlider.addEventListener("input", (e) => {
@@ -644,11 +708,7 @@ if (tokenScaleSlider) {
   tokenScaleSlider.addEventListener("input", (e) => {
     const val = parseFloat(e.target.value);
     const clamped = Math.min(2.5, Math.max(0.4, Number.isFinite(val) ? val : 1));
-    state.tokenScale = clamped;
-    localStorage.setItem("token-scale", clamped.toString());
-    syncTokenScaleControls();
-    updateBoardScene();
-    render();
+    applyViewParams({ tokenScale: clamped }, { broadcast: true });
   });
 }
 
@@ -742,54 +802,38 @@ if (clearCamViewsBtn) {
 
 if (arenaGridToggle) {
   arenaGridToggle.addEventListener("change", () => {
-    localStorage.setItem("arena-grid", arenaGridToggle.checked);
-    updateBoardScene();
-    render();
+    applyViewParams({ arenaGrid: arenaGridToggle.checked }, { broadcast: true });
   });
 }
 
 if (textureToggle) {
   textureToggle.checked = savedTexture;
   textureToggle.addEventListener("change", () => {
-    localStorage.setItem("show-texture", textureToggle.checked);
-    updateBoardScene();
-    render();
+    applyViewParams({ showTexture: textureToggle.checked }, { broadcast: true });
   });
 }
 if (heightToggle) {
   heightToggle.checked = savedHeight;
   heightToggle.addEventListener("change", () => {
-    state.heightMap.showMesh = heightToggle.checked;
-    localStorage.setItem("show-heightmap", heightToggle.checked);
-    updateBoardScene();
-    render();
+    applyViewParams({ showHeight: heightToggle.checked }, { broadcast: true });
   });
 }
 if (overlayGridToggle) {
   overlayGridToggle.checked = savedOverlayGrid;
   overlayGridToggle.addEventListener("change", () => {
-    localStorage.setItem("show-overlay-grid", overlayGridToggle.checked);
-    if (state.map?.backgroundUrl) setBackground(state.map.backgroundUrl);
-    updateBoardScene();
-    render();
+    applyViewParams({ showOverlayGrid: overlayGridToggle.checked }, { broadcast: true });
   });
 }
 if (overlayLabelToggle) {
   overlayLabelToggle.checked = savedOverlayLabels;
   overlayLabelToggle.addEventListener("change", () => {
-    localStorage.setItem("show-overlay-labels", overlayLabelToggle.checked);
-    if (state.map?.backgroundUrl) setBackground(state.map.backgroundUrl);
-    updateBoardScene();
-    render();
+    applyViewParams({ showOverlayLabels: overlayLabelToggle.checked }, { broadcast: true });
   });
 }
 if (modelsToggle) {
   modelsToggle.checked = savedModels;
   modelsToggle.addEventListener("change", () => {
-    state.showModels = modelsToggle.checked;
-    localStorage.setItem("show-models", modelsToggle.checked);
-    updateBoardScene();
-    render();
+    applyViewParams({ showModels: modelsToggle.checked }, { broadcast: true });
   });
 }
 

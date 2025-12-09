@@ -7,6 +7,7 @@ export function setBackground(url, deps) {
     textureCanvas,
     textureCtx,
     textureToggle,
+    respectTextureToggle = false,
     updateBoardScene,
     render,
     log,
@@ -22,7 +23,7 @@ export function setBackground(url, deps) {
     log("No background URL provided");
     return;
   }
-  if (textureToggle) {
+  if (textureToggle && !respectTextureToggle) {
     textureToggle.checked = true;
     localStorage.setItem("show-texture", "true");
   }
