@@ -360,10 +360,11 @@ export const createSceneBuilder = ({
     if (includeBase) baseGroup.add(baseMesh);
 
     // Selection halo (normal and active-turn variant)
-    if (isSelected) {
+    const isActiveTurn = state.activeTurnIds?.has?.(token.id);
+    const shouldHalo = isSelected || isActiveTurn;
+    if (shouldHalo) {
       const haloBase = isObject ? Math.max(squareSize * 0.6, radius) : radius;
-      const isActiveTurn = state.activeTurnIds?.has?.(token.id);
-      const haloGeom = new THREE.RingGeometry(haloBase * 1.25, haloBase * 1.55, 48);
+      const haloGeom = new THREE.TorusGeometry(haloBase * 1.35, Math.max(0.05, height * 0.25), 20, 64);
       const haloMat = new THREE.MeshBasicMaterial({
         color: isActiveTurn ? 0xff4444 : 0xffffff,
         transparent: true,
@@ -373,6 +374,7 @@ export const createSceneBuilder = ({
       });
       const halo = new THREE.Mesh(haloGeom, haloMat);
       halo.rotation.x = -Math.PI / 2;
+      // Keep the torus aligned to the top of the token without rising upward.
       halo.position.y = includeBase ? height / 2 + 0.02 : 0.02;
       baseGroup.add(halo);
     }

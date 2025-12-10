@@ -437,6 +437,7 @@ export const createScriptRunner = ({
           const ids = Array.isArray(instr.ids) ? instr.ids : [];
           const id = ids[0];
           state.selectedTokenIds = id ? new Set([id]) : new Set();
+          state.activeTurnIds = id ? new Set([id]) : new Set();
           if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
           if (typeof state.refreshTokenHighlights === "function") state.refreshTokenHighlights();
           break;
