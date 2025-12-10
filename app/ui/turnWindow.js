@@ -159,6 +159,22 @@ export function initTurnWindow({
   // Fetch once on init for DM; subsequent refreshes happen after a choice is posted.
   if (isDM) fetchSuggestions();
 
+  // Auto-roll initiative on page refresh/load for DM.
+  if (isDM && typeof rollInitiative === "function") {
+    let rolled = false;
+    const tryRoll = () => {
+      if (rolled) return;
+      if ((state?.tokens?.length || 0) > 0) {
+        rolled = true;
+        rollInitiative();
+        logClass?.("INFO", "Auto-rolled initiative after refresh");
+      } else {
+        setTimeout(tryRoll, 200);
+      }
+    };
+    setTimeout(tryRoll, 300);
+  }
+
   if (executeBtn) {
     executeBtn.addEventListener("click", () => {
       if (!isDM || !scriptRunner || !infoEl) return;

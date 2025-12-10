@@ -295,11 +295,24 @@ export const createSceneBuilder = ({
     const isStructure = (token.type || def.category || "").toString().toLowerCase() === "structure";
     const isSelected = state.selectedTokenIds?.has(token.id);
 
-    // Build base disk (skip for structures).
+    // Build base (disk for creatures, square for objects/structures).
     const faceTexture = getTokenTexture(token.svgUrl || def.svgUrl);
     const radius = Math.max(0.2, tokenSize * cellUnit * 0.35);
+    const squareSize = Math.max(0.25, tokenSize * cellUnit * 0.7);
     const height = Math.max(0.25, cellUnit * 0.4 * tokenScale); // scale height with token size
-    const geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
+    const tokenType = (token.type || "").toLowerCase();
+    const faction = (token.faction || "").toLowerCase();
+    const isObject =
+      token.id?.startsWith("OBJ-") ||
+      tokenType === "object" ||
+      tokenType === "structure";
+
+    let geometry = null;
+    if (isObject) {
+      geometry = new THREE.BoxGeometry(squareSize, height, squareSize);
+    } else {
+      geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
+    }
     const color = new THREE.Color(def.colorTint || "#ffffff");
     const topBottomMat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0xffffff), // keep caps neutral so SVG colors stay true
@@ -309,12 +322,6 @@ export const createSceneBuilder = ({
       roughness: 0.95,
       map: faceTexture || null
     });
-    const tokenType = (token.type || "").toLowerCase();
-    const faction = (token.faction || "").toLowerCase();
-    const isObject =
-      token.id?.startsWith("OBJ-") ||
-      tokenType === "object" ||
-      tokenType === "structure";
     let sideColor = "#166534"; // default PC/party green
     if (isObject) {
       sideColor = "#38bdf8"; // light blue for objects/structures
@@ -332,7 +339,20 @@ export const createSceneBuilder = ({
       metalness: 0,
       roughness: 1
     });
-    const baseMesh = new THREE.Mesh(geometry, [sideMat, topBottomMat, topBottomMat]);
+    let materials = null;
+    if (isObject) {
+      materials = [
+        sideMat,
+        sideMat,
+        topBottomMat,
+        topBottomMat,
+        sideMat,
+        sideMat
+      ];
+    } else {
+      materials = [sideMat, topBottomMat, topBottomMat];
+    }
+    const baseMesh = new THREE.Mesh(geometry, materials);
     baseMesh.castShadow = true;
 
     const baseGroup = new THREE.Group();
@@ -341,8 +361,9 @@ export const createSceneBuilder = ({
 
     // Selection halo (normal and active-turn variant)
     if (isSelected) {
+      const haloBase = isObject ? Math.max(squareSize * 0.6, radius) : radius;
       const isActiveTurn = state.activeTurnIds?.has?.(token.id);
-      const haloGeom = new THREE.RingGeometry(radius * 1.25, radius * 1.55, 48);
+      const haloGeom = new THREE.RingGeometry(haloBase * 1.25, haloBase * 1.55, 48);
       const haloMat = new THREE.MeshBasicMaterial({
         color: isActiveTurn ? 0xff4444 : 0xffffff,
         transparent: true,

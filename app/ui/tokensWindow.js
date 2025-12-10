@@ -20,6 +20,18 @@ export function initTokensWindow({
   let lastSelectIndex = null;
   let currentTokens = [];
 
+  const refFromColRow = (c, r) => {
+    if (!Number.isFinite(c) || !Number.isFinite(r)) return "";
+    let col = Math.floor(c) + 1;
+    let letters = "";
+    while (col > 0) {
+      const rem = (col - 1) % 26;
+      letters = String.fromCharCode(65 + rem) + letters;
+      col = Math.floor((col - 1) / 26);
+    }
+    return `${letters}${Math.floor(r) + 1}`;
+  };
+
   createWindowFrame({
     rootEl: tokensWindow,
     openBtn: tokensOpenBtn,
@@ -61,11 +73,11 @@ export function initTokensWindow({
     const thead = document.createElement("thead");
     thead.innerHTML = `
       <tr>
-        <th>ID</th>
+        <th>Init</th>
         <th>Name</th>
         <th>Pos</th>
         <th>HP</th>
-        <th>Init</th>
+        <th>ID</th>
       </tr>
     `;
     const tbody = document.createElement("tbody");
@@ -83,14 +95,14 @@ export function initTokensWindow({
       else if (faction === "enemy" || faction === "npc" || faction === "hostile") row.classList.add("faction-enemy");
       if (selected.has(t.id)) row.classList.add("selected");
       const pos =
-        typeof t.col === "number" && typeof t.row === "number" ? `${t.col},${t.row}` : "?";
+        typeof t.col === "number" && typeof t.row === "number" ? refFromColRow(t.col, t.row) : "?";
       const initVal = t.initiative ?? t.init ?? "";
       row.innerHTML = `
-        <td class="token-id">${t.id || ""}</td>
-        <td class="token-name">${t.name || t.id || ""}</td>
-        <td class="token-pos">${pos}</td>
-        <td class="token-hp">${t.hp ?? "?"}${t.hpMax ? `/` + t.hpMax : ""}</td>
         <td class="token-init">${initVal === "" ? "" : initVal}</td>
+        <td class="token-name">${t.name || t.id || ""}</td>
+        <td class="token-pos"><strong>${pos}</strong></td>
+        <td class="token-hp">${t.hp ?? "?"}${t.hpMax ? `/` + t.hpMax : ""}</td>
+        <td class="token-id">${t.id || ""}</td>
       `;
       row.addEventListener("click", () => {
         const selectedIds = [t.id];
