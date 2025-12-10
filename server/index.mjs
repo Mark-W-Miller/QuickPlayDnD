@@ -117,6 +117,7 @@ const readBody = (req) =>
 const MAX_HISTORY = 500;
 let stateHistory = [];
 let latestVersion = 0;
+let refreshToken = 0;
 
 const appendInstructions = (instructions = []) => {
   const entry = {
@@ -136,6 +137,7 @@ const instructionsSince = (sinceVersion = -1) => {
   if (since < 0) {
     return {
       version: latestVersion,
+      refreshToken,
       fromVersion: 0,
       instructions: stateHistory.flatMap((h) => h.instructions)
     };
@@ -143,6 +145,7 @@ const instructionsSince = (sinceVersion = -1) => {
   const newer = stateHistory.filter((h) => h.version > since);
   return {
     version: latestVersion,
+    refreshToken,
     fromVersion: since,
     instructions: newer.flatMap((h) => h.instructions)
   };
@@ -317,11 +320,18 @@ const server = http.createServer(async (req, res) => {
     }
     return;
   }
+  if (url.pathname === "/api/refresh-players" && req.method === "POST") {
+    refreshToken += 1;
+    logClass("COMMS", "Refresh players", { refreshToken });
+    sendJson(res, 200, { ok: true, refreshToken });
+    return;
+  }
   if (url.pathname === "/api/state") {
     const since = Number(url.searchParams.get("since"));
     const snapshot = instructionsSince(since);
     sendJson(res, 200, {
       version: snapshot.version,
+      refreshToken: snapshot.refreshToken,
       fromVersion: snapshot.fromVersion,
       instructions: snapshot.instructions
     });

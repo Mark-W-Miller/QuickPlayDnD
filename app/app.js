@@ -131,6 +131,7 @@ const getClientRole = () => {
 const clientRole = getClientRole();
 const isDM = clientRole === "dm";
 let lastSyncedVersion = -1;
+let lastRefreshToken = null;
 const hideForPlayer = (el) => {
   if (el) el.style.display = "none";
 };
@@ -179,6 +180,15 @@ const fetchAndApplyLatestState = async () => {
     const res = await fetch(`/api/state?since=${since}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    if (Number.isFinite(data.refreshToken)) {
+      if (lastRefreshToken === null) {
+        lastRefreshToken = data.refreshToken;
+      } else if (data.refreshToken !== lastRefreshToken) {
+        logClass?.("INFO", "Server requested refresh; reloading player");
+        window.location.reload();
+        return;
+      }
+    }
     const nextVersion = Number.isFinite(data.version) ? data.version : lastSyncedVersion;
     if (Array.isArray(data.instructions) && data.instructions.length) {
       scriptRunner.applyInstructions(data.instructions);
@@ -243,6 +253,7 @@ document.body.appendChild(tokenTooltip);
 let hoverTokenId = null;
 let hoverTimer = null;
 let lastHoverEvent = null;
+const TOOLTIP_DELAY_MS = 1000;
 const hideTokenTooltip = () => {
   tokenTooltip.style.display = "none";
   hoverTokenId = null;
@@ -283,7 +294,7 @@ const scheduleTokenTooltip = (tokenId, event) => {
     const token = (state.tokens || []).find((t) => t.id === tokenId);
     if (!token || !lastHoverEvent) return hideTokenTooltip();
     showTokenTooltip(token, lastHoverEvent.clientX, lastHoverEvent.clientY);
-  }, 3000);
+  }, TOOLTIP_DELAY_MS);
 };
 
 const three = {
@@ -653,14 +664,17 @@ if (isDM) {
     if (turnWindowApi && isDM) turnWindowApi.fetchSuggestions?.();
     logClass?.("INFO", `Rolled initiative for ${pairs.length} token(s)`);
   };
-  turnWindowApi = initTurnWindow({
-    openBtn: turnOpenBtn,
-    closeBtn: turnCloseBtn,
-    windowEl: turnWindow,
-    isDM,
-    rollInitiative,
-    logClass
-  });
+ turnWindowApi = initTurnWindow({
+   openBtn: turnOpenBtn,
+   closeBtn: turnCloseBtn,
+   windowEl: turnWindow,
+   isDM,
+   rollInitiative,
+   logClass,
+    scriptRunner,
+    state
+ });
+// Disabled: Refresh players on DM reload caused flicker. If needed, re-enable deliberately.
 } else {
   if (turnWindow) turnWindow.classList.remove("open");
   hideForPlayer(turnWindow);

@@ -102,6 +102,14 @@ const getSuggestions = () => {
     .map((t) => ({ t, d: distCells(aPos, coordToIndex(t.position || "")) }))
     .sort((a, b) => a.d - b.d)[0]?.t;
   const sug = [];
+  const attacks = ensureTokenAttacks(active || {});
+  const attacksSummary = attacks.map((a) => a.name || a.mode || a.damage).filter(Boolean).join("; ");
+  const infoText = active?.info || "";
+  const detailText = active
+    ? `HP ${active.hp ?? "?"}/${active.hpMax ?? "?"} | ${active.position || "--"} | ${active.faction || ""}${
+        attacksSummary ? ` | Attacks: ${attacksSummary}` : ""
+      }`
+    : "";
   if (closest && active) {
     const atk = pickBestAttack(active, closest);
     if (atk) {
@@ -124,10 +132,8 @@ const getSuggestions = () => {
     round: combatState.round,
     activeToken: active?.id || null,
     activeName: active?.name || active?.id || null,
-    activeInfo: active?.info || "",
-    activeDetails: active
-      ? `HP ${active.hp ?? "?"}/${active.hpMax ?? "?"} | ${active.position || "--"} | ${active.faction || ""}`
-      : "",
+    activeInfo: infoText,
+    activeDetails: detailText,
     suggestions: sug
   };
 };

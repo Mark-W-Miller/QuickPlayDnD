@@ -38,6 +38,7 @@
             <button id="lang-open">Battle Language</button>
             <button id="selection-open">Selection</button>
             <button id="turn-open">Turn Actions</button>
+            <button id="refresh-players-top">Refresh Players</button>
             <button id="view-toggle">View</button>
           </div>
         </div>
@@ -88,6 +89,7 @@
     <div id="turn-window" class="turn-window">
       <div class="turn-window-header">
         <span>Turn Actions</span>
+        <button id="turn-roll-init">Roll Initiative</button>
         <button id="turn-close">Close</button>
       </div>
       <div class="turn-body">
@@ -95,12 +97,13 @@
           <div class="turn-round">Round --</div>
           <div class="turn-active">Active: --</div>
         </div>
-        <div class="turn-actions">
-          <button id="turn-roll-init">Roll Initiative</button>
-        </div>
-        <textarea class="turn-info" readonly></textarea>
+        <textarea class="turn-info"></textarea>
         <div class="turn-details"></div>
         <div class="turn-suggestions"></div>
+        <div class="turn-actions-row">
+          <button id="turn-execute">Execute</button>
+          <button id="turn-end">End Turn</button>
+        </div>
       </div>
       <div class="turn-window-resize" aria-label="Resize turn window"></div>
     </div>

@@ -736,6 +736,30 @@ button:active {
   gap: 8px;
 }
 
+.turn-actions-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+#turn-execute {
+  width: 45%;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+#turn-end {
+  width: 45%;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+#turn-refresh-players {
+  width: 60%;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
 .turn-suggestions button {
   width: 100%;
   text-align: left;

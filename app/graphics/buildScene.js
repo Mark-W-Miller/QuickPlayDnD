@@ -342,7 +342,7 @@ export const createSceneBuilder = ({
     // Selection halo (normal and active-turn variant)
     if (isSelected) {
       const isActiveTurn = state.activeTurnIds?.has?.(token.id);
-      const haloGeom = new THREE.RingGeometry(radius * 1.15, radius * 1.35, 48);
+      const haloGeom = new THREE.RingGeometry(radius * 1.25, radius * 1.55, 48);
       const haloMat = new THREE.MeshBasicMaterial({
         color: isActiveTurn ? 0xff4444 : 0xffffff,
         transparent: true,
