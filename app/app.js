@@ -191,6 +191,10 @@ const fetchAndApplyLatestState = async () => {
     }
     const nextVersion = Number.isFinite(data.version) ? data.version : lastSyncedVersion;
     if (Array.isArray(data.instructions) && data.instructions.length) {
+      // If this is an initial sync, clear local state first to avoid drift.
+      if (since < 0) {
+        scriptRunner.applyInstructions([{ type: "reset" }]);
+      }
       scriptRunner.applyInstructions(data.instructions);
       if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
       logClass?.(
