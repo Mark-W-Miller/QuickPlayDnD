@@ -56,7 +56,8 @@ const state = {
   cameraBounds: null,
   selectionCells: new Set(),
   cameraResetPending: false,
-  activeTurnIds: new Set()
+  activeTurnIds: new Set(),
+  activeArrow: null
 };
 
 export { state, safeJsonParse, safeStorageGet, safeStorageSet };

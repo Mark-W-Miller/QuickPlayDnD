@@ -51,6 +51,30 @@ const distCells = (a, b) => {
   return Math.abs(a.col - b.col) + Math.abs(a.row - b.row);
 };
 
+const attackReachCells = (attack) => {
+  if (!attack || !attack.reachRange) return { min: 1, max: 1 };
+  const parts = String(attack.reachRange)
+    .split("/")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const ranges = parts
+    .map((p) => {
+      const n = Number(p);
+      return Number.isFinite(n) ? n : null;
+    })
+    .filter((n) => n !== null);
+  if (!ranges.length) return { min: 1, max: 1 };
+  const max = Math.max(...ranges);
+  const min = Math.min(...ranges);
+  return { min: Math.max(1, min), max: Math.max(1, max) };
+};
+
+const canReach = (attack, distance) => {
+  const { min, max } = attackReachCells(attack);
+  if (!Number.isFinite(distance)) return false;
+  return distance >= min && distance <= max;
+};
+
 const parseAttacks = (raw) => {
   if (!raw || typeof raw !== "string") return [];
   return raw
@@ -79,11 +103,17 @@ const pickBestAttack = (token, target) => {
   const aPos = coordToIndex(token.position || "");
   const tPos = coordToIndex(target?.position || "");
   const distance = distCells(aPos, tPos);
-  // Prefer melee if adjacent (<=1), else ranged.
-  const melee = attacks.find((a) => (a.mode || "").toLowerCase().includes("melee"));
-  const ranged = attacks.find((a) => (a.mode || "").toLowerCase().includes("ranged"));
-  if (distance <= 1 && melee) return melee;
-  return ranged || melee || attacks[0];
+  const byReach = attacks
+    .map((a) => ({ a, reach: attackReachCells(a) }))
+    .filter(({ reach }) => distance >= reach.min && distance <= reach.max);
+  if (byReach.length) {
+    // Prefer melee if in range, else first ranged.
+    const melee = byReach.find(({ a }) => (a.mode || "").toLowerCase().includes("melee"));
+    if (melee) return melee.a;
+    return byReach[0].a;
+  }
+  // If nothing is in range, return null to avoid impossible attack.
+  return null;
 };
 
 const getSuggestions = () => {

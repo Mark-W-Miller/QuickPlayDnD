@@ -297,8 +297,12 @@ export const createSceneBuilder = ({
 
     // Build base (disk for creatures, square for objects/structures).
     const faceTexture = getTokenTexture(token.svgUrl || def.svgUrl);
-    const radius = Math.max(0.2, tokenSize * cellUnit * 0.35);
-    const squareSize = Math.max(0.25, tokenSize * cellUnit * 0.7);
+    const maxFootprint = Math.max(0.1, Math.min(placement.cellW, placement.cellH) * 0.45);
+    const desiredRadius = tokenSize * cellUnit * 0.35;
+    const radius = Math.min(Math.max(0.2, desiredRadius), maxFootprint);
+    const desiredSquare = tokenSize * cellUnit * 0.7;
+    const maxSquare = Math.max(0.1, Math.min(placement.cellW, placement.cellH) * 0.9);
+    const squareSize = Math.min(Math.max(0.25, desiredSquare), maxSquare);
     const height = Math.max(0.25, cellUnit * 0.4 * tokenScale); // scale height with token size
     const tokenType = (token.type || "").toLowerCase();
     const faction = (token.faction || "").toLowerCase();
@@ -309,7 +313,22 @@ export const createSceneBuilder = ({
 
     let geometry = null;
     if (isObject) {
-      geometry = new THREE.BoxGeometry(squareSize, height, squareSize);
+      // Rounded-square prism using extruded rounded rectangle
+      const shape = new THREE.Shape();
+      const r = Math.max(0.05, squareSize * 0.12);
+      const w = squareSize;
+      const h = squareSize;
+      shape.moveTo(-w / 2 + r, -h / 2);
+      shape.lineTo(w / 2 - r, -h / 2);
+      shape.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+      shape.lineTo(w / 2, h / 2 - r);
+      shape.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
+      shape.lineTo(-w / 2 + r, h / 2);
+      shape.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
+      shape.lineTo(-w / 2, -h / 2 + r);
+      shape.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+      geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
+      geometry.translate(0, -height / 2, 0); // center vertically
     } else {
       geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
     }
@@ -459,7 +478,7 @@ export const createSceneBuilder = ({
       const size = new THREE.Vector3();
       bbox.getSize(size);
       const maxXZ = Math.max(size.x, size.z, 1e-3);
-      const desired = radius * 2 * 0.9;
+      const desired = (isObject ? squareSize : radius * 2) * 0.9;
       const scale = desired / maxXZ;
       clone.scale.setScalar(scale);
       const minY = bbox.min.y * scale;
@@ -487,6 +506,61 @@ export const createSceneBuilder = ({
     return baseGroup;
   };
 
+  const updateActionArrow = (boardWidth, boardDepth, surfaceY, cellUnit) => {
+    if (!three.actionArrowGroup) return;
+    clearGroup(three.actionArrowGroup);
+    const arrow = state.activeArrow;
+    if (!arrow || !arrow.from || !arrow.to) return;
+    const map = state.map || {};
+    const sampleY = (x, z) => {
+      const u = THREE.MathUtils.clamp(x / Math.max(1, boardWidth), 0, 1);
+      const v = THREE.MathUtils.clamp(z / Math.max(1, boardDepth), 0, 1);
+      const hVal = sampleHeightMap(state, u, v);
+      return surfaceY + hVal;
+    };
+    const toPlacement =
+      map.gridType === "hex"
+        ? computeHexPlacement({ col: arrow.to.col, row: arrow.to.row }, boardWidth, boardDepth)
+        : computeGridPlacement({ col: arrow.to.col, row: arrow.to.row }, boardWidth, boardDepth);
+    const fromPlacement =
+      map.gridType === "hex"
+        ? computeHexPlacement({ col: arrow.from.col, row: arrow.from.row }, boardWidth, boardDepth)
+        : computeGridPlacement({ col: arrow.from.col, row: arrow.from.row }, boardWidth, boardDepth);
+    const start = new THREE.Vector3(
+      fromPlacement.x,
+      sampleY(fromPlacement.x, fromPlacement.z) + cellUnit * 0.5,
+      fromPlacement.z
+    );
+    const end = new THREE.Vector3(toPlacement.x, sampleY(toPlacement.x, toPlacement.z) + 0.05, toPlacement.z);
+    const geom = new THREE.BufferGeometry().setFromPoints([start, end]);
+    const tubeRadius = Math.max(cellUnit * 0.08, 0.05) * 1.25;
+    const tubeGeom = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([start, end]), 1, tubeRadius, 8, false);
+    const lineMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(arrow.color || "#10b981"),
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false
+    });
+    const tube = new THREE.Mesh(tubeGeom, lineMat);
+    tube.renderOrder = 6;
+    three.actionArrowGroup.add(tube);
+    // Arrow head
+    const dir = new THREE.Vector3().subVectors(end, start).normalize();
+    const headLen = Math.max(cellUnit * 0.3, 0.25);
+    const coneGeom = new THREE.ConeGeometry(headLen * 0.35, headLen, 16);
+    const coneMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(arrow.color || "#10b981"),
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false
+    });
+    const cone = new THREE.Mesh(coneGeom, coneMat);
+    const axis = new THREE.Vector3(0, 1, 0);
+    cone.quaternion.setFromUnitVectors(axis, dir.clone().normalize());
+    cone.position.copy(end);
+    three.actionArrowGroup.add(cone);
+  };
+
   const updateTokens3d = (boardWidth, boardDepth, surfaceY, cellUnit) => {
     if (!three.tokenGroup) return;
     clearGroup(three.tokenGroup);
@@ -509,8 +583,15 @@ export const createSceneBuilder = ({
         if (mesh) three.tokenGroup.add(mesh);
       });
     });
+    updateActionArrow(boardWidth, boardDepth, surfaceY, cellUnit);
   };
   updateTokensRef = updateTokens3d;
+  state.renderActionArrow = () => {
+    if (!state.lastBoard) return;
+    const { boardWidth, boardDepth, surfaceY, cellUnit } = state.lastBoard;
+    updateActionArrow(boardWidth, boardDepth, surfaceY, cellUnit);
+    render3d?.();
+  };
 
   const updateEffects3d = (boardWidth, boardDepth, surfaceY, cellUnit) => {
     if (!three.effectGroup) return;
@@ -692,10 +773,12 @@ export const createSceneBuilder = ({
     three.tokenGroup = new THREE.Group();
     three.effectGroup = new THREE.Group();
     three.selectionGroup = new THREE.Group();
+    three.actionArrowGroup = new THREE.Group();
     three.scene.add(three.meshGroup);
     three.scene.add(three.tokenGroup);
     three.scene.add(three.effectGroup);
     three.scene.add(three.selectionGroup);
+    three.scene.add(three.actionArrowGroup);
 
     resizeRenderer();
     window.addEventListener("resize", resizeRenderer);
@@ -882,6 +965,7 @@ export const createSceneBuilder = ({
     clearGroup,
     buildTokenMesh,
     updateTokens3d,
+    updateActionArrow,
     render3d,
     resizeRenderer,
     initThree,

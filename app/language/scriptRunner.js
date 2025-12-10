@@ -438,8 +438,28 @@ export const createScriptRunner = ({
           const id = ids[0];
           state.selectedTokenIds = id ? new Set([id]) : new Set();
           state.activeTurnIds = id ? new Set([id]) : new Set();
+          if (!id) state.activeArrow = null;
           if (typeof state.renderTokensWindow === "function") state.renderTokensWindow();
           if (typeof state.refreshTokenHighlights === "function") state.refreshTokenHighlights();
+          if (typeof state.renderActionArrow === "function") state.renderActionArrow();
+          break;
+        }
+        case "tooltip": {
+          const show = instr.show !== false;
+          if (show) {
+            const tok = (state.tokens || []).find((t) => t.id === instr.tokenId || t.id?.startsWith?.(`${instr.tokenId}-`));
+            if (tok && typeof state.showTokenTooltip === "function") {
+              let x = instr.x;
+              let y = instr.y;
+              if ((!Number.isFinite(x) || !Number.isFinite(y)) && Number.isFinite(instr.normX) && Number.isFinite(instr.normY)) {
+                x = instr.normX * window.innerWidth;
+                y = instr.normY * window.innerHeight;
+              }
+              state.showTokenTooltip(tok, x, y);
+            }
+          } else if (typeof state.hideTokenTooltip === "function") {
+            state.hideTokenTooltip();
+          }
           break;
         }
         case "view-params": {

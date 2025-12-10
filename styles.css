@@ -827,12 +827,12 @@ button:active {
 
 .token-tooltip {
   position: fixed;
-  max-width: 240px;
+  max-width: 480px;
   background: rgba(0, 0, 0, 0.86);
   color: #e5e7eb;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  padding: 8px 10px;
+  border-radius: 12px;
+  padding: 16px 20px;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
   z-index: 2000;
   pointer-events: none;
@@ -840,12 +840,13 @@ button:active {
 
 .token-tooltip-name {
   font-weight: 700;
+  font-size: 28px;
   margin-bottom: 4px;
 }
 
 .token-tooltip-line {
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 24px;
+  line-height: 1.35;
   color: #cbd5e1;
 }
 

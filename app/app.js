@@ -257,6 +257,7 @@ document.body.appendChild(tokenTooltip);
 let hoverTokenId = null;
 let hoverTimer = null;
 let lastHoverEvent = null;
+let lastBroadcastTooltip = null;
 const TOOLTIP_DELAY_MS = 1000;
 const hideTokenTooltip = () => {
   tokenTooltip.style.display = "none";
@@ -265,10 +266,15 @@ const hideTokenTooltip = () => {
     clearTimeout(hoverTimer);
     hoverTimer = null;
   }
+  if (isDM && typeof pushServerState === "function" && lastBroadcastTooltip !== null) {
+    pushServerState([{ type: "tooltip", tokenId: lastBroadcastTooltip, show: false }]);
+    lastBroadcastTooltip = null;
+  }
 };
 const showTokenTooltip = (token, x, y) => {
   if (!token) return hideTokenTooltip();
   const infoLines = [];
+  if (token.id) infoLines.push(`ID: ${token.id}`);
   if (token.info) infoLines.push(token.info);
   if (token.type) infoLines.push(`Type: ${token.type}`);
   if (token.faction) infoLines.push(`Faction: ${token.faction}`);
@@ -284,6 +290,14 @@ const showTokenTooltip = (token, x, y) => {
   tokenTooltip.style.left = `${x + 12}px`;
   tokenTooltip.style.top = `${y + 12}px`;
   tokenTooltip.style.display = "block";
+  if (isDM && typeof pushServerState === "function") {
+    if (lastBroadcastTooltip !== token.id) {
+      const normX = window.innerWidth ? x / window.innerWidth : null;
+      const normY = window.innerHeight ? y / window.innerHeight : null;
+      pushServerState([{ type: "tooltip", tokenId: token.id, show: true, x, y, normX, normY }]);
+      lastBroadcastTooltip = token.id;
+    }
+  }
 };
 const scheduleTokenTooltip = (tokenId, event) => {
   if (hoverTokenId === tokenId) return;
@@ -300,6 +314,9 @@ const scheduleTokenTooltip = (tokenId, event) => {
     showTokenTooltip(token, lastHoverEvent.clientX, lastHoverEvent.clientY);
   }, TOOLTIP_DELAY_MS);
 };
+// expose for scriptRunner-driven tooltips (players)
+state.showTokenTooltip = (token, x, y) => showTokenTooltip(token, x ?? 24, y ?? 24);
+state.hideTokenTooltip = () => hideTokenTooltip();
 
 const three = {
   scene: null,

@@ -46,6 +46,8 @@ export function initTurnWindow({
     if (!listEl) return;
     listEl.innerHTML = "";
     (data?.suggestions || []).forEach((sug, idx) => {
+      const kind = (sug?.intent?.kind || "").toLowerCase();
+      if (kind === "endturn") return; // dedicated End Turn button exists; avoid duplicates
       const btn = document.createElement("button");
       btn.textContent = sug.label || `Option ${idx + 1}`;
       btn.addEventListener("click", () => chooseIntent(sug));
@@ -154,6 +156,45 @@ export function initTurnWindow({
       lines.push(`# End turn`);
     }
     infoEl.value = lines.join("\n");
+    // Draw preview arrow for DM only.
+    const activeId = Array.from(state.activeTurnIds || [])[0] || null;
+    const fromId = intent.attackerId || intent.tokenId || activeId;
+    const fromPos = fromId ? getTokenPos(fromId) : null;
+    let toPos = null;
+    let color = "#22c55e";
+    if (kind === "move" || kind === "movetocell") {
+      if (intent.to) {
+        const parsed = parseRef(intent.to);
+        if (parsed) toPos = parsed;
+      }
+    } else if (kind === "movetoward") {
+      if (intent.targetId) {
+        const targetPos = getTokenPos(intent.targetId);
+        if (targetPos && fromPos) {
+          toPos = {
+            col: fromPos.col + Math.sign(targetPos.col - fromPos.col),
+            row: fromPos.row + Math.sign(targetPos.row - fromPos.row)
+          };
+        }
+      }
+    } else if (kind === "attack") {
+      color = "#ef4444";
+      if (intent.targetId) {
+        toPos = getTokenPos(intent.targetId);
+      }
+    } else {
+      // non-positional: clear
+      state.activeArrow = null;
+      state.renderActionArrow?.();
+      return;
+    }
+    if (fromPos && toPos) {
+      state.activeArrow = { from: fromPos, to: toPos, color };
+      state.renderActionArrow?.();
+    } else {
+      state.activeArrow = null;
+      state.renderActionArrow?.();
+    }
   };
 
   // Fetch once on init for DM; subsequent refreshes happen after a choice is posted.
@@ -180,6 +221,8 @@ export function initTurnWindow({
       if (!isDM || !scriptRunner || !infoEl) return;
       const scriptText = infoEl.value || "";
       if (!scriptText.trim()) return;
+      state.activeArrow = null;
+      state.renderActionArrow?.();
       scriptRunner
         .runScriptText(scriptText)
         .catch((err) => logClass?.("WARN", `Execute failed: ${err.message}`));
@@ -206,6 +249,9 @@ export function initTurnWindow({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ intent: { kind: "endTurn" }, label: "End turn" })
       }).catch(() => {});
+      if (infoEl) infoEl.value = "";
+      state.activeArrow = null;
+      state.renderActionArrow?.();
       fetchSuggestions();
     });
   }
