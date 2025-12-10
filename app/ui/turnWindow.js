@@ -45,7 +45,8 @@ export function initTurnWindow({
     if (detailsEl) detailsEl.textContent = data?.activeDetails || "";
     if (!listEl) return;
     listEl.innerHTML = "";
-    (data?.suggestions || []).forEach((sug, idx) => {
+    const suggs = data?.suggestions || [];
+    suggs.forEach((sug, idx) => {
       const kind = (sug?.intent?.kind || "").toLowerCase();
       if (kind === "endturn") return; // dedicated End Turn button exists; avoid duplicates
       const btn = document.createElement("button");
@@ -53,6 +54,16 @@ export function initTurnWindow({
       btn.addEventListener("click", () => chooseIntent(sug));
       listEl.appendChild(btn);
     });
+    // Populate textarea with a single suggestion: prefer attack, else move.
+    if (infoEl) {
+      const attackSug = suggs.find((s) => (s?.intent?.kind || "").toLowerCase() === "attack");
+      const moveSug = suggs.find((s) => {
+        const k = (s?.intent?.kind || "").toLowerCase();
+        return k === "move" || k === "movetoward" || k === "movetocell";
+      });
+      const picked = attackSug || moveSug || null;
+      infoEl.value = picked ? buildScriptPreview(picked) : "";
+    }
     // Auto focus camera on the active token for DM.
     if (isDM && data?.activeToken) {
       window.dispatchEvent(new CustomEvent("focus-token", { detail: { id: data.activeToken } }));
@@ -161,7 +172,7 @@ export function initTurnWindow({
     const fromId = intent.attackerId || intent.tokenId || activeId;
     const fromPos = fromId ? getTokenPos(fromId) : null;
     let toPos = null;
-    let color = "#22c55e";
+    let color = null;
     if (kind === "move" || kind === "movetocell") {
       if (intent.to) {
         const parsed = parseRef(intent.to);
@@ -178,7 +189,6 @@ export function initTurnWindow({
         }
       }
     } else if (kind === "attack") {
-      color = "#ef4444";
       if (intent.targetId) {
         toPos = getTokenPos(intent.targetId);
       }
@@ -189,12 +199,52 @@ export function initTurnWindow({
       return;
     }
     if (fromPos && toPos) {
-      state.activeArrow = { from: fromPos, to: toPos, color };
+      const normalizedKind =
+        kind === "movetoward" || kind === "movetocell" ? "move" : kind;
+      state.activeArrow = { from: fromPos, to: toPos, color, kind: normalizedKind };
       state.renderActionArrow?.();
     } else {
       state.activeArrow = null;
       state.renderActionArrow?.();
     }
+  };
+
+  const buildScriptPreview = (sug) => {
+    const intent = sug?.intent || {};
+    const kind = (intent.kind || "").toLowerCase();
+    const lines = [];
+    if (kind === "move" || kind === "movetocell") {
+      if (intent.tokenId && intent.to) {
+        lines.push(`${sug.label || "Move"}:`);
+        lines.push(`MOVE ${intent.tokenId} TO ${intent.to}`);
+      }
+    } else if (kind === "movetoward") {
+      if (intent.tokenId && intent.targetId) {
+        const a = getTokenPos(intent.tokenId);
+        const t = getTokenPos(intent.targetId);
+        const step = a && t
+          ? {
+              col: a.col + Math.sign(t.col - a.col),
+              row: a.row + Math.sign(t.row - a.row)
+            }
+          : null;
+        lines.push(`${sug.label || "Move toward"}:`);
+        lines.push(`MOVE ${intent.tokenId} TO ${step ? refFromColRow(step.col, step.row) : "???"}`);
+      }
+    } else if (kind === "attack") {
+      if (intent.attackerId && intent.targetId) {
+        const atkType = intent.mode && intent.mode.toLowerCase().includes("magic") ? "magic" : "physical";
+        lines.push(`${sug.label || "Attack"}:`);
+        lines.push(`ATTACK ${intent.attackerId} -> ${intent.targetId} TYPE ${atkType}`);
+      }
+    } else if (kind === "defend") {
+      lines.push(`${sug.label || "Defend"}:`);
+      lines.push(`# Defend/Dodge`);
+    } else if (kind === "endturn") {
+      lines.push(`${sug.label || "End turn"}:`);
+      lines.push(`# End turn`);
+    }
+    return lines.join("\n");
   };
 
   // Fetch once on init for DM; subsequent refreshes happen after a choice is posted.

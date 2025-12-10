@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
+import { RoundedBoxGeometry } from "https://unpkg.com/three@0.160.0/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 export const createSceneBuilder = ({
   state,
@@ -313,22 +314,8 @@ export const createSceneBuilder = ({
 
     let geometry = null;
     if (isObject) {
-      // Rounded-square prism using extruded rounded rectangle
-      const shape = new THREE.Shape();
-      const r = Math.max(0.05, squareSize * 0.12);
-      const w = squareSize;
-      const h = squareSize;
-      shape.moveTo(-w / 2 + r, -h / 2);
-      shape.lineTo(w / 2 - r, -h / 2);
-      shape.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
-      shape.lineTo(w / 2, h / 2 - r);
-      shape.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
-      shape.lineTo(-w / 2 + r, h / 2);
-      shape.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
-      shape.lineTo(-w / 2, -h / 2 + r);
-      shape.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
-      geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
-      geometry.translate(0, -height / 2, 0); // center vertically
+      const radiusCorner = Math.min(squareSize * 0.25, Math.max(0.05, squareSize * 0.2));
+      geometry = new RoundedBoxGeometry(squareSize, height, squareSize, 4, radiusCorner);
     } else {
       geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
     }
@@ -506,37 +493,46 @@ export const createSceneBuilder = ({
     return baseGroup;
   };
 
-  const updateActionArrow = (boardWidth, boardDepth, surfaceY, cellUnit) => {
-    if (!three.actionArrowGroup) return;
-    clearGroup(three.actionArrowGroup);
-    const arrow = state.activeArrow;
-    if (!arrow || !arrow.from || !arrow.to) return;
-    const map = state.map || {};
+  const buildMovePath = ({ fromPlacement, toPlacement, boardWidth, boardDepth, surfaceY, cellUnit }) => {
     const sampleY = (x, z) => {
       const u = THREE.MathUtils.clamp(x / Math.max(1, boardWidth), 0, 1);
       const v = THREE.MathUtils.clamp(z / Math.max(1, boardDepth), 0, 1);
       const hVal = sampleHeightMap(state, u, v);
       return surfaceY + hVal;
     };
-    const toPlacement =
-      map.gridType === "hex"
-        ? computeHexPlacement({ col: arrow.to.col, row: arrow.to.row }, boardWidth, boardDepth)
-        : computeGridPlacement({ col: arrow.to.col, row: arrow.to.row }, boardWidth, boardDepth);
-    const fromPlacement =
-      map.gridType === "hex"
-        ? computeHexPlacement({ col: arrow.from.col, row: arrow.from.row }, boardWidth, boardDepth)
-        : computeGridPlacement({ col: arrow.from.col, row: arrow.from.row }, boardWidth, boardDepth);
-    const start = new THREE.Vector3(
-      fromPlacement.x,
-      sampleY(fromPlacement.x, fromPlacement.z) + cellUnit * 0.5,
-      fromPlacement.z
-    );
-    const end = new THREE.Vector3(toPlacement.x, sampleY(toPlacement.x, toPlacement.z) + 0.05, toPlacement.z);
-    const geom = new THREE.BufferGeometry().setFromPoints([start, end]);
+    const startBaseY = sampleY(fromPlacement.x, fromPlacement.z);
+    const endBaseY = sampleY(toPlacement.x, toPlacement.z);
+    const start = new THREE.Vector3(fromPlacement.x, startBaseY + 0.02, fromPlacement.z);
+    const end = new THREE.Vector3(toPlacement.x, endBaseY + 0.02, toPlacement.z);
+    const points = [];
+    const steps = 20;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = THREE.MathUtils.lerp(start.x, end.x, t);
+      const z = THREE.MathUtils.lerp(start.z, end.z, t);
+      const y = sampleY(x, z) + Math.max(0.05, cellUnit * 0.25);
+      points.push(new THREE.Vector3(x, y, z));
+    }
+    const curve = new THREE.CatmullRomCurve3(points);
+    const tubeRadius = Math.max(cellUnit * 0.15, 0.06);
+    const tubeGeom = new THREE.TubeGeometry(curve, Math.max(2, points.length * 4), tubeRadius, 12, false);
+    const tubeMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color("#10b981"), // hardcoded move path color
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false
+    });
+    const tube = new THREE.Mesh(tubeGeom, tubeMat);
+    tube.renderOrder = 6;
+    three.actionArrowGroup.add(tube);
+  };
+
+  const buildAttackArrow = ({ points, start, end, cellUnit }) => {
     const tubeRadius = Math.max(cellUnit * 0.08, 0.05) * 1.25;
-    const tubeGeom = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([start, end]), 1, tubeRadius, 8, false);
+    const curve = new THREE.CatmullRomCurve3(points);
+    const tubeGeom = new THREE.TubeGeometry(curve, 1, tubeRadius, 8, false);
     const lineMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(arrow.color || "#10b981"),
+      color: new THREE.Color("#b91010"), // hardcoded attack color
       transparent: true,
       opacity: 0.9,
       depthWrite: false
@@ -544,12 +540,13 @@ export const createSceneBuilder = ({
     const tube = new THREE.Mesh(tubeGeom, lineMat);
     tube.renderOrder = 6;
     three.actionArrowGroup.add(tube);
+
     // Arrow head
     const dir = new THREE.Vector3().subVectors(end, start).normalize();
     const headLen = Math.max(cellUnit * 0.3, 0.25);
     const coneGeom = new THREE.ConeGeometry(headLen * 0.35, headLen, 16);
     const coneMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(arrow.color || "#10b981"),
+      color: new THREE.Color("#b91010"),
       transparent: true,
       opacity: 0.9,
       depthWrite: false
@@ -559,6 +556,37 @@ export const createSceneBuilder = ({
     cone.quaternion.setFromUnitVectors(axis, dir.clone().normalize());
     cone.position.copy(end);
     three.actionArrowGroup.add(cone);
+  };
+
+  const updateActionArrow = (boardWidth, boardDepth, surfaceY, cellUnit) => {
+    if (!three.actionArrowGroup) return;
+    clearGroup(three.actionArrowGroup);
+    const arrow = state.activeArrow;
+    if (!arrow || !arrow.from || !arrow.to) return;
+    const map = state.map || {};
+    const toPlacement =
+      map.gridType === "hex"
+        ? computeHexPlacement({ col: arrow.to.col, row: arrow.to.row }, boardWidth, boardDepth)
+        : computeGridPlacement({ col: arrow.to.col, row: arrow.to.row }, boardWidth, boardDepth);
+    const fromPlacement =
+      map.gridType === "hex"
+        ? computeHexPlacement({ col: arrow.from.col, row: arrow.from.row }, boardWidth, boardDepth)
+        : computeGridPlacement({ col: arrow.from.col, row: arrow.from.row }, boardWidth, boardDepth);
+    const kind = (arrow.kind || "").toLowerCase();
+    const isMove = kind === "move" || kind === "movetoward" || kind === "movetocell";
+
+    if (isMove) {
+      buildMovePath({ fromPlacement, toPlacement, boardWidth, boardDepth, surfaceY, cellUnit });
+    } else {
+      const startBaseY = sampleHeightMap(state, fromPlacement.x / Math.max(1, boardWidth), fromPlacement.z / Math.max(1, boardDepth)) + surfaceY;
+      const endBaseY = sampleHeightMap(state, toPlacement.x / Math.max(1, boardWidth), toPlacement.z / Math.max(1, boardDepth)) + surfaceY;
+      const start = new THREE.Vector3(fromPlacement.x, startBaseY + 0.02, fromPlacement.z);
+      const end = new THREE.Vector3(toPlacement.x, endBaseY + 0.02, toPlacement.z);
+      let points = [];
+      const curve = new THREE.CatmullRomCurve3([start, end]);
+      points = curve.getPoints(20);
+      buildAttackArrow({ points, start, end, cellUnit });
+    }
   };
 
   const updateTokens3d = (boardWidth, boardDepth, surfaceY, cellUnit) => {

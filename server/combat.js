@@ -141,19 +141,23 @@ const getSuggestions = () => {
       }`
     : "";
   if (closest && active) {
-    const atk = pickBestAttack(active, closest);
-    if (atk) {
+    const aPos = coordToIndex(active.position || "");
+    const cPos = coordToIndex(closest.position || "");
+    const distance = distCells(aPos, cPos);
+    const firstAttack = attacks[0] || null;
+    if (firstAttack && canReach(firstAttack, distance)) {
       sug.push({
         id: `attack-${closest.id}`,
-        label: `Attack ${closest.name || closest.id} (${atk.name || atk.mode || "attack"})`,
-        intent: { kind: "attack", attackerId: active.id, targetId: closest.id, mode: atk.mode, attack: atk }
+        label: `Attack ${closest.name || closest.id} (${firstAttack.name || firstAttack.mode || "attack"})`,
+        intent: { kind: "attack", attackerId: active.id, targetId: closest.id, mode: firstAttack.mode, attack: firstAttack }
+      });
+    } else {
+      sug.push({
+        id: `move-${closest.id}`,
+        label: `Move toward ${closest.name || closest.id}`,
+        intent: { kind: "moveToward", tokenId: active.id, targetId: closest.id }
       });
     }
-    sug.push({
-      id: `move-${closest.id}`,
-      label: `Move toward ${closest.name || closest.id}`,
-      intent: { kind: "moveToward", tokenId: active.id, targetId: closest.id }
-    });
   }
   sug.push({ id: "defend", label: "Defend / Dodge", intent: { kind: "defend", tokenId: active?.id } });
   sug.push({ id: "end", label: "End turn", intent: { kind: "endTurn" } });
