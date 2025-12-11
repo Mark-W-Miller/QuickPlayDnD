@@ -29,6 +29,7 @@ const state = {
     name: "Default",
     gridSizePx: 48,
     gridType: "square",
+    feetPerHex: 12,
     cols: 20,
     rows: 12,
     backgroundUrl: "",

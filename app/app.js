@@ -1083,12 +1083,23 @@ interactionManager.setHandlers({ edit: editSelect, view: viewSelect });
 updateCanvasShield();
 
 webglCanvas.addEventListener("mousedown", (e) => {
-  const mode = interactionMode;
+  let controlsTemporarilyDisabled = false;
+  if (e.shiftKey && three.controls) {
+    controlsTemporarilyDisabled = true;
+    three.controls.enabled = false;
+  }
   const handled = interactionManager.handleDown(e.button, e.shiftKey, e);
   if (handled) {
     e.preventDefault();
     if (e.button === 0) e.stopPropagation();
   }
+  const restore = () => {
+    if (controlsTemporarilyDisabled && three.controls) {
+      three.controls.enabled = true;
+    }
+    window.removeEventListener("mouseup", restore, true);
+  };
+  window.addEventListener("mouseup", restore, true);
 }, true);
 
 webglCanvas.addEventListener("mouseup", (e) => {

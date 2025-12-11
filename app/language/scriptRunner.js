@@ -51,6 +51,7 @@ export const createScriptRunner = ({
         name: "Default Map",
         gridSizePx: 48,
         gridType: "square",
+        feetPerHex: 12,
         cols: 20,
         rows: 12,
         backgroundUrl: "",
@@ -129,6 +130,10 @@ export const createScriptRunner = ({
           const kv = instr.kv || {};
           if (kv.background || kv.bg) map.backgroundUrl = kv.background || kv.bg;
           if (kv.grid) map.gridType = kv.grid.toLowerCase();
+          if (kv.feetperhex) {
+            const num = Number(kv.feetperhex);
+            if (Number.isFinite(num) && num > 0) map.feetPerHex = num;
+          }
           if (kv.size) map.gridSizePx = Number(kv.size);
           if (kv.board) {
             const boardMatch = /^(\d+)[xX](\d+)$/.exec(kv.board);
@@ -183,21 +188,34 @@ export const createScriptRunner = ({
             log(`Token ${instr.tokenId} not found`);
             return;
           }
+          const pathRefs = Array.isArray(instr.coordPath)
+            ? instr.coordPath
+            : typeof instr.path === "string"
+            ? instr.path.split(",").map((s) => s.trim()).filter(Boolean)
+            : null;
+          const pathCoords = Array.isArray(pathRefs) && pathRefs.length
+            ? pathRefs
+                .map((ref) => (typeof ref === "string" ? coordToIndex(ref) : ref))
+                .filter((c) => c && Number.isFinite(c.col) && Number.isFinite(c.row))
+            : instr.coord
+            ? [instr.coord]
+            : [];
+          if (!pathCoords || !pathCoords.length) break;
           state.activeMoves = state.activeMoves.filter(
             (m) => m.tokenId !== token.id && !m.tokenId.startsWith(`${instr.tokenId}-`)
           );
+          const path = [{ col: token.col, row: token.row }, ...pathCoords.map((p) => ({ col: p.col, row: p.row }))];
           state.activeMoves.push({
             tokenId: token.id,
-            from: { col: token.col, row: token.row },
-            to: { col: instr.coord.col, row: instr.coord.row },
+            path,
+            index: 0,
             speed: token.speed || 12,
             progress: 0
           });
+          const last = path[path.length - 1];
           logClass?.(
             "MOVE",
-            `Queued move ${token.id} from (${token.col},${token.row}) to (${instr.coord.col},${instr.coord.row}) speed=${
-              token.speed || 12
-            }`
+            `Queued move ${token.id} path len=${path.length - 1} from (${path[0].col},${path[0].row}) to (${last.col},${last.row}) speed=${token.speed || 12}`
           );
           if (typeof state.renderTokensWindow === "function") {
             state.renderTokensWindow();

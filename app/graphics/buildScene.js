@@ -493,7 +493,19 @@ export const createSceneBuilder = ({
     return baseGroup;
   };
 
-  const buildMovePath = ({ fromPlacement, toPlacement, boardWidth, boardDepth, surfaceY, cellUnit }) => {
+  const refFromCoord = ({ col, row }) => {
+    if (!Number.isFinite(col) || !Number.isFinite(row)) return null;
+    let c = col + 1;
+    let letters = "";
+    while (c > 0) {
+      const rem = (c - 1) % 26;
+      letters = String.fromCharCode(65 + rem) + letters;
+      c = Math.floor((c - 1) / 26);
+    }
+    return `${letters}${row}`;
+  };
+
+  const buildMovePath = ({ fromPlacement, toPlacement, boardWidth, boardDepth, surfaceY, cellUnit, arrow }) => {
     const sampleY = (x, z) => {
       const u = THREE.MathUtils.clamp(x / Math.max(1, boardWidth), 0, 1);
       const v = THREE.MathUtils.clamp(z / Math.max(1, boardDepth), 0, 1);
@@ -513,18 +525,53 @@ export const createSceneBuilder = ({
       const y = sampleY(x, z) + Math.max(0.05, cellUnit * 0.25);
       points.push(new THREE.Vector3(x, y, z));
     }
-    const curve = new THREE.CatmullRomCurve3(points);
-    const tubeRadius = Math.max(cellUnit * 0.15, 0.06);
-    const tubeGeom = new THREE.TubeGeometry(curve, Math.max(2, points.length * 4), tubeRadius, 12, false);
-    const tubeMat = new THREE.MeshBasicMaterial({
+    const feetPerHex = state.map?.feetPerHex || 12;
+    const speedFt = state.lastMoveSpeed;
+    const maxCells = Number.isFinite(speedFt) ? Math.floor(speedFt / Math.max(1, feetPerHex)) : null;
+    state.logClass?.("COMBAT", "Build move path", {
+      from: refFromCoord(arrow?.from) || `${fromPlacement.x.toFixed(1)},${fromPlacement.z.toFixed(1)}`,
+      to: refFromCoord(arrow?.to) || `${toPlacement.x.toFixed(1)},${toPlacement.z.toFixed(1)}`,
+      startY: Number(start.y.toFixed(2)),
+      endY: Number(end.y.toFixed(2)),
+      feetPerHex,
+      speedFt,
+      maxCells,
+      samples: points.length
+    });
+    const ribbonWidth = Math.max(cellUnit * 0.4, 0.2);
+    const positions = [];
+    const indices = [];
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const prev = points[i - 1] || p;
+      const next = points[i + 1] || p;
+      const dir = new THREE.Vector3().subVectors(next, prev);
+      dir.y = 0;
+      if (dir.lengthSq() < 1e-6) dir.set(1, 0, 0);
+      dir.normalize();
+      const perp = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(ribbonWidth * 0.5);
+      const left = p.clone().add(perp);
+      const right = p.clone().add(perp.clone().multiplyScalar(-1));
+      positions.push(left.x, left.y, left.z, right.x, right.y, right.z);
+      if (i < points.length - 1) {
+        const base = i * 2;
+        indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    const mat = new THREE.MeshBasicMaterial({
       color: new THREE.Color("#10b981"), // hardcoded move path color
       transparent: true,
       opacity: 0.9,
-      depthWrite: false
+      depthWrite: false,
+      side: THREE.DoubleSide
     });
-    const tube = new THREE.Mesh(tubeGeom, tubeMat);
-    tube.renderOrder = 6;
-    three.actionArrowGroup.add(tube);
+    const ribbon = new THREE.Mesh(geo, mat);
+    ribbon.renderOrder = 6;
+    three.actionArrowGroup.add(ribbon);
   };
 
   const buildAttackArrow = ({ points, start, end, cellUnit }) => {
@@ -576,7 +623,7 @@ export const createSceneBuilder = ({
     const isMove = kind === "move" || kind === "movetoward" || kind === "movetocell";
 
     if (isMove) {
-      buildMovePath({ fromPlacement, toPlacement, boardWidth, boardDepth, surfaceY, cellUnit });
+      buildMovePath({ fromPlacement, toPlacement, boardWidth, boardDepth, surfaceY, cellUnit, arrow });
     } else {
       const startBaseY = sampleHeightMap(state, fromPlacement.x / Math.max(1, boardWidth), fromPlacement.z / Math.max(1, boardDepth)) + surfaceY;
       const endBaseY = sampleHeightMap(state, toPlacement.x / Math.max(1, boardWidth), toPlacement.z / Math.max(1, boardDepth)) + surfaceY;

@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseScript } from "../app/language/parser.js";
-import { combat, translateIntentToInstructions } from "./combat.js";
+import { combat, translateIntentToInstructions, setCombatLogger } from "./combat.js";
 
 // Toggle logging classes by editing this set. COMMS logs request/response payloads.
 const ENABLED_LOG_CLASSES = new Set(["COMMS", "COMBAT"]);
@@ -67,6 +67,9 @@ const logClass = (cls, message, obj) => {
   const suffix = obj === undefined ? "" : `\n${prettyJson(obj)}`;
   console.log(`[${cls}] ${message}${suffix}`);
 };
+
+// Route COMBAT logging into the shared logger.
+setCombatLogger(logClass);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
@@ -295,26 +298,14 @@ const server = http.createServer(async (req, res) => {
     try {
       const raw = await readBody(req);
       const payload = JSON.parse(raw || "{}");
-      logClass("COMMS", "Choose intent", payload);
-      const intents = Array.isArray(payload.intent) ? payload.intent : [payload.intent];
-      let built = [];
-      intents.forEach((i) => {
-        const instr = translateIntentToInstructions(i);
-        if (Array.isArray(instr) && instr.length) built = built.concat(instr);
-      });
-      if (built.length) {
-        combat.applyInstructions(built);
-        appendInstructions(built);
-        logClass("COMBAT", "Intent applied", { intent: payload.intent, instructions: built });
-      }
-      combat.advanceTurn();
+      logClass("COMMS", "End turn request", payload);
+      const next = combat.advanceTurn();
       sendJson(res, 200, {
         ok: true,
-        activeToken: combat.getActiveTokenId(),
-        round: combat.state.round,
-        instructions: built
+        activeToken: next,
+        round: combat.state.round
       });
-      logClass("COMBAT", "Turn advanced", { active: combat.getActiveTokenId(), round: combat.state.round });
+      logClass("COMBAT", "Turn advanced", { active: next, round: combat.state.round });
     } catch (err) {
       sendJson(res, 400, { error: "Invalid body" });
     }

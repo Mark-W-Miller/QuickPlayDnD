@@ -7,6 +7,10 @@ export function createViewSelectionHandlers({
   refreshTokenHighlights,
   onSelectionChange
 }) {
+  let dragPath = [];
+  let dragMax = Infinity;
+  let dragging = false;
+
   const pickCellFromPoint = (x, z) => {
     const { boardWidth, boardDepth } = state.lastBoard || {};
     const { cols, rows, gridType } = state.map || {};
@@ -74,14 +78,52 @@ export function createViewSelectionHandlers({
     if (boardHits.length) {
       const hit = boardHits[0];
       const cell = pickCellFromPoint(hit.point.x, hit.point.z);
-      if (cell) logClass?.("SELECTION", `View click cell ${cell.ref}`);
+      if (cell) {
+        if (shift) {
+          const selId = Array.from(state.selectedTokenIds || [])[0] || null;
+          const tok = selId ? (state.tokens || []).find((t) => t.id === selId) : null;
+          const feetPerHex = state.map?.feetPerHex || 12;
+          const speedFt = tok?.speed || 0;
+          dragMax = Math.max(1, Math.floor(speedFt / Math.max(1, feetPerHex)));
+          dragPath = [cell.ref];
+          dragging = true;
+          window.dispatchEvent(new CustomEvent("dm-move-path", { detail: { path: dragPath.slice() } }));
+          return true;
+        }
+        logClass?.("SELECTION", `View click cell ${cell.ref}`);
+      }
     }
     return false;
   };
   const onUp = (button, shift, event) => {
+    if (dragging) {
+      dragging = false;
+      window.dispatchEvent(new CustomEvent("dm-move-path", { detail: { path: dragPath.slice() } }));
+      return true;
+    }
     return false;
   };
   const onMove = (event) => {
+    if (!dragging) return false;
+    if (!three?.scene || !three?.camera || !three?.boardMesh || !raycaster || !pointer) return false;
+    const rect = three.renderer?.domElement?.getBoundingClientRect();
+    if (!rect) return false;
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, three.camera);
+    const boardHits = raycaster.intersectObject(three.boardMesh, true);
+    if (boardHits.length) {
+      const hit = boardHits[0];
+      const cell = pickCellFromPoint(hit.point.x, hit.point.z);
+      if (cell) {
+        const last = dragPath[dragPath.length - 1];
+        if (cell.ref !== last && dragPath.length < dragMax) {
+          dragPath.push(cell.ref);
+          window.dispatchEvent(new CustomEvent("dm-move-path", { detail: { path: dragPath.slice() } }));
+          return true;
+        }
+      }
+    }
     return false;
   };
   return { onDown, onUp, onMove };

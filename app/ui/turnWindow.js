@@ -215,7 +215,7 @@ export function initTurnWindow({
     const lines = [];
     if (kind === "move" || kind === "movetocell") {
       if (intent.tokenId && intent.to) {
-        lines.push(`${sug.label || "Move"}:`);
+        lines.push(`# ${sug.label || "Move"}`);
         lines.push(`MOVE ${intent.tokenId} TO ${intent.to}`);
       }
     } else if (kind === "movetoward") {
@@ -228,24 +228,70 @@ export function initTurnWindow({
               row: a.row + Math.sign(t.row - a.row)
             }
           : null;
-        lines.push(`${sug.label || "Move toward"}:`);
+        lines.push(`# ${sug.label || "Move toward"}`);
         lines.push(`MOVE ${intent.tokenId} TO ${step ? refFromColRow(step.col, step.row) : "???"}`);
       }
     } else if (kind === "attack") {
       if (intent.attackerId && intent.targetId) {
         const atkType = intent.mode && intent.mode.toLowerCase().includes("magic") ? "magic" : "physical";
-        lines.push(`${sug.label || "Attack"}:`);
+        lines.push(`# ${sug.label || "Attack"}`);
         lines.push(`ATTACK ${intent.attackerId} -> ${intent.targetId} TYPE ${atkType}`);
       }
     } else if (kind === "defend") {
-      lines.push(`${sug.label || "Defend"}:`);
+      lines.push(`# ${sug.label || "Defend"}`);
       lines.push(`# Defend/Dodge`);
     } else if (kind === "endturn") {
-      lines.push(`${sug.label || "End turn"}:`);
+      lines.push(`# ${sug.label || "End turn"}`);
       lines.push(`# End turn`);
     }
     return lines.join("\n");
   };
+
+  const retargetMove = (ref) => {
+    if (!infoEl || !ref) return;
+    const lines = (infoEl.value || "").split(/\r?\n/);
+    const next = lines.map((ln) => {
+      const m = /^MOVE\s+(\S+)\s+TO\s+(.+)$/i.exec(ln.trim());
+      if (m) return `MOVE ${m[1]} TO ${ref}`;
+      return ln;
+    });
+    infoEl.value = next.join("\n");
+    const activeId = Array.from(state.activeTurnIds || [])[0] || null;
+    const fromPos = activeId ? getTokenPos(activeId) : null;
+    const toPos = parseRef(ref);
+    if (fromPos && toPos) {
+      state.activeArrow = { from: fromPos, to: toPos, kind: "move" };
+      state.renderActionArrow?.();
+    }
+  };
+
+  window.addEventListener("dm-move-target", (e) => {
+    if (!isDM) return;
+    const ref = e.detail?.ref;
+    if (ref) retargetMove(ref);
+  });
+
+  window.addEventListener("dm-move-path", (e) => {
+    if (!isDM) return;
+    const path = e.detail?.path;
+    if (!Array.isArray(path) || !path.length) return;
+    const targetRef = path[path.length - 1];
+    const lines = (infoEl?.value || "").split(/\r?\n/);
+    const next = lines.map((ln) => {
+      const m = /^MOVE\s+(\S+)\s+TO\s+(.+)$/i.exec(ln.trim());
+      if (m) return `MOVE ${m[1]} TO ${path.join(",")}`;
+      return ln;
+    });
+    if (infoEl) infoEl.value = next.join("\n");
+    // Update preview arrow to last point.
+    const activeId = Array.from(state.activeTurnIds || [])[0] || null;
+    const fromPos = activeId ? getTokenPos(activeId) : null;
+    const toPos = parseRef(targetRef);
+    if (fromPos && toPos) {
+      state.activeArrow = { from: fromPos, to: toPos, kind: "move" };
+      state.renderActionArrow?.();
+    }
+  });
 
   // Fetch once on init for DM; subsequent refreshes happen after a choice is posted.
   if (isDM) fetchSuggestions();

@@ -7,7 +7,7 @@
 
 # Sarsu – Paladin/Cleric front-liner
 CREATE template=token-medium id=PC-SAR initials=SA name="Sarsu" faction=pc \
-  bg=#4a90e2 fg=#ffffff speed=20 type=creature size=1 level=5 hp=32 hpMax=32 \
+  bg=#4a90e2 fg=#ffffff speed=100 type=creature size=1 level=5 hp=32 hpMax=32 \
   attacks="Longsword|melee|+6|1d8+3 slashing|reach5|; Sacred Flame|ranged spell|+6|1d8 radiant|range60|save" \
   info="Lvl 5 Paladin-Cleric; front-line support, healing & radiant damage" @ M10
 
@@ -76,13 +76,13 @@ CREATE template=token-small id=OBJ-HORSE2 initials=H2 name="Horse" faction=ally 
 # --- Enemies – Wights emerging from ridges (faction=enemy) -------------
 
 # Northern ridge wights – approaching from the dark heights
-CREATE template=token-medium id=EN-WGT-N initials=WN name="Razorback Wight" faction=enemy \
-  bg=#2d3748 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=32 hpMax=32 \
+CREATE template=token-large id=EN-WGT-N initials=WN name="Razorback Wight" faction=enemy \
+  bg=#2d3748 fg=#e5e7eb speed=60 type=creature size=1 level=4 hp=32 hpMax=32 \
   attacks="Life Drain|melee|+5|1d6+3 necrotic|reach5|lifedrain,reducesmaxhp; Grave Bolt|ranged|+5|1d8 necrotic|range60|necrotic" \
   info="Lvl 4 Wight; chill touch, draining strikes; hunts from the northern ridge" @ H4
 
-CREATE template=token-medium id=EN-WGT-N2 initials=WN name="Razorback Wight" faction=enemy \
-  bg=#2d3748 fg=#e5e7eb speed=25 type=creature size=1 level=4 hp=30 hpMax=30 \
+CREATE template=token-large id=EN-WGT-N2 initials=WN name="Razorback Wight" faction=enemy \
+  bg=#2d3748 fg=#e5e7eb speed=60 type=creature size=1 level=4 hp=30 hpMax=30 \
   attacks="Life Drain|melee|+5|1d6+3 necrotic|reach5|lifedrain,reducesmaxhp; Grave Bolt|ranged|+5|1d8 necrotic|range60|necrotic" \
   info="Lvl 4 Wight; flanks and looks for isolated targets beyond the fire" @ J5
 

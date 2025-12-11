@@ -239,9 +239,17 @@ export const parseScript = (script, { logClass } = {}) => {
       }
       continue;
     }
-    if ((match = /^MOVE\s+([A-Z0-9_-]+)\s+TO\s+([A-Z]\d+)$/i.exec(line))) {
-      const coord = coordToIndex(match[2]);
-      if (coord) instructions.push({ type: "move", tokenId: match[1], coord });
+    if ((match = /^MOVE\s+([A-Z0-9_-]+)\s+TO\s+([A-Z0-9,\s]+)$/i.exec(line))) {
+      const parts = match[2]
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean);
+      const coords = parts.map((p) => coordToIndex(p)).filter(Boolean);
+      if (coords.length > 1) {
+        instructions.push({ type: "move", tokenId: match[1], coordPath: coords });
+      } else if (coords.length === 1) {
+        instructions.push({ type: "move", tokenId: match[1], coord: coords[0] });
+      }
       continue;
     }
     if ((match = /^ATTACK\s+(\w+)\s*->\s*(\w+)\s+TYPE\s+(physical|magic)(?:\s+SPEED\s+(\d+(?:\.\d+)?))?(?:\s+DUR\s+(\d+))?/i.exec(line))) {

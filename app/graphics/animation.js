@@ -17,15 +17,20 @@ export const createAnimationLoop = ({
     state.activeMoves = state.activeMoves.filter((move) => {
       const token = state.tokens.find((t) => t.id.startsWith(move.tokenId));
       if (!token) return false;
-      const dx = move.to.col - token.col;
-      const dz = move.to.row - token.row;
+      const path = move.path || [];
+      if (path.length < 2 || move.index >= path.length - 1) return false;
+      const from = path[move.index];
+      const to = path[move.index + 1];
+      const dx = to.col - token.col;
+      const dz = to.row - token.row;
       const dist = Math.hypot(dx, dz);
       const speed = Math.max(0.01, token.speed || move.speed || 12);
       if (dist < 1e-4) {
-        token.col = move.to.col;
-        token.row = move.to.row;
+        token.col = to.col;
+        token.row = to.row;
+        move.index += 1;
         changed = true;
-        return false;
+        return move.index < path.length - 1;
       }
       const step = speed * dt * (state.moveSpeedScale || 1);
       const ratio = Math.min(1, step / dist);
@@ -33,9 +38,10 @@ export const createAnimationLoop = ({
       token.row += dz * ratio;
       changed = true;
       if (ratio >= 1) {
-        token.col = move.to.col;
-        token.row = move.to.row;
-        return false;
+        token.col = to.col;
+        token.row = to.row;
+        move.index += 1;
+        return move.index < path.length - 1;
       }
       return true;
     });

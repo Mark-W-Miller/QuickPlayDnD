@@ -1,10 +1,16 @@
 // Lightweight combat/turn scaffolding with a basic suggestion engine.
 
+let logFn = () => {};
+export const setCombatLogger = (fn) => {
+  if (typeof fn === "function") logFn = fn;
+};
+
 const combatState = {
   tokens: [], // { id, name, faction, hp, hpMax, position, speed, conditions: [], attacks: [] }
   round: 1,
   initiativeOrder: [], // array of token ids
-  activeIndex: 0
+  activeIndex: 0,
+  feetPerHex: 12
 };
 
 const setInitiativeOrder = (order = []) => {
@@ -119,6 +125,7 @@ const pickBestAttack = (token, target) => {
 const getSuggestions = () => {
   const activeId = getActiveTokenId();
   const active = combatState.tokens.find((t) => t.id === activeId);
+  const feetPerHex = Number.isFinite(combatState.feetPerHex) && combatState.feetPerHex > 0 ? combatState.feetPerHex : 12;
   const faction = (active?.faction || "").toLowerCase();
   const enemies = combatState.tokens.filter((t) => {
     const f = (t.faction || "").toLowerCase();
@@ -141,6 +148,8 @@ const getSuggestions = () => {
       }`
     : "";
   if (closest && active) {
+    const feet = Number(active.speed) || 0;
+    const maxCells = Math.max(0, Math.floor(feet / feetPerHex));
     const aPos = coordToIndex(active.position || "");
     const cPos = coordToIndex(closest.position || "");
     const distance = distCells(aPos, cPos);
@@ -152,10 +161,27 @@ const getSuggestions = () => {
         intent: { kind: "attack", attackerId: active.id, targetId: closest.id, mode: firstAttack.mode, attack: firstAttack }
       });
     } else {
+      // Precompute the furthest reachable cell toward the target.
+      let dest = aPos;
+      if (maxCells > 0 && aPos && cPos) {
+        const dx = cPos.col - aPos.col;
+        const dy = cPos.row - aPos.row;
+        const dist = Math.abs(dx) + Math.abs(dy);
+        if (dist === 0) dest = aPos;
+        else if (dist <= maxCells) dest = cPos;
+        else {
+          const ratio = maxCells / dist;
+          dest = {
+            col: aPos.col + Math.round(dx * ratio),
+            row: aPos.row + Math.round(dy * ratio)
+          };
+        }
+      }
+      logFn("COMBAT", "Suggest move", { from: aPos, to: cPos, dest, feetPerHex, speedFt: feet, maxCells });
       sug.push({
         id: `move-${closest.id}`,
         label: `Move toward ${closest.name || closest.id}`,
-        intent: { kind: "moveToward", tokenId: active.id, targetId: closest.id }
+        intent: { kind: "movetocell", tokenId: active.id, to: refFromCoord(dest) }
       });
     }
   }
@@ -175,6 +201,16 @@ const getSuggestions = () => {
 const applyInstructions = (instructions = []) => {
   instructions.forEach((instr) => {
     switch ((instr.type || "").toLowerCase()) {
+      case "map": {
+        const kv = instr.kv || {};
+        const fphRaw = kv.feetperhex ?? kv.feetPerHex ?? kv.feet_per_hex ?? kv.fph;
+        const fph = Number(fphRaw);
+        if (Number.isFinite(fph) && fph > 0) {
+          combatState.feetPerHex = fph;
+          logFn("COMBAT", `Set feetPerHex=${fph} from MAP`);
+        }
+        break;
+      }
       case "create": {
         const baseId = instr.kv?.id || instr.templateId || instr.code || `T${combatState.tokens.length + 1}`;
         const name = instr.kv?.name || baseId;
@@ -246,6 +282,28 @@ const applyInstructions = (instructions = []) => {
         }
         break;
       }
+      case "clear": {
+        if (instr.scope === "tokens") {
+          combatState.tokens = [];
+        } else {
+          combatState.tokens = [];
+          combatState.tokenDefs = [];
+          combatState.initiativeOrder = [];
+          combatState.activeIndex = 0;
+          combatState.round = 1;
+          combatState.feetPerHex = 12;
+        }
+        break;
+      }
+      case "reset": {
+        combatState.tokens = [];
+        combatState.tokenDefs = [];
+        combatState.initiativeOrder = [];
+        combatState.activeIndex = 0;
+        combatState.round = 1;
+        combatState.feetPerHex = 12;
+        break;
+      }
       default:
         break;
     }
@@ -274,14 +332,51 @@ export const translateIntentToInstructions = (intent) => {
   const kind = (intent.kind || "").toLowerCase();
 
   const tokenById = (id) => combatState.tokens.find((t) => t.id === id || t.id?.startsWith?.(`${id}-`));
+  const feetPerHex = Number.isFinite(combatState.feetPerHex) && combatState.feetPerHex > 0 ? combatState.feetPerHex : 12;
+  const clampMove = (from, to, speedFt) => {
+    if (!from || !to) return null;
+    const maxSteps = Math.max(0, Math.floor((speedFt || 0) / feetPerHex));
+    if (maxSteps <= 0) return from;
+    const dx = to.col - from.col;
+    const dy = to.row - from.row;
+    const dist = Math.abs(dx) + Math.abs(dy);
+    let dest = { ...from };
+    if (dist === 0) {
+      dest = { ...from };
+    } else if (dist <= maxSteps) {
+      dest = { col: to.col, row: to.row };
+    } else {
+      const ratio = maxSteps / dist;
+      dest = {
+        col: from.col + Math.round(dx * ratio),
+        row: from.row + Math.round(dy * ratio)
+      };
+    }
+    logFn("COMBAT", "Clamp move", {
+      feetPerHex,
+      speedFt,
+      maxSteps,
+      from,
+      requested: to,
+      dest,
+      dx,
+      dy,
+      dist
+    });
+    return dest;
+  };
 
   if (kind === "movetocell") {
     const tokenId = intent.tokenId || intent.id || intent.attackerId;
     const coord = coordToIndex(intent.to || intent.cell || intent.ref || "");
     if (tokenId && coord) {
-      instructions.push({ type: "move", tokenId, coord });
-      const t = tokenById(tokenId);
-      if (t) t.position = refFromCoord(coord) || t.position;
+      const actor = tokenById(tokenId);
+      const aPos = coordToIndex(actor?.position || "");
+      const dest = clampMove(aPos, coord, actor?.speed);
+      if (dest) {
+        instructions.push({ type: "move", tokenId, coord: dest });
+        if (actor) actor.position = refFromCoord(dest) || actor.position;
+      }
     }
   }
 
@@ -292,12 +387,11 @@ export const translateIntentToInstructions = (intent) => {
     const aPos = coordToIndex(actor?.position || "");
     const tPos = coordToIndex(target?.position || "");
     if (tokenId && aPos && tPos) {
-      const step = {
-        col: aPos.col + Math.sign(tPos.col - aPos.col),
-        row: aPos.row + Math.sign(tPos.row - aPos.row)
-      };
-      instructions.push({ type: "move", tokenId, coord: step });
-      if (actor) actor.position = refFromCoord(step) || actor.position;
+      const dest = clampMove(aPos, tPos, actor?.speed);
+      if (dest) {
+        instructions.push({ type: "move", tokenId, coord: dest });
+        if (actor) actor.position = refFromCoord(dest) || actor.position;
+      }
     }
   }
 

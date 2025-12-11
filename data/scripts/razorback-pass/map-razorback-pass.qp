@@ -7,7 +7,7 @@ RESET
 CLEAR ALL
 
 # --- Map & Grid --------------------------------------------------------
-MAP background=data/scripts/razorback-pass/images/razorback_pass_map.png grid=hex size=33.4 board=26x20
+MAP background=data/scripts/razorback-pass/images/razorback_pass_map.png grid=hex size=33.4 board=26x20 feetPerHex=6
 
 # --- Heightmap (0..60 scaled elevations) -------------------------------
 HEIGHT_START
@@ -35,5 +35,4 @@ END_HEIGHT
 
 # Road annotation (authoring only – engine ignores)
 ROADS Z3, Z4, Y4, X4, X5, W5, V5, U5, T5, S5, R5, R6, Q6, P7, P8, O8, N9, N10, K11, J11, I11, I12, H12, H13, G13, G14, E16, D16, A17, A18, B17, C17, F16, F15, M10, L10, O9, Y3, J12, O7, S6, T6, E15
-
 

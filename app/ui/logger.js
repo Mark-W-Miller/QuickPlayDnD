@@ -72,7 +72,20 @@ export const initLogger = ({
 
   loadHistory();
   loadEnabled();
-  const bootstrapClasses = ["INFO", "BUILD", "CAMERA", "3DLOAD", "SELECTION", "MOVE", "ERROR", "UPDATE", "WARN"];
+  const bootstrapClasses = [
+    "INFO",
+    "BUILD",
+    "CAMERA",
+    "3DLOAD",
+    "SELECTION",
+    "MOVE",
+    "COMBAT",
+    "COMMS",
+    "PARSE",
+    "ERROR",
+    "UPDATE",
+    "WARN"
+  ];
   bootstrapClasses.forEach((c) => state.classes.add(c));
   if (!state.enabledClasses.size) {
     bootstrapClasses.forEach((c) => state.enabledClasses.add(c));
@@ -100,6 +113,16 @@ export const initLogger = ({
       if (entry.class === "ERROR") div.classList.add("log-error");
       div.appendChild(tag);
       div.appendChild(text);
+      if (entry.data !== undefined && entry.data !== null) {
+        const pre = document.createElement("pre");
+        pre.className = "log-data";
+        try {
+          pre.textContent = typeof entry.data === "string" ? entry.data : JSON.stringify(entry.data, null, 2);
+        } catch {
+          pre.textContent = String(entry.data);
+        }
+        div.appendChild(pre);
+      }
       logEl.appendChild(div);
     });
     if (visible.length) logEl.scrollTop = logEl.scrollHeight;
